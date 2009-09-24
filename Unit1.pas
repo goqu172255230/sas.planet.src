@@ -58,7 +58,9 @@ uses
   UThreadExport,
   UResStrings,
   UFillingMap,
-  u_MemFileCache;
+  u_MemFileCache,
+  u_CoordConverterAbstract,
+  midaslib;
 
 type
   TlastLoad = record
@@ -637,9 +639,30 @@ var
   function URLEncode(const S: string): string;
 
 implementation
-uses Unit2,UAbout,Usettings,USaveas,UProgress,UaddPoint,Unit4, USelLonLat, StrUtils, UImgFun,
-     UtimeZones, UaddLine, UaddPoly, DateUtils, UEditMap, Ubrowser, Types,UMarksExplorer,UFDGAvailablePic,
-  USearchResult, UImport, UAddCategory;
+uses
+  StrUtils,
+  DateUtils,
+  Types,
+  Unit2,
+  UAbout,
+  Usettings,
+  USaveas,
+  UProgress,
+  UaddPoint,
+  Unit4,
+  USelLonLat,
+  UImgFun,
+  UtimeZones,
+  UaddLine,
+  UaddPoly,
+  UEditMap,
+  Ubrowser,
+  UMarksExplorer,
+  UFDGAvailablePic,
+  USearchResult,
+  UImport,
+  UAddCategory;
+
 {$R *.dfm}
 procedure TFMain.Set_Pos(const Value:TPoint);
 begin
@@ -2399,6 +2422,11 @@ var  Ini: TMeminifile;
 begin
  if start=false then exit;
  Fmain.Enabled:=false;
+ if FileExists(extractfilepath(paramstr(0))+'SASPlanet.RUS') then
+  begin
+   DeleteFile(extractfilepath(paramstr(0))+'SASPlanet.RUS');
+  end;
+
  Ini:=TMeminiFile.Create(copy(paramstr(0),1,length(paramstr(0))-4)+'.ini');
  Maximized:=Ini.Readbool('VIEW','Maximized',true);
  vo_ves_ecran:=Ini.Readbool('VIEW','FullScreen',false);
@@ -4640,6 +4668,7 @@ end;
 procedure TFmain.TBEditPathSaveClick(Sender: TObject);
 var result:boolean;
 begin
+  result := false;
  case aoper of
   add_Poly: result:=FaddPoly.show_(add_line_arr,true);
   add_Line: result:=FaddLine.show_(add_line_arr,true);

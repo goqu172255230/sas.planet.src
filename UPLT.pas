@@ -1,6 +1,18 @@
 unit UPLT;
+
 interface
-uses Classes,SysUtils,GR32,StrUtils,Ugeofun,Windows, UResStrings, Graphics, unit1;
+
+uses
+  Windows,
+  Classes,
+  SysUtils,
+  Graphics,
+  StrUtils,
+  GR32,
+  Ugeofun,
+  UResStrings,
+  unit1,
+  u_CoordConverterAbstract;
 
 type
  TPLTData = record
@@ -44,6 +56,7 @@ var pltstr:TStringList;
     str,trackname:string;
     i,j:integer;
 begin
+ Result := false;
  if FileExists(FileName) then
   begin
    pltstr:=TStringList.Create;

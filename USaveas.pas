@@ -1,10 +1,34 @@
 unit USaveas;
+
 interface
+
 uses
- Windows, SysUtils, Graphics, Forms, CheckLst, Classes, Controls,
- math, StdCtrls, ExtCtrls, UTrAllLoadMap, UThreadScleit, Mask, UThreadExport,
- ComCtrls, UGeoFun, inifiles, UMapType, UResStrings,
- filectrl, Buttons, Spin, UOpDelTiles, UOpGenPreviousZoom, Dialogs;
+  Windows,
+  SysUtils,
+  Graphics,
+  Forms,
+  Buttons,
+  Spin,
+  CheckLst,
+  Classes,
+  Controls,
+  Dialogs,
+  math,
+  StdCtrls,
+  ExtCtrls,
+  inifiles,
+  ComCtrls,
+  Mask,
+  filectrl,
+  UTrAllLoadMap,
+  UThreadScleit,
+  UThreadExport,
+  UGeoFun,
+  UMapType,
+  UResStrings,
+  UOpDelTiles,
+  UOpGenPreviousZoom,
+  u_CoordConverterAbstract;
 
 type
   TFsaveas = class(TForm)
@@ -181,7 +205,13 @@ var
   PolygonLL:array of TExtendedPoint;
 
 implementation
-uses unit1, Gauges, Unit4, UImgFun;
+
+uses
+  Gauges,
+  unit1,
+  Unit4,
+  UImgFun;
+  
 {$R *.dfm}
 
 function PolygonSquare(Poly:array of TPoint): Double;

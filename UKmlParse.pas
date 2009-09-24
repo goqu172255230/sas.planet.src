@@ -1,6 +1,17 @@
 unit UKmlParse;
+
 interface
-uses Classes,SysUtils,GR32,StrUtils,Ugeofun,Windows, UResStrings, Graphics;
+
+uses
+  Windows,
+  Classes,
+  Graphics,
+  StrUtils,
+  SysUtils,
+  GR32,
+  Ugeofun,
+  UResStrings,
+  u_CoordConverterAbstract;
 
 type
  TStyle = class
@@ -37,8 +48,11 @@ type
 
 var Style:TStyle;
     StyleMap:TStyleMap;
+
 implementation
-uses unit1;
+
+uses
+  unit1;
 
 function Sha_SpaceCompress(const s: string): string;
 var p, q, t: pchar;

@@ -1,6 +1,17 @@
 unit UWikiLayer;
+
 interface
-uses Classes,GR32,UgeoFun,math,UKmlParse,UMapType, UResStrings;
+
+uses
+  Classes,
+  math,
+  GR32,
+  UgeoFun,
+  UKmlParse,
+  UMapType,
+  UResStrings,
+  u_CoordConverterAbstract;
+
 type
   TWikiLayer = class
    public
@@ -21,7 +32,12 @@ var WikiLayer:array of TWikiLayer;
     procedure MouseOnReg(var PWL:TResObj;xy:TPoint);
 
 implementation
-uses unit1, SysUtils, StrUtils, UImgFun;
+
+uses
+  SysUtils,
+  StrUtils,
+  unit1,
+  UImgFun;
 
 procedure MouseOnReg(var PWL:TResObj;xy:TPoint);
 var i,j:integer;

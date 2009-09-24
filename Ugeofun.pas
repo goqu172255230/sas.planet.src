@@ -1,7 +1,16 @@
 unit Ugeofun;
 
-interface              
-uses StrUtils,SysUtils,Types,Math,UMapType,ECWReader;
+interface
+
+uses
+  StrUtils,
+  SysUtils,
+  Types,
+  Math,
+  UMapType,
+  ECWReader,
+  u_CoordConverterAbstract;
+  
 type
  TDMS = record
   D,M,S: extended;
@@ -10,10 +19,6 @@ type
 
  TRealPoint = record
    X, Y: Real;
- end;
-
- TExtendedPoint = record
-   X, Y: Extended;
  end;
 
  TResObjType = (ROTpoint,ROTline,ROTPoly);
@@ -53,8 +58,11 @@ var
   Procedure GetMinMax(var min,max:TPoint; Polyg:array of Tpoint;round_:boolean);
   function GetDwnlNum(var min,max:TPoint; Polyg:array of Tpoint; getNum:boolean):longint;
   function RgnAndRgn(Polyg:array of TPoint;x,y:integer;prefalse:boolean):boolean;
+
 implementation
-uses Unit1;
+
+uses
+  Unit1;
 
 function RgnAndRgn(Polyg:array of TPoint;x,y:integer;prefalse:boolean):boolean;
 var i,xm128,ym128,xp128,yp128:integer;

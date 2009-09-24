@@ -3,9 +3,23 @@ unit UMarksExplorer;
 interface
 
 uses
-  Windows, Messages, SysUtils, Variants, Classes, Graphics, Controls, Forms,
-  Dialogs, StdCtrls, CheckLst, Buttons, ComCtrls,UResStrings, UGeoFun,
-  ExtCtrls, DBClient;
+  Windows,
+  Messages,
+  SysUtils,
+  Variants,
+  Classes,
+  Graphics,
+  Controls,
+  Forms,
+  Dialogs,
+  StdCtrls,
+  CheckLst,
+  Buttons,
+  ComCtrls,
+  ExtCtrls,
+  DBClient,
+  UResStrings,
+  UGeoFun;
 
 type
   TFMarksExplorer = class(TForm)
@@ -84,8 +98,17 @@ var
 
 implementation
 
-uses Unit1, DB, USaveas, UaddPoint, UaddPoly, UaddLine, UImport,
-  UAddCategory, Math;
+uses
+  Math,
+  DB,
+  Unit1,
+  USaveas,
+  UaddPoint,
+  UaddPoly,
+  UaddLine,
+  UImport,
+  UAddCategory,
+  u_CoordConverterAbstract;
 
 {$R *.dfm}
 function EditMark(id:integer):boolean;
@@ -94,21 +117,33 @@ var arrLL:PArrLL;
     ms:TMemoryStream;
     i:integer;
 begin
- FMain.CDSmarks.Locate('id',id,[]);
- ms:=TMemoryStream.Create;
- TBlobField(Fmain.CDSmarks.FieldByName('LonLatArr')).SaveToStream(ms);
- GetMem(arrLL,ms.size);
- SetLength(arLL,ms.size div 24);
- ms.Position:=0;
- ms.ReadBuffer(arrLL^,ms.size);
- for i:=0 to length(arLL)-1 do arLL[i]:=arrLL^[i];
- if ms.Size=24 then result:=FaddPoint.Show_(arLL[0],false);
- if (ms.Size>24) then
-  if compare2EP(arLL[0],arLL[length(arLL)-1]) then result:=FaddPoly.show_(arLL,false)
-                                              else result:=FaddLine.show_(arLL,false);
- freeMem(arrLL);
- SetLength(arLL,0);
- ms.Free;
+  FMain.CDSmarks.Locate('id',id,[]);
+  ms:=TMemoryStream.Create;
+  try
+    TBlobField(Fmain.CDSmarks.FieldByName('LonLatArr')).SaveToStream(ms);
+    GetMem(arrLL,ms.size);
+    SetLength(arLL,ms.size div 24);
+    ms.Position:=0;
+    ms.ReadBuffer(arrLL^,ms.size);
+    for i:=0 to length(arLL)-1 do arLL[i]:=arrLL^[i];
+    Result := false;
+    if ms.Size=24 then begin
+      result:=FaddPoint.Show_(arLL[0],false);
+    end else begin
+      if (ms.Size>24) then begin
+        if compare2EP(arLL[0],arLL[length(arLL)-1]) then begin
+          result:=FaddPoly.show_(arLL,false);
+        end else begin
+          result:=FaddLine.show_(arLL,false);
+        end
+      end;
+    end;
+
+    freeMem(arrLL);
+    SetLength(arLL,0);
+  finally
+    ms.Free;
+  end;
 end;
 
 procedure Kategory2Strings(strings:TStrings);

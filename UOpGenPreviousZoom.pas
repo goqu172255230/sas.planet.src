@@ -16,7 +16,8 @@ uses
   UMapType,
   UGeoFun,
   unit4,
-  UResStrings;
+  UResStrings,
+  u_CoordConverterAbstract;
 
 type
   TOpGenPreviousZoom = class(TThread)
@@ -60,6 +61,7 @@ type
   end;
 
 implementation
+
 uses
   unit1;
 

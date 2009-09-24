@@ -1,6 +1,7 @@
 unit UMapType;
 
 interface
+
 uses
   Windows,
   Forms,
@@ -99,6 +100,7 @@ var
   function GetMapFromID(id:string):TMapType;
 
 implementation
+
 uses
   pngimage,
   IJL,
@@ -517,8 +519,13 @@ function TMapType.GetLink(x,y:Integer;Azoom:byte): string;
 begin
   if (FUrlGenerator = nil) then result:='';
   if not(Azoom in [1..24]) then raise Exception.Create('Ошибочный Zoom');
+  if x>=0 then x:=x mod zoom[Azoom]
+          else x:=zoom[Azoom]+(x mod zoom[Azoom]);
+  if y>=0 then y:=y mod zoom[Azoom]
+              else y:=zoom[Azoom]+(y mod zoom[Azoom]);
+
   FUrlGenerator.GetURLBase:=URLBase;
-  Result:=FUrlGenerator.GenLink(x,y,Azoom-1);
+  Result:=FUrlGenerator.GenLink(x shr 8,y shr 8,Azoom-1);
 end;
 
 function TMapType.GetMapSize(zoom:byte):longint;

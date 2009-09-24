@@ -31,7 +31,7 @@ function TCoordConverterSimpleLonLat.LonLat2Pos(Ll: TExtendedPoint;
 var
   TilesAtZoom : Integer;
 begin
-  TilesAtZoom := (1 shl Azoom)*256;
+  TilesAtZoom := (1 shl Azoom);
   Result.x := round(TilesAtZoom / 2 + Ll.x * (TilesAtZoom / 360));
   Result.y := round(TilesAtZoom / 2 - Ll.y * (TilesAtZoom / 360));
 end;
@@ -41,7 +41,7 @@ function TCoordConverterSimpleLonLat.Pos2LonLat(XY: TPoint;
 var
   TilesAtZoom : Integer;
 begin
-  TilesAtZoom := (1 shl Azoom)*256;
+  TilesAtZoom := (1 shl Azoom);
   //XY.x := XY.x mod TilesAtZoom;
   if XY.x < 0 then XY.x := XY.x + TilesAtZoom;
   Result.X := (XY.x - TilesAtZoom / 2) / (TilesAtZoom / 360);

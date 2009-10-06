@@ -356,7 +356,7 @@ begin
   Vurl := MT.GetLink(AXY.X, AXY.Y, AZoom);
   sleep(MT.Sleep);
   result:=0;
-  if close_ then exit;
+  if terminated then exit;
   ty:='';len:='0';
   if Assigned(hSession)then
    begin
@@ -484,11 +484,11 @@ var i,j,ii,k,r,XX,YY,g,x,y,m1,num_dwn:integer;
 begin
   num_dwn:=0;
   repeat
-    if(change_scene=false)then begin
+    if(not FMain.change_scene)then begin
       sleep(100);
       continue;
     end;
-    change_scene:=false;
+    FMain.change_scene:=false;
     Synchronize(GetSmb);
     addDwnforban;
     j:=0;
@@ -505,7 +505,7 @@ begin
         if g=0 then i:=0;
         x:=(hg_x div 2)+i;
         y:=(hg_y div 2)+j;
-        if(change_scene) then continue;
+        if(FMain.change_scene) then continue;
         Synchronize(getsmb);
         Synchronize(getpos);
         for ii:=0 to length(MapType)-1 do begin

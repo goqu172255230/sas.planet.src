@@ -1598,7 +1598,7 @@ var LLRect:TExtendedRect;
     indexmi:integer;
     imw,texth:integer;
     marksFilter:string;
-begin
+begin                     
  if (GState.show_point = mshNone) then
   begin
    LayerMapMarks.Visible:=false;

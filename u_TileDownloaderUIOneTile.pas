@@ -8,21 +8,14 @@ uses
   Types,
   t_LoadEvent,
   u_TileDownloaderBase,
+  u_TileDownloaderThreadBase,
   UMapType;
 
 type
-  TTileDownloaderUIOneTile = class(TThread)
+  TTileDownloaderUIOneTile = class(TTileDownloaderThreadBase)
   private
     FLastLoad: TlastLoad;
-    FTypeMap: TMapType;
-    FLoadXY: TPoint;
-    FZoom: byte;
     FErrorString: string;
-    FLoadUrl: string;
-    FDownloader: TTileDownloaderBase;
-    function DownloadTile(AXY: TPoint; AZoom: byte;MT:TMapType; AOldTileSize: Integer; out ty: string; fileBuf:TMemoryStream): TDownloadTileResult;
-    procedure ban;
-    function GetErrStr(Aerr: TDownloadTileResult): string;
     procedure AfterWriteToFile;
   protected
     procedure Execute; override;
@@ -41,8 +34,6 @@ uses
   Unit1;
 
 constructor TTileDownloaderUIOneTile.Create(AXY: TPoint; AZoom: byte; MT:TMapType);
-var
-  VDownloadTryCount: Integer;
 begin
   inherited Create(False);
   FLoadXY := AXY;
@@ -51,51 +42,12 @@ begin
 
   Priority := tpLower;
   FreeOnTerminate := true;
-  if GState.TwoDownloadAttempt then begin
-    VDownloadTryCount := 2;
-  end else begin
-    VDownloadTryCount := 1;
-  end;
-  FDownloader := TTileDownloaderBase.Create(MT.CONTENT_TYPE, VDownloadTryCount, GState.InetConnect);
   randomize;
 end;
 
 destructor TTileDownloaderUIOneTile.Destroy;
 begin
-  FreeAndNil(FDownloader);
   inherited;
-end;
-
-
-function TTileDownloaderUIOneTile.GetErrStr(Aerr: TDownloadTileResult): string;
-begin
- case Aerr of
-  dtrProxyAuthError: result:=SAS_ERR_Authorization;
-  dtrBanError: result:=SAS_ERR_Ban;
-  dtrTileNotExists: result:=SAS_ERR_TileNotExists;
-  dtrDownloadError,
-  dtrErrorInternetOpen,
-  dtrErrorInternetOpenURL: result:=SAS_ERR_Noconnectionstointernet;
-  dtrErrorMIMEType: result := 'Ошибочный тип данных'; //TODO: Заменить на ресурсную строку
-  dtrUnknownError: Result := 'Неизвестная ошибка при скачивании'
-  else result:='';
- end;
-end;
-
-function TTileDownloaderUIOneTile.DownloadTile(AXY: TPoint; AZoom: byte;
-  MT: TMapType; AOldTileSize: Integer; out ty: string; fileBuf: TMemoryStream): TDownloadTileResult;
-var
-  StatusCode: Cardinal;
-begin
-  Result := dtrUnknownError;
-  if terminated then exit;
-  FLoadUrl := MT.GetLink(AXY.X, AXY.Y, AZoom);
-  FDownloader.ExpectedMIMETypes := MT.CONTENT_TYPE;
-  FDownloader.SleepOnResetConnection := MT.Sleep;
-  Result := FDownloader.DownloadTile(FLoadUrl, false, 0, fileBuf, StatusCode, ty);
-  if MT.CheckIsBan(AXY, AZoom, StatusCode, ty, fileBuf) then begin
-    result := dtrBanError;
-  end;
 end;
 
 procedure TTileDownloaderUIOneTile.AfterWriteToFile;
@@ -105,11 +57,6 @@ begin
    Fmain.generate_im(FLastLoad, FErrorString);
   end
  else Fmain.toSh;
-end;
-
-procedure TTileDownloaderUIOneTile.ban;
-begin
-  FTypeMap.ExecOnBan(FLoadUrl);
 end;
 
 procedure TTileDownloaderUIOneTile.Execute;
@@ -126,7 +73,7 @@ begin
   if FTypeMap.UseDwn then begin
     FileBuf:=TMemoryStream.Create;
     try
-      res :=DownloadTile(FLoadXY, FZoom, FTypeMap, 0, ty, fileBuf);
+      res :=FTypeMap.DownloadTile(FLoadXY, FZoom, false, 0, FLoadUrl, ty, fileBuf);
       if res = dtrBanError  then begin
         Synchronize(Ban);
       end;

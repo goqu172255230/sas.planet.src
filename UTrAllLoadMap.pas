@@ -13,17 +13,12 @@ uses
   t_LoadEvent,
   UMapType,
   u_TileDownloaderBase,
+  u_TileDownloaderThreadBase,
   UResStrings;
 
 type
-  ThreadAllLoadMap = class(TThread)
+  ThreadAllLoadMap = class(TTileDownloaderThreadBase)
   private
-    FTypeMap: TMapType;
-    FLoadXY: TPoint;
-    FZoom:byte;
-    FLoadUrl: string;
-    FDownloader: TTileDownloaderBase;
-
     Poly:TPointArray;
     zamena:boolean;
     StartPoint:TPoint;
@@ -39,14 +34,11 @@ type
     scachano,num_dwn,obrab,vsego:integer;
     dwnb:real;
     AddToMemo,TimeEnd,LenEnd:string;
-    function GetErrStr(Aerr: TDownloadTileResult): string;
     procedure UpdateMemoProgressForm;
     procedure UpdateMemoAddProgressForm;
     procedure SetProgressForm;
     procedure UpdateProgressForm;
     procedure CloseProgressForm;
-    function DownloadTile(AXY: TPoint; AZoom: byte;MT:TMapType; AOldTileSize: Integer; out ty: string; fileBuf:TMemoryStream): TDownloadTileResult;
-    procedure ban;
     function GetTimeEnd(loadAll,load:integer):String;
     function GetLenEnd(loadAll,obrab,loaded:integer;len:real):string;
   protected
@@ -76,7 +68,6 @@ uses
 constructor ThreadAllLoadMap.Create(APolygon_:TPointArray;Azamena,ACheckExistTileSize,Azdate,ASecondLoadTNE:boolean;AZoom:byte;Atypemap:TMapType;AFDate:TDateTime);
 var
   i: integer;
-  VDownloadTryCount: Integer;
 begin
   inherited Create(false);
   OnTerminate:=Fmain.ThreadDone;
@@ -99,13 +90,6 @@ begin
   obrab:=0;
   dwnb:=0;
 
-  if GState.TwoDownloadAttempt then begin
-    VDownloadTryCount := 2;
-  end else begin
-    VDownloadTryCount := 1;
-  end;
-  FDownloader := TTileDownloaderBase.Create(FTypeMap.CONTENT_TYPE, VDownloadTryCount, GState.InetConnect);
-
   Application.CreateForm(TFProgress, _FProgress);
   _FProgress.ButtonSave.OnClick:=ButtonSaveClick;
   SetProgressForm;
@@ -119,7 +103,6 @@ var
   Ini: Tinifile;
   i: integer;
   Guids: string;
-  VDownloadTryCount: Integer;
 begin
   inherited Create(false);
   OnTerminate:=Fmain.ThreadDone;
@@ -165,13 +148,6 @@ begin
   num_dwn:=GetDwnlNum(min,max,poly,true);
   vsego:=num_dwn;
 
-  if GState.TwoDownloadAttempt then begin
-    VDownloadTryCount := 2;
-  end else begin
-    VDownloadTryCount := 1;
-  end;
-  FDownloader := TTileDownloaderBase.Create(FTypeMap.CONTENT_TYPE, VDownloadTryCount, GState.InetConnect);
-
   Application.CreateForm(TFProgress, _FProgress);
   _FProgress.ButtonSave.OnClick:=ButtonSaveClick;
   SetProgressForm;
@@ -182,7 +158,6 @@ end;
 
 destructor ThreadAllLoadMap.Destroy;
 begin
-  FreeAndNil(FDownloader);
   inherited;
 end;
 
@@ -311,42 +286,6 @@ begin
   Result:=Result+TimeToStr((Time1*(loadAll / load))-Time1);
 end;
 
-procedure ThreadAllLoadMap.ban;
-begin
-  FTypeMap.ExecOnBan(FLoadUrl);
-end;
-
-function ThreadAllLoadMap.DownloadTile(AXY: TPoint; AZoom: byte;
-  MT: TMapType; AOldTileSize: Integer; out ty: string; fileBuf: TMemoryStream): TDownloadTileResult;
-var
-  StatusCode: Cardinal;
-begin
-  Result := dtrUnknownError;
-  if terminated then exit;
-  FLoadUrl := MT.GetLink(AXY.X, AXY.Y, AZoom);
-  FDownloader.ExpectedMIMETypes := MT.CONTENT_TYPE;
-  FDownloader.SleepOnResetConnection := MT.Sleep;
-  Result := FDownloader.DownloadTile(FLoadUrl, CheckExistTileSize, AOldTileSize, fileBuf, StatusCode, ty);
-  if MT.CheckIsBan(AXY, AZoom, StatusCode, ty, fileBuf) then begin
-    result := dtrBanError;
-  end;
-end;
-
-function ThreadAllLoadMap.GetErrStr(Aerr: TDownloadTileResult): string;
-begin
- case Aerr of
-  dtrProxyAuthError: result:=SAS_ERR_Authorization;
-  dtrBanError: result:=SAS_ERR_Ban;
-  dtrTileNotExists: result:=SAS_ERR_TileNotExists;
-  dtrDownloadError,
-  dtrErrorInternetOpen,
-  dtrErrorInternetOpenURL: result:=SAS_ERR_Noconnectionstointernet;
-  dtrErrorMIMEType: result := 'Ошибочный тип данных'; //TODO: Заменить на ресурсную строку
-  dtrUnknownError: Result := 'Неизвестная ошибка при скачивании'
-  else result:='';
- end;
-end;
-
 procedure ThreadAllLoadMap.Execute;
 var
   p_x,p_y: integer;
@@ -406,7 +345,7 @@ begin
                 res := dtrTileNotExists;
               end else begin
                 sleep(FTypeMap.Sleep);
-                res:=DownloadTile(FLoadXY, FZoom, FTypeMap, razlen, ty, fileBuf);
+                res:=FTypeMap.DownloadTile(FLoadXY, FZoom, CheckExistTileSize,  razlen, FLoadUrl, ty, fileBuf);
                 case res of
                   dtrOK,
                   dtrSameTileSize,

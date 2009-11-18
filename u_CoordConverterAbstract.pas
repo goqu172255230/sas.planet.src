@@ -195,7 +195,11 @@ begin
   if (Self = nil) or (AOtherMapCoordConv = nil) then begin
     Result := XY;
   end else begin
-    Result := AOtherMapCoordConv.LonLat2Pos(Pos2LonLatInternal(XY, Azoom), Azoom);
+    if Azoom > 23 then begin
+      Result := AOtherMapCoordConv.LonLat2PixelPos(PixelPos2LonLat(XY, Azoom - 8), Azoom - 8);
+    end else begin
+      Result := AOtherMapCoordConv.LonLat2TilePos(TilePos2LonLat(XY, Azoom), Azoom);
+    end;
   end;
 end;
 
@@ -203,7 +207,6 @@ end;
 //------------------------------------------------------------------------------
 procedure TCoordConverterAbstract.CheckZoomInternal(var AZoom: Byte);
 begin
-  Exit;
   if AZoom > 23 then begin
     Assert(False, 'Слишком большой зум ' + IntToStr(AZoom));
     AZoom := 23;
@@ -213,7 +216,6 @@ procedure TCoordConverterAbstract.CheckTilePosInternal(var XY: TPoint; var Azoom
 var
   VTilesAtZoom: Integer;
 begin
-  Exit;
   if AZoom > 23 then begin
     Assert(False, 'Слишком большой зум ' + IntToStr(AZoom));
     AZoom := 23;
@@ -243,7 +245,6 @@ procedure TCoordConverterAbstract.CheckTileRectInternal(var XY: TRect; var Azoom
 var
   VTilesAtZoom: Integer;
 begin
-  Exit;
   if AZoom > 23 then begin
     Assert(False, 'Слишком большой зум ' + IntToStr(AZoom));
     AZoom := 23;
@@ -291,7 +292,6 @@ procedure TCoordConverterAbstract.CheckTilePosStrictInternal(var XY: TPoint; var
 var
   VTilesAtZoom: Integer;
 begin
-  Exit;
   if AZoom > 23 then begin
     Assert(False, 'Слишком большой зум ' + IntToStr(AZoom));
     AZoom := 23;
@@ -321,7 +321,6 @@ procedure TCoordConverterAbstract.CheckPixelPosInternal(var XY: TPoint; var Azoo
 var
   VPixelsAtZoom: Integer;
 begin
-  Exit;
   if AZoom > 23 then begin
     Assert(False, 'Слишком большой зум ' + IntToStr(AZoom));
     AZoom := 23;
@@ -357,7 +356,6 @@ procedure TCoordConverterAbstract.CheckPixelRectInternal(var XY: TRect; var Azoo
 var
   VPixelsAtZoom: Integer;
 begin
-  Exit;
   if AZoom > 23 then begin
     Assert(False, 'Слишком большой зум ' + IntToStr(AZoom));
     AZoom := 23;
@@ -408,7 +406,6 @@ procedure TCoordConverterAbstract.CheckPixelPosStrictInternal(var XY: TPoint; va
 var
   VPixelsAtZoom: Integer;
 begin
-  Exit;
   if AZoom > 23 then begin
     Assert(False, 'Слишком большой зум ' + IntToStr(AZoom));
     AZoom := 23;
@@ -437,7 +434,6 @@ end;
 
 procedure TCoordConverterAbstract.CheckRelativePosInternal(var XY: TExtendedPoint);
 begin
-  Exit;
   if XY.X < 0 then begin
     Assert(False, 'Относительная координата X не может быть меньше нуля');
     XY.X := 0;
@@ -460,7 +456,6 @@ begin
 end;
 procedure TCoordConverterAbstract.CheckRelativeRectInternal(var XY: TExtendedRect);
 begin
-  Exit;
   if XY.Left < 0 then begin
     Assert(False, 'Относительная координата X не может быть меньше нуля');
     XY.Left := 0;
@@ -504,7 +499,6 @@ end;
 
 procedure TCoordConverterAbstract.CheckLonLatPosInternal(var XY: TExtendedPoint);
 begin
-  Exit;
   if XY.X < FValidLonLatRect.Left then begin
     Assert(False, 'Долгота не может быть меньше чем ' + FloatToStr(FValidLonLatRect.Left));
     XY.X := FValidLonLatRect.Left;
@@ -526,7 +520,6 @@ begin
 end;
 procedure TCoordConverterAbstract.CheckLonLatRectInternal(var XY: TExtendedRect);
 begin
-  Exit;
   if XY.Left < FValidLonLatRect.Left then begin
     Assert(False, 'Долгота не может быть меньше чем ' + FloatToStr(FValidLonLatRect.Left));
     XY.Left := FValidLonLatRect.Left;

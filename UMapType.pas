@@ -162,6 +162,7 @@ var
 implementation
 
 uses
+  Types,
   pngimage,
   IJL,
   jpeg,
@@ -1077,57 +1078,62 @@ begin
   VPath := GetTileFileName(x, y, Azoom);
 
   CreateDirIfNotExists(VPath);
-  if ((copy(ty,1,8)='text/xml')or(ty='application/vnd.google-earth.kmz'))and(ext='.kml')then begin
-    try
-      UnZip:=TVCLUnZip.Create(Fmain);
-      UnZip.ArchiveStream:=TMemoryStream.Create;
-      ATileStream.SaveToStream(UnZip.ArchiveStream);
-      UnZip.ReadZip;
-      ATileStream.Position:=0;
-      UnZip.UnZipToStream(ATileStream,UnZip.Filename[0]);
-      UnZip.Free;
+  if ext='.kml' then begin
+    if (ty='application/vnd.google-earth.kmz') then begin
+      try
+        UnZip:=TVCLUnZip.Create(Fmain);
+        UnZip.ArchiveStream:=TMemoryStream.Create;
+        ATileStream.SaveToStream(UnZip.ArchiveStream);
+        UnZip.ReadZip;
+        ATileStream.Position:=0;
+        UnZip.UnZipToStream(ATileStream,UnZip.Filename[0]);
+        UnZip.Free;
+        SaveTileInCache(ATileStream,Vpath);
+        ban_pg_ld:=true;
+      except
+        try
+          SaveTileInCache(ATileStream,Vpath);
+        except
+        end;
+      end;
+    end else if (copy(ty,1,8)='text/xml') then begin
       SaveTileInCache(ATileStream,Vpath);
       ban_pg_ld:=true;
-    except
+    end;
+  end else begin
+    SaveTileInCache(ATileStream,Vpath);
+    if (TileRect.Left<>0)or(TileRect.Top<>0)or
+      (TileRect.Right<>0)or(TileRect.Bottom<>0) then begin
+      btmsrc:=TBitmap32.Create;
+      btmDest:=TBitmap32.Create;
       try
-        SaveTileInCache(ATileStream,Vpath);
+        btmSrc.Resampler:=TLinearResampler.Create;
+        if LoadFile(btmsrc,Vpath,false) then begin
+          btmDest.SetSize(256,256);
+          btmdest.Draw(bounds(0,0,256,256),TileRect,btmSrc);
+          SaveTileInCache(btmDest,Vpath);
+        end;
       except
       end;
+      btmSrc.Free;
+      btmDest.Free;
     end;
-  end;
 
-  SaveTileInCache(ATileStream,Vpath);
-  if (TileRect.Left<>0)or(TileRect.Top<>0)or
-    (TileRect.Right<>0)or(TileRect.Bottom<>0) then begin
-    btmsrc:=TBitmap32.Create;
-    btmDest:=TBitmap32.Create;
-    try
-      btmSrc.Resampler:=TLinearResampler.Create;
-      if LoadFile(btmsrc,Vpath,false) then begin
-        btmDest.SetSize(256,256);
-        btmdest.Draw(bounds(0,0,256,256),TileRect,btmSrc);
-        SaveTileInCache(btmDest,Vpath);
+    ban_pg_ld:=true;
+    if (ty='image/png')and(ext='.jpg') then begin
+      btm:=TBitmap.Create;
+      png:=TBitmap32.Create;
+      jpg:=TJPEGImage.Create;
+      RenameFile(Vpath,copy(Vpath,1,length(Vpath)-4)+'.png');
+      if LoadFile(png,copy(Vpath,1,length(Vpath)-4)+'.png',false) then begin
+        btm.Assign(png);
+        jpg.Assign(btm);
+        SaveTileInCache(jpg,Vpath);
+        DeleteFile(copy(Vpath,1,length(Vpath)-4)+'.png');
+        btm.Free;
+        jpg.Free;
+        png.Free;
       end;
-    except
-    end;
-    btmSrc.Free;
-    btmDest.Free;
-  end;
-
-  ban_pg_ld:=true;
-  if (ty='image/png')and(ext='.jpg') then begin
-    btm:=TBitmap.Create;
-    png:=TBitmap32.Create;
-    jpg:=TJPEGImage.Create;
-    RenameFile(Vpath,copy(Vpath,1,length(Vpath)-4)+'.png');
-    if LoadFile(png,copy(Vpath,1,length(Vpath)-4)+'.png',false) then begin
-      btm.Assign(png);
-      jpg.Assign(btm);
-      SaveTileInCache(jpg,Vpath);
-      DeleteFile(copy(Vpath,1,length(Vpath)-4)+'.png');
-      btm.Free;
-      jpg.Free;
-      png.Free;
     end;
   end;
   GState.MainFileCache.DeleteFileFromCache(Vpath);
@@ -1147,7 +1153,6 @@ begin
    if UpperCase(ExtractFileExt(path))='.JPG' then
     begin
      Jpg_ex:=TJpegImage.Create;
-     Jpg_ex.CompressionQuality:=85;
      Jpg_ex.Assign(btm_ex);
      Jpg_ex.SaveToFile(path);
      Jpg_ex.Free;
@@ -1266,8 +1271,71 @@ end;
 
 function TMapType.LoadFillingMap(btm: TBitmap32; AXY: TPoint; Azoom,
   ASourceZoom: byte; IsStop: PBoolean): boolean;
+var
+  VPixelsRect: TRect;
+  VRelativeRect: TExtendedRect;
+  VSourceTilesRect: TRect;
+  VCurrTile: TPoint;
+  VTileSize: TPoint;
+  VSourceTilePixels: TRect;
+  i, j: Integer;
+  VClMZ: TColor32;
 begin
-  //TODO: Нужно таки сделать реализацию этой функции
+  Result := true;
+  try
+    GeoConvert.CheckTilePosStrict(AXY, Azoom, GState.CiclMap);
+    GeoConvert.CheckZoom(ASourceZoom);
+
+    VPixelsRect := GeoConvert.TilePos2PixelRect(AXY, Azoom);
+
+    VTileSize := Point(VPixelsRect.Right - VPixelsRect.Left + 1, VPixelsRect.Bottom - VPixelsRect.Top + 1);
+
+    btm.Width := VTileSize.X;
+    btm.Height := VTileSize.Y;
+    btm.Clear(clBlack);
+
+    VRelativeRect := GeoConvert.TilePos2RelativeRect(AXY, Azoom);
+    VSourceTilesRect := GeoConvert.RelativeRect2TileRect(VRelativeRect, ASourceZoom);
+    if (VTileSize.X >= (VSourceTilesRect.Right - VSourceTilesRect.Left + 1)) and
+      (VTileSize.Y >= (VSourceTilesRect.Right - VSourceTilesRect.Left + 1)) then
+    begin
+      VClMZ := SetAlpha(Color32(GState.MapZapColor), GState.MapZapAlpha);
+      for i := VSourceTilesRect.Top to VSourceTilesRect.Bottom do begin
+        VCurrTile.Y := i;
+        if IsStop^ then break;
+        for j := VSourceTilesRect.Left to VSourceTilesRect.Right do begin
+          VCurrTile.X := j;
+          if IsStop^ then break;
+          if not TileExists(VCurrTile, ASourceZoom) then begin
+            if IsStop^ then break;
+            VRelativeRect := GeoConvert.TilePos2RelativeRect(VCurrTile, ASourceZoom);
+            VSourceTilePixels := GeoConvert.RelativeRect2PixelRect(VRelativeRect, Azoom);
+            if VSourceTilePixels.Left < VPixelsRect.Left then begin
+              VSourceTilePixels.Left := VPixelsRect.Left;
+            end;
+            if VSourceTilePixels.Top < VPixelsRect.Top then begin
+              VSourceTilePixels.Top := VPixelsRect.Top;
+            end;
+            if VSourceTilePixels.Right > VPixelsRect.Right then begin
+              VSourceTilePixels.Right := VPixelsRect.Right;
+            end;
+            if VSourceTilePixels.Bottom > VPixelsRect.Bottom then begin
+              VSourceTilePixels.Bottom := VPixelsRect.Bottom;
+            end;
+            VSourceTilesRect.Left := VSourceTilesRect.Left - VPixelsRect.Left;
+            VSourceTilesRect.Top := VSourceTilesRect.Top - VPixelsRect.Top;
+            VSourceTilesRect.Right := VSourceTilesRect.Right - VPixelsRect.Left;
+            VSourceTilesRect.Bottom := VSourceTilesRect.Bottom - VPixelsRect.Top;
+            btm.FillRectS(VSourceTilesRect, VClMZ);
+          end;
+          if IsStop^ then break;
+        end;
+        if IsStop^ then break;
+      end;
+    end;
+  except
+    Result := false;
+  end;
 end;
 
 function TMapType.LoadFillingMap(btm: TBitmap32; x, y: Integer; Azoom,

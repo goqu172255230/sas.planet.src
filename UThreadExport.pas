@@ -58,6 +58,9 @@ uses
   u_GeoToStr,
   unit1,
   usaveas,
+  i_ITileFileNameGenerator,
+  i_ICoordConverter,
+  u_GlobalState,
   u_CoordConverterMercatorOnSphere,
   u_CoordConverterMercatorOnEllipsoid;
 
@@ -130,7 +133,7 @@ begin
   end;
 end;
 
-function UniLoadTile(var bmp:TBitmap32; TypeMapArr:TmapType; MapTypeMerS:TMapType;p_h:TPoint;p_x,p_y:integer; zoom:byte):boolean;
+function UniLoadTile(var bmp:TBitmap32; TypeMapArr:TmapType; ATargetProjection: byte; p_h:TPoint;p_x,p_y:integer; zoom:byte):boolean;
 var bmp2,bmp1:TBitmap32;
     png:TPngObject;
     res1,res2:boolean;
@@ -177,7 +180,7 @@ begin
             if p_h.Y<0 then bmp.Draw(0,((((p_Y-(p_y mod 256)) mod 256)+256)-(p_h.Y mod 256)),bmp1)
                        else bmp.Draw(0,(((p_Y-(p_y mod 256)) mod 256)-(p_h.Y mod 256)),bmp1);
 
-            if MapTypeMerS.projection<>TypeMapArr.projection then
+            if ATargetProjection<>TypeMapArr.projection then
              begin
               try
                res2:=true;
@@ -223,7 +226,6 @@ var p_x,p_y,p_xd256,p_yd256,i,j,xi,yi,hxyi,sizeim,cri,crj:integer;
     polyg: TPointArray;
     perzoom,kti:string;
     max,min,p_h:TPoint;
-    MapTypeMerS:TMapType;
     png:TPngObject;
     Color32arr:PColor32Array;
     bmp32,bmp322,bmp32crop:TBitmap32;
@@ -232,6 +234,11 @@ var p_x,p_y,p_xd256,p_yd256,i,j,xi,yi,hxyi,sizeim,cri,crj:integer;
     TileStream : TMemoryStream;
     PList:Text;
     LLCenter:TExtendedPoint;
+    Vprojection: byte;
+    Vradiusa: double;
+    Vradiusb: double;
+    Vexct: double;
+    VGeoConvert: ICoordConverter;
 begin
  try
  if (TypeMapArr[0]=nil)and(TypeMapArr[1]=nil)and(TypeMapArr[2]=nil) then exit;
@@ -288,12 +295,11 @@ begin
  bmp32crop.Width:=sizeim;
  bmp32crop.Height:=sizeim;
 
- MapTypeMerS:=TMapType.Create;
- MapTypeMerS.projection:=1;
- MapTypeMerS.radiusa:=6378137;
- MapTypeMerS.radiusb:=6378137;
- MapTypeMerS.exct:=sqrt(sqr(MapTypeMerS.radiusa)-sqr(MapTypeMerS.radiusb))/MapTypeMerS.radiusa;
- MapTypeMerS.FCoordConverter:=TCoordConverterMercatorOnSphere.Create(MapTypeMerS.radiusa);
+ Vprojection:=1;
+ Vradiusa:=6378137;
+ Vradiusb:=6378137;
+ Vexct:=sqrt(sqr(Vradiusa)-sqr(Vradiusb))/Vradiusa;
+ VGeoConvert:=TCoordConverterMercatorOnSphere.Create(Vradiusa);
 
  num_dwn:=0;
  kti:='';
@@ -350,7 +356,7 @@ begin
    for j:=0 to 2 do //по типу
     if TypeMapArr[j]<>nil then
      begin
-      Polyg := MapTypeMerS.GeoConvert.PoligonProject(i + 8, APolyLL);
+      Polyg := VGeoConvert.PoligonProject(i + 8, APolyLL);
       GetDwnlNum(min,max,Polyg,false);
 
       p_x:=min.x;
@@ -369,14 +375,14 @@ begin
           bmp322.Clear;
           if (j=2)and(TypeMapArr[0]<>nil) then
            begin
-            p_h := MapTypeMerS.GeoConvert.Pos2OtherMap(Point(p_x,p_y-(p_y mod 256)), i + 8, TypeMapArr[0].GeoConvert);
-            if TypeMapArr[0].TileExists(p_h.x,p_h.y,i+1) then UniLoadTile(bmp322,TypeMapArr[0],MapTypeMerS,p_h,p_x,p_y,i);
+            p_h := VGeoConvert.Pos2OtherMap(Point(p_x,p_y-(p_y mod 256)), i + 8, TypeMapArr[0].GeoConvert);
+            if TypeMapArr[0].TileExists(p_h.x,p_h.y,i+1) then UniLoadTile(bmp322,TypeMapArr[0],Vprojection,p_h,p_x,p_y,i);
            end;
           bmp32.Clear;
-          p_h := MapTypeMerS.GeoConvert.Pos2OtherMap(Point(p_x,p_y-(p_y mod 256)), i + 8, TypeMapArr[j].GeoConvert);
+          p_h := VGeoConvert.Pos2OtherMap(Point(p_x,p_y-(p_y mod 256)), i + 8, TypeMapArr[j].GeoConvert);
           if TypeMapArr[j].TileExists(p_h.x,p_h.y,i+1) then
            begin
-            UniLoadTile(bmp32,TypeMapArr[j],MapTypeMerS,p_h,p_x,p_y,i);
+            UniLoadTile(bmp32,TypeMapArr[j],Vprojection,p_h,p_x,p_y,i);
             if (j=2)and(TypeMapArr[0]<>nil) then
               begin
                bmp322.Draw(0,0,bmp32);
@@ -471,9 +477,10 @@ var p_x,p_y,i,j:integer;
     polyg:TPointArray;
     pathfrom,pathto,persl,perzoom,kti,datestr:string;
     max,min:TPoint;
-    AMapType:TMapType;
+    VTileNameGen: ITileFileNameGenerator;
+    VExt: string;
+    VPath: string;
 begin
- AMapType:=TMapType.Create;
  num_dwn:=0;
  SetLength(polyg,length(APolyLL));
  persl:='';
@@ -517,9 +524,9 @@ begin
    for j:=0 to length(TypeMapArr)-1 do //по типу
      begin
       polyg := TypeMapArr[j].GeoConvert.PoligonProject(i + 8, APolyLL);
-      AMapType.ext:=TypeMapArr[j].ext;
-      AMapType.NameInCache:=IncludeTrailingPathDelimiter(PATH) + TypeMapArr[j].GetShortFolderName;
-      AMapType.CacheType:=format;
+      VExt := TypeMapArr[j].ext;
+      VPath := IncludeTrailingPathDelimiter(IncludeTrailingPathDelimiter(PATH) + TypeMapArr[j].GetShortFolderName);
+      VTileNameGen := GState.TileNameGenerator.GetGenerator(format);
       GetDwnlNum(min,max,Polyg,false);
       p_x:=min.x;
       while p_x<max.x do
@@ -544,8 +551,7 @@ begin
                             Zip.FilesList.Add(pathfrom);
                           end
                      else begin
-//TODO: Для создания путей для экспорта нужно создать новый класс.
-                           pathto:=AMapType.GetTileFileName(p_x,p_y,i+1);
+                           pathto:= VPath + VTileNameGen.GetTileFileName(Point(p_x shr 8,p_y shr 8), i) + VExt;
                            if TypeMapArr[j].TileExportToFile(p_x,p_y,i+1, pathto, replace) then begin
                              if move then TypeMapArr[j].DeleteTile(p_x,p_y,i+1);
                            end;
@@ -573,7 +579,7 @@ begin
   end;
  FProgress.ProgressBar1.Progress1:=round((obrab/num_dwn)*100);
  fprogress.MemoInfo.Lines[1]:=SAS_STR_Processed+' '+inttostr(obrab);
- AMapType.Destroy;
+ VTileNameGen := nil;
  FProgress.Close;
 end;
 
@@ -723,7 +729,6 @@ var p_x,p_y,p_xd256,p_yd256,i,j,ci,cj,xi,yi,hxyi,sizeim,cri,crj:integer;
     polyg:TPointArray;
     pathto,persl,perzoom,kti:string;
     max,min,p_h:TPoint;
-    MapTypeMerS:TMapType;
     png:TPngObject;
     Color32arr:PColor32Array;
     bmp32,bmp322,bmp32crop:TBitmap32;
@@ -734,6 +739,11 @@ var p_x,p_y,p_xd256,p_yd256,i,j,ci,cj,xi,yi,hxyi,sizeim,cri,crj:integer;
     LLCenter:TExtendedPoint;
     tic:longint;
     BtmRGB,PngRGB:PByte;
+    Vprojection: byte;
+    Vradiusa: double;
+    Vradiusb: double;
+    Vexct: double;
+    VGeoConvert: ICoordConverter;
 begin
  try
  if (TypeMapArr[0]=nil)and(TypeMapArr[1]=nil)and(TypeMapArr[2]=nil) then exit;
@@ -769,12 +779,11 @@ begin
  bmp32crop.Width:=sizeim;
  bmp32crop.Height:=sizeim;
 
- MapTypeMerS:=TMapType.Create;
- MapTypeMerS.projection:=2;
- MapTypeMerS.radiusa:=6378137;
- MapTypeMerS.radiusb:=6356752;
- MapTypeMerS.exct:=sqrt(sqr(MapTypeMerS.radiusa)-sqr(MapTypeMerS.radiusb))/MapTypeMerS.radiusa;
- MapTypeMerS.FCoordConverter:= TCoordConverterMercatorOnEllipsoid.Create(MapTypeMerS.Exct,MapTypeMerS.radiusa,MapTypeMerS.radiusb);
+ Vprojection:=2;
+ Vradiusa:=6378137;
+ Vradiusb:=6356752;
+ Vexct:=sqrt(sqr(Vradiusa)-sqr(Vradiusb))/Vradiusa;
+ VGeoConvert := TCoordConverterMercatorOnEllipsoid.Create(VExct,Vradiusa,Vradiusb);
  num_dwn:=0;
  SetLength(polyg,length(APolyLL));
  persl:='';
@@ -810,7 +819,7 @@ begin
    for j:=0 to 2 do //по типу
     if (TypeMapArr[j]<>nil)and(not((j=0)and(TypeMapArr[2]<>nil))) then
      begin
-      polyg := MapTypeMerS.GeoConvert.PoligonProject(i + 8, APolyLL);
+      polyg := VGeoConvert.PoligonProject(i + 8, APolyLL);
       GetDwnlNum(min,max,Polyg,false);
 
       p_x:=min.x;
@@ -827,12 +836,12 @@ begin
           bmp322.Clear;
           if (j=2)and(TypeMapArr[0]<>nil) then
            begin
-            p_h := MapTypeMerS.GeoConvert.Pos2OtherMap(Point(p_x,p_y-(p_y mod 256)), i + 8, TypeMapArr[0].GeoConvert);
-            UniLoadTile(bmp322,TypeMapArr[0],MapTypeMerS,p_h,p_x,p_y,i);
+            p_h := VGeoConvert.Pos2OtherMap(Point(p_x,p_y-(p_y mod 256)), i + 8, TypeMapArr[0].GeoConvert);
+            UniLoadTile(bmp322,TypeMapArr[0],Vprojection,p_h,p_x,p_y,i);
            end;
           bmp32.Clear;
-          p_h := MapTypeMerS.GeoConvert.Pos2OtherMap(Point(p_x,p_y-(p_y mod 256)), i + 8, TypeMapArr[j].GeoConvert);
-          if UniLoadTile(bmp32,TypeMapArr[j],MapTypeMerS,p_h,p_x,p_y,i) then
+          p_h := VGeoConvert.Pos2OtherMap(Point(p_x,p_y-(p_y mod 256)), i + 8, TypeMapArr[j].GeoConvert);
+          if UniLoadTile(bmp32,TypeMapArr[j],Vprojection,p_h,p_x,p_y,i) then
            begin
             if (j=2)and(TypeMapArr[0]<>nil) then
               begin

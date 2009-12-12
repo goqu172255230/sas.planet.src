@@ -199,6 +199,7 @@ var
 implementation
 
 uses
+  Types,
   pngimage,
   IJL,
   jpeg,

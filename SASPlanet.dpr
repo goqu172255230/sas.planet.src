@@ -60,11 +60,22 @@ uses
   t_CommonTypes in 't_CommonTypes.pas',
   u_GeoToStr in 'u_GeoToStr.pas',
   u_GlobalState in 'u_GlobalState.pas',
+  u_WindowLayerBasic in 'u_WindowLayerBasic.pas',
   u_MiniMap in 'u_MiniMap.pas',
   u_CenterScale in 'u_CenterScale.pas',
+  u_LayerStatBar in 'u_LayerStatBar.pas',
+  u_MapLayerBasic in 'u_MapLayerBasic.pas',
+  u_MapMarksLayer in 'u_MapMarksLayer.pas',
+  u_SelectionLayer in 'u_SelectionLayer.pas',
+  u_MapGPSLayer in 'u_MapGPSLayer.pas',
   u_TileDownloaderBase in 'u_TileDownloaderBase.pas',
   u_TileDownloaderUI in 'u_TileDownloaderUI.pas',
   t_LoadEvent in 't_LoadEvent.pas',
+  i_Marks in 'i_Marks.pas',
+  u_MarkBasic in 'u_MarkBasic.pas',
+  u_MarkCategory in 'u_MarkCategory.pas',
+  u_MarksDb in 'u_MarksDb.pas' {DMMarksDb: TDataModule},
+  u_EnumUnknownEmpty in 'u_EnumUnknownEmpty.pas',
   i_ITileFileNameGenerator in 'i_ITileFileNameGenerator.pas',
   u_TileFileNameSAS in 'u_TileFileNameSAS.pas',
   u_TileFileNameGMV in 'u_TileFileNameGMV.pas',
@@ -121,6 +132,7 @@ begin
   Application.CreateForm(TFaddLine, FaddLine);
   Application.CreateForm(TFAddPoly, FAddPoly);
   Application.CreateForm(TFEditMap, FEditMap);
+  Application.CreateForm(TDMMarksDb, DMMarksDb);
   Fmain.WebBrowser1.Navigate('about:blank');
   Fbrowser.EmbeddedWB1.Navigate('about:blank');
   Application.Run;

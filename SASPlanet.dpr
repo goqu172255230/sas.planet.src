@@ -37,6 +37,8 @@ uses
   UKmlParse in 'UKmlParse.pas',
   Ubrowser in 'Ubrowser.pas' {Fbrowser},
   Uimgfun in 'Uimgfun.pas',
+  i_BitmapTileSaveLoad in 'i_BitmapTileSaveLoad.pas',
+  u_BitmapTileJpegLoader in 'u_BitmapTileJpegLoader.pas',
   UMapType in 'UMapType.pas',
   UTimeZones in 'UTimeZones.pas',
   UaddLine in 'UaddLine.pas' {FaddLine},
@@ -78,6 +80,11 @@ uses
   u_TileDownloaderBase in 'u_TileDownloaderBase.pas',
   u_TileDownloaderUI in 'u_TileDownloaderUI.pas',
   t_LoadEvent in 't_LoadEvent.pas',
+  i_Marks in 'i_Marks.pas',
+  u_MarkBasic in 'u_MarkBasic.pas',
+  u_MarkCategory in 'u_MarkCategory.pas',
+  u_MarksDb in 'u_MarksDb.pas' {DMMarksDb: TDataModule},
+  u_EnumUnknownEmpty in 'u_EnumUnknownEmpty.pas',
   i_ITileFileNameGenerator in 'i_ITileFileNameGenerator.pas',
   u_TileFileNameSAS in 'u_TileFileNameSAS.pas',
   u_TileFileNameGMV in 'u_TileFileNameGMV.pas',
@@ -85,9 +92,20 @@ uses
   u_TileFileNameGM1 in 'u_TileFileNameGM1.pas',
   u_TileFileNameGM2 in 'u_TileFileNameGM2.pas',
   i_ITileFileNameGeneratorsList in 'i_ITileFileNameGeneratorsList.pas',
+  i_MemCache in 'i_MemCache.pas',
   u_TileFileNameGeneratorsSimpleList in 'u_TileFileNameGeneratorsSimpleList.pas',
   u_TileDownloaderUIOneTile in 'u_TileDownloaderUIOneTile.pas',
   u_TileDownloaderThreadBase in 'u_TileDownloaderThreadBase.pas',
+  i_ITileDownlodSession in 'i_ITileDownlodSession.pas',
+  i_ISimpleFactory in 'i_ISimpleFactory.pas',
+  i_IListOfObjectsWithTTL in 'i_IListOfObjectsWithTTL.pas',
+  i_IObjectWithTTL in 'i_IObjectWithTTL.pas',
+  i_IPoolElement in 'i_IPoolElement.pas',
+  u_TileDownloaderBaseFactory in 'u_TileDownloaderBaseFactory.pas',
+  u_GarbageCollectorThread in 'u_GarbageCollectorThread.pas',
+  u_ListOfObjectsWithTTL in 'u_ListOfObjectsWithTTL.pas',
+  u_PoolElement in 'u_PoolElement.pas',
+  u_PoolOfObjectsSimple in 'u_PoolOfObjectsSimple.pas',
   CPDrv in 'src\CPDrv.pas',
   UGSM in 'UGSM.pas';
 
@@ -134,6 +152,7 @@ begin
   Application.CreateForm(TFaddLine, FaddLine);
   Application.CreateForm(TFAddPoly, FAddPoly);
   Application.CreateForm(TFEditMap, FEditMap);
+  Application.CreateForm(TDMMarksDb, DMMarksDb);
   Fmain.WebBrowser1.Navigate('about:blank');
   Fbrowser.EmbeddedWB1.Navigate('about:blank');
   Application.Run;

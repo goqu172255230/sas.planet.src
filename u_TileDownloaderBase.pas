@@ -8,12 +8,11 @@ uses
   SyncObjs,
   Classes,
   t_CommonTypes,
+  i_ITileDownlodSession,
   urlMon;
 
 type
-  TDownloadTileResult = (dtrOK, dtrSameTileSize, dtrErrorInternetOpen, dtrErrorInternetOpenURL, dtrProxyAuthError, dtrErrorMIMEType, dtrDownloadError, dtrTileNotExists, dtrBanError, dtrUnknownError);
-
-  TTileDownloaderBase = class
+  TTileDownloaderBase = class(TInterfacedObject, ITileDownlodSession)
   protected
     FExpectedMIMETypes: string;
     FDownloadTryCount: Integer;
@@ -225,6 +224,8 @@ begin
     if not InternetSetOption(FSessionHandle, INTERNET_OPTION_RECEIVE_TIMEOUT, @VTimeOut, sizeof(VTimeOut)) then begin
       FSessionOpenError := GetLastError;
     end;
+
+
   end else begin
     FSessionOpenError := GetLastError;
   end;

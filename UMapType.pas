@@ -23,6 +23,7 @@ uses
   i_ICoordConverter,
   i_ITileDownlodSession,
   i_IPoolOfObjectsSimple,
+  i_IBitmapTypeExtManager,
   u_TileDownloaderBase,
   u_UrlGenerator,
   UResStrings;
@@ -59,6 +60,8 @@ type
     function GetUseStick: boolean;
     function GetShowOnSmMap: boolean;
     procedure SetShowOnSmMap(const Value: boolean);
+    function GetBitmapTypeManager: IBitmapTypeExtManager;
+    function GetIsCropOnDownload: Boolean;
    public
     id: integer;
     guids: string;
@@ -131,8 +134,8 @@ type
     function DeleteTile(x,y:longint; Azoom:byte): Boolean; overload;
     function DeleteTile(AXY: TPoint; Azoom:byte): Boolean; overload;
 
-    procedure SaveTileSimple(x,y:longint;Azoom:byte; btm:TObject); overload;
-    procedure SaveTileSimple(AXY: TPoint; Azoom:byte; btm:TObject); overload;
+    procedure SaveTileSimple(x,y:longint;Azoom:byte; btm: TBitmap32); overload;
+    procedure SaveTileSimple(AXY: TPoint; Azoom:byte; btm: TBitmap32); overload;
 
     procedure SaveTileNotExists(x,y:longint;Azoom:byte); overload;
     procedure SaveTileNotExists(AXY: TPoint; Azoom:byte); overload;
@@ -167,8 +170,10 @@ type
     property IsCanShowOnSmMap: boolean read GetIsCanShowOnSmMap;
     property UseStick: boolean read GetUseStick;
     property ContentType: string read FContent_Type;
+    property IsCropOnDownload: Boolean read GetIsCropOnDownload;
     property ShowOnSmMap: boolean read GetShowOnSmMap write SetShowOnSmMap;
     property ZmpFileName: string read GetZmpFileName;
+    property BitmapTypeManager: IBitmapTypeExtManager read GetBitmapTypeManager;
     constructor Create;
     procedure LoadMapTypeFromZipFile(AZipFileName : string; pnum : Integer);
     destructor Destroy; override;
@@ -182,12 +187,15 @@ type
     FPoolOfDownloaders: IPoolOfObjectsSimple;
     //Для борьбы с капчей
     ban_pg_ld: Boolean;
+    procedure CropOnDownload(ABtm: TBitmap32; ATileSize: TPoint);
     function LoadFile(btm:Tobject; APath: string; caching:boolean):boolean;
     procedure CreateDirIfNotExists(APath:string);
     procedure SaveTileInCache(btm:TObject;path:string);
     function CheckIsBan(AXY: TPoint; AZoom: byte; StatusCode: Cardinal; ty: string; fileBuf: TMemoryStream): Boolean;
     function GetBasePath: string;
-  end;
+    procedure SaveTileKmlDownload(AXY: TPoint;Azoom:byte; ATileStream: TCustomMemoryStream; ty: string);
+    procedure SaveTileBitmapDownload(AXY: TPoint;Azoom:byte; ATileStream: TCustomMemoryStream; ty: string);
+ end;
 
 var
   MapType:array of TMapType;
@@ -202,6 +210,7 @@ var
 implementation
 
 uses
+  Types,
   pngimage,
   IJL,
   jpeg,
@@ -1107,90 +1116,112 @@ begin
  if not(DirectoryExists(Apath)) then ForceDirectories(Apath);
 end;
 
+procedure TMapType.SaveTileBitmapDownload(AXY: TPoint; Azoom: byte;
+  ATileStream: TCustomMemoryStream; ty: string);
+var
+  VPath: String;
+  jpg:TJPEGImage;
+  btm:TBitmap;
+  png:TBitmap32;
+  btmSrc:TBitmap32;
+  btmDest:TBitmap32;
+  VManager: IBitmapTypeExtManager;
+begin
+  VPath := GetTileFileName(AXY, Azoom);
+  CreateDirIfNotExists(VPath);
+  VManager := BitmapTypeManager;
+  if VManager.GetIsBitmapType(ty) then begin
+
+    SaveTileInCache(ATileStream,Vpath);
+    if IsCropOnDownload then begin
+      btmsrc:=TBitmap32.Create;
+      btmDest:=TBitmap32.Create;
+      try
+        btmSrc.Resampler:=TLinearResampler.Create;
+        if LoadFile(btmsrc,Vpath,false) then begin
+          btmDest.SetSize(256,256);
+          btmdest.Draw(bounds(0,0,256,256),FTileRect,btmSrc);
+          SaveTileInCache(btmDest,Vpath);
+        end;
+      except
+      end;
+      btmSrc.Free;
+      btmDest.Free;
+    end;
+
+    ban_pg_ld:=true;
+    if (ty='image/png')and(TileFileExt='.jpg') then begin
+      btm:=TBitmap.Create;
+      png:=TBitmap32.Create;
+      jpg:=TJPEGImage.Create;
+      RenameFile(Vpath,ChangeFileExt(Vpath,'.png'));
+      if LoadFile(png,ChangeFileExt(Vpath,'.png'), false) then begin
+        btm.Assign(png);
+        jpg.Assign(btm);
+        SaveTileInCache(jpg,Vpath);
+        DeleteFile(ChangeFileExt(Vpath,'.png'));
+        btm.Free;
+        jpg.Free;
+        png.Free;
+      end;
+    end;
+    GState.MainFileCache.DeleteFileFromCache(Vpath);
+  end else begin
+    SaveTileInCache(ATileStream, ChangeFileExt(Vpath, '.err'));
+  end;
+end;
+
+procedure TMapType.SaveTileKmlDownload(AXY: TPoint; Azoom: byte;
+  ATileStream: TCustomMemoryStream; ty: string);
+var
+  VPath: String;
+  UnZip:TVCLUnZip;
+begin
+  VPath := GetTileFileName(AXY, Azoom);
+  CreateDirIfNotExists(VPath);
+  if (ty='application/vnd.google-earth.kmz') then begin
+    try
+      UnZip:=TVCLUnZip.Create(Fmain);
+      UnZip.ArchiveStream:=TMemoryStream.Create;
+      ATileStream.SaveToStream(UnZip.ArchiveStream);
+      UnZip.ReadZip;
+      ATileStream.Position:=0;
+      UnZip.UnZipToStream(ATileStream,UnZip.Filename[0]);
+      UnZip.Free;
+      SaveTileInCache(ATileStream,Vpath);
+      ban_pg_ld:=true;
+    except
+      try
+        SaveTileInCache(ATileStream,Vpath);
+      except
+      end;
+    end;
+  end else if (copy(ty,1,8)='text/xml')or(ty='application/vnd.google-earth.kml+xml') then begin
+    SaveTileInCache(ATileStream,Vpath);
+    ban_pg_ld:=true;
+  end;
+  GState.MainFileCache.DeleteFileFromCache(Vpath);
+end;
+
 procedure TMapType.SaveTileDownload(AXY: TPoint; Azoom: byte;
   ATileStream: TCustomMemoryStream; ty: string);
 begin
-  Self.SaveTileDownload(AXY.X shl 8, AXY.Y shl 8, Azoom + 1, ATileStream, ty);
+  if UseSave then begin
+    if TileFileExt='.kml' then begin
+      SaveTileKmlDownload(AXY, Azoom, ATileStream, ty);
+    end else begin
+      SaveTileBitmapDownload(AXY, Azoom, ATileStream, ty);
+    end;
+  end else begin
+    raise Exception.Create('Для этой карты запрещено добавление тайлов.');
+  end;
 end;
 
 
 procedure TMapType.SaveTileDownload(x, y: Integer; Azoom: byte;
   ATileStream: TCustomMemoryStream; ty: string);
-var
-  VPath: String;
-    jpg:TJPEGImage;
-    btm:TBitmap;
-    png:TBitmap32;
-    btmSrc:TBitmap32;
-    btmDest:TBitmap32;
-    UnZip:TVCLUnZip;
 begin
-  if UseSave then begin
-    VPath := GetTileFileName(x, y, Azoom);
-
-    CreateDirIfNotExists(VPath);
-    if TileFileExt='.kml' then begin
-      if (ty='application/vnd.google-earth.kmz') then begin
-        try
-          UnZip:=TVCLUnZip.Create(Fmain);
-          UnZip.ArchiveStream:=TMemoryStream.Create;
-          ATileStream.SaveToStream(UnZip.ArchiveStream);
-          UnZip.ReadZip;
-          ATileStream.Position:=0;
-          UnZip.UnZipToStream(ATileStream,UnZip.Filename[0]);
-          UnZip.Free;
-          SaveTileInCache(ATileStream,Vpath);
-          ban_pg_ld:=true;
-        except
-          try
-            SaveTileInCache(ATileStream,Vpath);
-          except
-          end;
-        end;
-      end else if (copy(ty,1,8)='text/xml')or(ty='application/vnd.google-earth.kml+xml') then begin
-        SaveTileInCache(ATileStream,Vpath);
-        ban_pg_ld:=true;
-      end;
-    end else begin
-      SaveTileInCache(ATileStream,Vpath);
-      if (FTileRect.Left<>0)or(FTileRect.Top<>0)or
-        (FTileRect.Right<>0)or(FTileRect.Bottom<>0) then begin
-        btmsrc:=TBitmap32.Create;
-        btmDest:=TBitmap32.Create;
-        try
-          btmSrc.Resampler:=TLinearResampler.Create;
-          if LoadFile(btmsrc,Vpath,false) then begin
-            btmDest.SetSize(256,256);
-            btmdest.Draw(bounds(0,0,256,256),FTileRect,btmSrc);
-            SaveTileInCache(btmDest,Vpath);
-          end;
-        except
-        end;
-        btmSrc.Free;
-        btmDest.Free;
-      end;
-
-      ban_pg_ld:=true;
-      if (ty='image/png')and(TileFileExt='.jpg') then begin
-        btm:=TBitmap.Create;
-        png:=TBitmap32.Create;
-        jpg:=TJPEGImage.Create;
-        RenameFile(Vpath,ChangeFileExt(Vpath,'.png'));
-        if LoadFile(png,ChangeFileExt(Vpath,'.png'), false) then begin
-          btm.Assign(png);
-          jpg.Assign(btm);
-          SaveTileInCache(jpg,Vpath);
-          DeleteFile(ChangeFileExt(Vpath,'.png'));
-          btm.Free;
-          jpg.Free;
-          png.Free;
-        end;
-      end;
-    end;
-    GState.MainFileCache.DeleteFileFromCache(Vpath);
-  end else begin
-    raise Exception.Create('Для этой карты запрещено добавление тайлов.');
-  end;
+  Self.SaveTileDownload(Point(X shr 8, Y shr 8), Azoom - 1, ATileStream, ty);
 end;
 
 procedure TMapType.SaveTileInCache(btm:TObject;path:string);
@@ -1292,7 +1323,7 @@ begin
   Self.SaveTileNotExists(Point(x shr 8, y shr 8), Azoom - 1);
 end;
 
-procedure TMapType.SaveTileSimple(AXY: TPoint; Azoom: byte; btm: TObject);
+procedure TMapType.SaveTileSimple(AXY: TPoint; Azoom: byte; btm: TBitmap32);
 var
   VPath: String;
 begin
@@ -1307,7 +1338,7 @@ begin
 end;
 
 procedure TMapType.SaveTileSimple(x, y: Integer; Azoom: byte;
-  btm:TObject);
+  btm: TBitmap32);
 begin
   Self.SaveTileSimple(Point(x shr 8, y shr 8), Azoom - 1, btm);
 end;
@@ -1594,6 +1625,46 @@ end;
 procedure TMapType.SetShowOnSmMap(const Value: boolean);
 begin
   FShowOnSmMap := Value;
+end;
+
+function TMapType.GetBitmapTypeManager: IBitmapTypeExtManager;
+begin
+  Result := GState.BitmapTypeManager;
+end;
+
+procedure TMapType.CropOnDownload(ABtm: TBitmap32; ATileSize: TPoint);
+var
+  VBtmSrc: TBitmap32;
+  VBtmDest: TBitmap32;
+begin
+  VBtmSrc := TBitmap32.Create;
+  try
+    VBtmSrc.Assign(ABtm);
+    VBtmSrc.Resampler := TLinearResampler.Create;
+    VBtmDest := TBitmap32.Create;
+    try
+      VBtmDest.SetSize(ATileSize.X, ATileSize.Y);
+      VBtmDest.Draw(Bounds(0, 0, ATileSize.X, ATileSize.Y), FTileRect, VBtmSrc);
+      ABtm.Assign(VBtmDest);
+    finally
+      VBtmDest.Free;
+    end;
+  finally
+    VBtmSrc.Free;
+  end;
+end;
+
+function TMapType.GetIsCropOnDownload: Boolean;
+begin
+  if (FTileRect.Left<>0)
+    or (FTileRect.Top<>0)
+    or (FTileRect.Right<>0)
+    or (FTileRect.Bottom<>0)
+  then begin
+    Result := True;
+  end else begin
+    Result := False;
+  end;
 end;
 
 end.

@@ -228,6 +228,8 @@ begin
     if not InternetSetOption(FSessionHandle, INTERNET_OPTION_RECEIVE_TIMEOUT, @VTimeOut, sizeof(VTimeOut)) then begin
       FSessionOpenError := GetLastError;
     end;
+
+
   end else begin
     FSessionOpenError := GetLastError;
   end;

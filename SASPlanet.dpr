@@ -89,6 +89,11 @@ uses
   u_TileDownloaderBase in 'u_TileDownloaderBase.pas',
   u_TileDownloaderUI in 'u_TileDownloaderUI.pas',
   t_LoadEvent in 't_LoadEvent.pas',
+  i_Marks in 'i_Marks.pas',
+  u_MarkBasic in 'u_MarkBasic.pas',
+  u_MarkCategory in 'u_MarkCategory.pas',
+  u_MarksDb in 'u_MarksDb.pas' {DMMarksDb: TDataModule},
+  u_EnumUnknownEmpty in 'u_EnumUnknownEmpty.pas',
   i_ITileFileNameGenerator in 'i_ITileFileNameGenerator.pas',
   u_TileFileNameSAS in 'u_TileFileNameSAS.pas',
   u_TileFileNameGMV in 'u_TileFileNameGMV.pas',
@@ -96,6 +101,7 @@ uses
   u_TileFileNameGM1 in 'u_TileFileNameGM1.pas',
   u_TileFileNameGM2 in 'u_TileFileNameGM2.pas',
   i_ITileFileNameGeneratorsList in 'i_ITileFileNameGeneratorsList.pas',
+  i_MemCache in 'i_MemCache.pas',
   u_TileFileNameGeneratorsSimpleList in 'u_TileFileNameGeneratorsSimpleList.pas',
   u_TileDownloaderUIOneTile in 'u_TileDownloaderUIOneTile.pas',
   u_TileDownloaderThreadBase in 'u_TileDownloaderThreadBase.pas',
@@ -155,6 +161,7 @@ begin
   Application.CreateForm(TFaddLine, FaddLine);
   Application.CreateForm(TFAddPoly, FAddPoly);
   Application.CreateForm(TFEditMap, FEditMap);
+  Application.CreateForm(TDMMarksDb, DMMarksDb);
   Fmain.WebBrowser1.Navigate('about:blank');
   Fbrowser.EmbeddedWB1.Navigate('about:blank');
   Application.Run;

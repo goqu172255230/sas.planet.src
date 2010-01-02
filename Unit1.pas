@@ -2257,7 +2257,7 @@ begin
  GState.GECachePath_:=GState.MainIni.Readstring('PATHtoCACHE','GECache','cache_GE\');
 
  LayerSelection := TSelectionLayer.Create(map, ScreenCenterPos);
- LayerSelection.Visible := false;
+ LayerSelection.Visible := true;
 
  LayerMapMarks:= TMapMarksLayer.Create(map, ScreenCenterPos);
  LayerMapGPS:= TMapGPSLayer.Create(map, ScreenCenterPos);

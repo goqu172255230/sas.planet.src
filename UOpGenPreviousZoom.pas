@@ -145,6 +145,7 @@ begin
   bmp:=TBitmap32.Create;
   try
     bmp.Resampler := CreateResampler(Resampler);
+
     TileInProc:=0;
     CurrentTile:=0;
     for i:=0 to length(InZooms)-1 do begin

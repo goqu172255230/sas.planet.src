@@ -1648,6 +1648,7 @@ begin
   if notpaint then exit;
   QueryPerformanceCounter(ts2);
 
+  if not(lastload.use) then change_scene:=true;
   y_draw:=(256+((ScreenCenterPos.y-(yhgpx div 2))mod 256))mod 256;
   x_draw:=(256+((ScreenCenterPos.x-(xhgpx div 2))mod 256))mod 256;
   MainLayerMap.Location:=floatrect(GetMapLayerLocationRect);

@@ -247,10 +247,12 @@ end;
 
 procedure TFsaveas.DelRegion(APolyLL: TExtendedPointArray);
 begin
- with TOpDelTiles.Create(true,APolyLL,CBZoomload.ItemIndex+1,TMapType(CBmapDel.Items.Objects[CBmapDel.ItemIndex]),CBDelBytes.Checked) do begin
-   DelBytesNum:=SEDelBytes.Value;
-   Suspended:=false;
- end;
+  if (MessageBox(handle,pchar(SAS_MSG_youasure),pchar(SAS_MSG_coution),36)=IDYES) then begin
+    with TOpDelTiles.Create(true,APolyLL,CBZoomload.ItemIndex+1,TMapType(CBmapDel.Items.Objects[CBmapDel.ItemIndex]),CBDelBytes.Checked) do begin
+      DelBytesNum:=SEDelBytes.Value;
+      Suspended:=false;
+    end;
+  end;
 end;
 
 procedure TFsaveas.ExportREG(APolyLL: TExtendedPointArray);
@@ -397,8 +399,7 @@ begin
   0: LoadRegion(PolygonLL);
   1: scleitRECT(PolygonLL);
   2: genbacksatREG(PolygonLL);
-  3: if (MessageBox(handle,pchar(SAS_MSG_youasure),pchar(SAS_MSG_coution),36)=IDYES)
-      then delRegion(PolygonLL);
+  3: delRegion(PolygonLL);
   4: ExportREG(PolygonLL);
   5: savefilesREG(PolygonLL);
  end;
@@ -603,10 +604,10 @@ var  TempPath: string;
 begin
   if SelectDirectory('', '', TempPath) then
   begin
-   EditPath.Text := String(TempPath)+'\';
-   EditPath2.Text := String(TempPath)+'\';
-   EditPath3.Text := String(TempPath)+'\';
-   EditPath4.Text := String(TempPath)+'\';
+   EditPath.Text := IncludeTrailingPathDelimiter(TempPath);
+   EditPath2.Text := IncludeTrailingPathDelimiter(TempPath);
+   EditPath3.Text := IncludeTrailingPathDelimiter(TempPath);
+   EditPath4.Text := IncludeTrailingPathDelimiter(TempPath);
   end;
 end;
 

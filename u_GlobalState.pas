@@ -9,6 +9,7 @@ uses
   IniFiles,
   SyncObjs,
   GR32,
+  i_JclNotify,
   t_GeoTypes,
   t_CommonTypes,
   i_IMemObjCache,
@@ -17,6 +18,7 @@ uses
   i_IKmlInfoSimpleLoader,
   u_GarbageCollectorThread,
   u_GeoToStr,
+  u_MapViewPortState,
   Uimgfun,
   UMapType,
   u_MemFileCache;
@@ -26,8 +28,10 @@ type
 
   TGlobalState = class
   private
-    FZoomCurrent: Byte;
     FMainSelectedMap: TMapType;
+    FZoomCurrent: Byte;
+    FViewState: TMapViewPortState;
+    FMainMapChangeNotifier: IJclNotifier;
     FMemFileCache: TMemFileCache;
     FScreenSize: TPoint;
     FDwnCS: TCriticalSection;
@@ -254,14 +258,17 @@ type
     property sat_map_both: TMapType read FMainSelectedMap;
     // Текущий зумм
     property zoom_size: byte read GetZoomCurrent;
+    property MainMapChangeNotifier: IJclNotifier read FMainMapChangeNotifier;
 
     property GCThread: TGarbageCollectorThread read FGCThread;
+    property ViewState: TMapViewPortState read FViewState;
     constructor Create;
     destructor Destroy; override;
     procedure IncrementDownloaded(ADwnSize: Currency; ADwnCnt: Cardinal);
     procedure StopAllThreads;
     procedure SetMainSelectedMap(const Value: TMapType);
     procedure SetCurrentZoom(const AZoom: Byte; ANewPos: TPoint);
+    procedure InitViewState(AMainMap: TMapType; AZoom: Byte; ACenterPos: TPoint; AScreenSize: TPoint);
   end;
 
 const
@@ -276,8 +283,10 @@ uses
   SysUtils,
   pngimage,
   i_IListOfObjectsWithTTL,
+  u_JclNotify,
   u_ListOfObjectsWithTTL,
   u_BitmapTypeExtManagerSimple,
+  u_MapChangeMessage,
   u_MapCalibrationListBasic,
   u_KmlInfoSimpleParser,
   u_KmzInfoSimpleParser,
@@ -290,6 +299,7 @@ var
   VList: IListOfObjectsWithTTL;
 begin
   FDwnCS := TCriticalSection.Create;
+  FMainMapChangeNotifier := TJclBaseNotifier.Create;
   All_Dwn_Kb := 0;
   All_Dwn_Tiles := 0;
   InetConnect := TInetConnect.Create;
@@ -315,6 +325,7 @@ begin
   FGCThread.WaitFor;
   FreeAndNil(FGCThread);
   FreeAndNil(FDwnCS);
+  FMainMapChangeNotifier := nil;
   MainIni.UpdateFile;
   FreeAndNil(MainIni);
   FreeMarkIcons;
@@ -327,6 +338,7 @@ begin
   FMapCalibrationList := nil;
   FKmlLoader := nil;
   FKmzLoader := nil;
+  FreeAndNil(FViewState);
   FreeAllMaps;
   inherited;
 end;
@@ -474,8 +486,28 @@ begin
 end;
 
 procedure TGlobalState.SetMainSelectedMap(const Value: TMapType);
+var
+  VOldSelected: TMapType;
+  VMessage: IJclNotificationMessage;
 begin
-  FMainSelectedMap := Value;
+  VOldSelected := TMapType(InterlockedExchange(Integer(FMainSelectedMap), Integer(Value)));
+  FViewState.LockWrite;
+  FViewState.ChangeMainMapAndUnlock(Value);
+  if VOldSelected <> Value then begin
+    VMessage := TMapChangeMessage.Create(VOldSelected, Value);
+    FMainMapChangeNotifier.Notify(VMessage);
+    VMessage := nil;
+  end;
+end;
+
+procedure TGlobalState.InitViewState(AMainMap: TMapType; AZoom: Byte;
+  ACenterPos, AScreenSize: TPoint);
+begin
+  if FViewState = nil then begin
+    FViewState := TMapViewPortState.Create(AMainMap, AZoom, ACenterPos, AScreenSize);
+  end else begin
+    raise Exception.Create('Повторная инициализация объекта состояния отображаемого окна карты');
+  end;
 end;
 
 procedure TGlobalState.SetCurrentZoom(const AZoom: Byte; ANewPos: TPoint);

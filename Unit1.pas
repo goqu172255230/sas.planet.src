@@ -65,13 +65,14 @@ uses
   u_MapGPSLayer,
   u_MapLayerNavToMark,
   u_MapFillingLayer,
-  u_MiniMap,
+  u_MiniMapLayer,
   u_MapNalLayer,
   u_MapLayerGoto,
   u_MapLayerShowError,
   u_CenterScale,
   u_TileDownloaderUI,
   u_SelectionLayer,
+  u_GeoSearcher,
   t_GeoTypes;
 
 type
@@ -216,9 +217,6 @@ type
     NParams: TTBXSubmenuItem;
     NLayerParams: TTBXSubmenuItem;
     NHelp: TTBXSubmenuItem;
-    PopupMSmM: TTBXPopupMenu;
-    NSubMenuSmItem: TTBXSubmenuItem;
-    NMMtype_0: TTBXItem;
     NMarksCalcs: TMenuItem;
     NMarksCalcsLen: TMenuItem;
     NMarksCalcsSq: TMenuItem;
@@ -472,7 +470,6 @@ type
     procedure ShowstatusClick(Sender: TObject);
     procedure ShowMiniMapClick(Sender: TObject);
     procedure ShowLineClick(Sender: TObject);
-    procedure NMMtype_0Click(Sender: TObject);
     procedure N32Click(Sender: TObject);
     procedure TBItem3Click(Sender: TObject);
     procedure Google1Click(Sender: TObject);
@@ -588,13 +585,17 @@ type
     function GetVisibleTopLeft: TPoint;
     function GetVisibleSizeInPixel: TPoint;
     procedure MouseOnMyReg(var APWL:TResObj;xy:TPoint);
+    procedure MiniMapChangePos(APoint: TPoint; AZoom: Byte);
+    procedure InitSearchers;
   public
+    FGoogleSearch: TGeoSearcher;
+    FYandexSerach: TGeoSearcher;
     FFillingMap: TMapFillingLayer;
     LayerMapMarks: TMapMarksLayer;
     LayerMapNavToMark: TNavToMarkLayer;
     LayerMapScale: TCenterScale;
     LayerSelection: TSelectionLayer;
-    FMiniMap: TMiniMap;
+    FMiniMapLayer: TMiniMapLayer;
     MouseDownPoint: TPoint;
     MouseUpPoint: TPoint;
     m_m: Tpoint;
@@ -610,7 +611,6 @@ type
     property ScreenCenterPos: TPoint read FScreenCenterPos;
     procedure generate_im(lastload: TLastLoad; err: string); overload;
     procedure generate_im; overload;
-    function  toSh: string;
     procedure topos(LL: TExtendedPoint; zoom_: byte; draw: boolean);
     procedure zooming(ANewZoom: byte; move: boolean);
     class   function  timezone(lon, lat: real): TDateTime;
@@ -621,9 +621,6 @@ type
     procedure setalloperationfalse(newop: TAOperation);
     procedure insertinpath(pos: integer);
     procedure delfrompath(pos: integer);
-    procedure LayerMinMapMouseDown(Sender: TObject; Button: TMouseButton; Shift: TShiftState; X, Y: Integer);
-    procedure LayerMinMapMouseUP(Sender: TObject; Button: TMouseButton; Shift: TShiftState; X, Y: Integer);
-    procedure LayerMinMapMouseMove(Sender: TObject; Shift: TShiftState; X, Y: Integer);
     procedure SetStatusBarVisible();
     procedure SetLineScaleVisible(visible: boolean);
     procedure SetMiniMapVisible(visible: boolean);
@@ -690,6 +687,15 @@ uses
   i_ILogForTaskThread,
   i_ICoordConverter,
   u_KmlInfoSimple,
+  i_IMapViewGoto,
+  u_MapViewGotoOnFMain,
+  i_ISearchResultPresenter,
+  u_SearchResultPresenterStuped,
+  i_GeoCoder,
+  i_IProxySettings,
+  u_ProxySettingsFromTInetConnect,
+  u_GeoCoderByGoogle,
+  u_GeoCoderByYandex,
   UTrAllLoadMap,
   UGSM,
   UImport;
@@ -720,10 +726,11 @@ begin
   if (FScreenCenterPos.X <> VPoint.X) or (FScreenCenterPos.Y <> VPoint.Y)then begin
     FScreenCenterPos := VPoint;
     change_scene:=true;
-    LayerScaleLine.Redraw;
-    FMiniMap.sm_im_reset(FMiniMap.width div 2,FMiniMap.height div 2, ScreenCenterPos);
   end;
   GState.SetCurrentZoom(VZoomCurr, FScreenCenterPos);
+
+  LayerStatBar.Redraw;
+  LayerScaleLine.Redraw;
 
   FMainLayer.SetScreenCenterPos(VPoint, VZoomCurr, GState.sat_map_both.GeoConvert);
   FFillingMap.SetScreenCenterPos(VPoint, VZoomCurr, GState.sat_map_both.GeoConvert);
@@ -735,7 +742,7 @@ begin
   LayerGoto.SetScreenCenterPos(VPoint, VZoomCurr, GState.sat_map_both.GeoConvert);
   LayerMapNavToMark.SetScreenCenterPos(VPoint, VZoomCurr, GState.sat_map_both.GeoConvert);
   FShowErrorLayer.SetScreenCenterPos(VPoint, VZoomCurr, GState.sat_map_both.GeoConvert);
-
+  FMiniMapLayer.SetScreenCenterPos(VPoint, VZoomCurr, GState.sat_map_both.GeoConvert);
   QueryPerformanceCounter(ts3);
   QueryPerformanceFrequency(fr);
   Label1.caption :=FloatToStr((ts3-ts2)/(fr/1000));
@@ -1285,12 +1292,6 @@ begin
   generate_im;
 end;
 
-function TFmain.toSh:string;
-begin
- If not(GState.ShowStatusBar) then exit;
- LayerStatBar.Redraw;
- labZoom.caption:=' '+inttostr(GState.zoom_size)+'x ';
-end;
 procedure TFmain.generate_im;
 begin
   generate_im(nilLastLoad, '');
@@ -1306,7 +1307,6 @@ begin
   QueryPerformanceCounter(ts2);
 
   if not(lastload.use) then change_scene:=true;
-  FMiniMap.sm_im_reset(FMiniMap.width div 2,FMiniMap.height div 2, ScreenCenterPos);
 
   FMainLayer.Redraw;
   LayerScaleLine.Redraw;
@@ -1357,7 +1357,7 @@ begin
     except
     end;
   end;
-  toSh;
+  LayerStatBar.Redraw;
   QueryPerformanceCounter(ts3);
   QueryPerformanceFrequency(fr);
   Label1.caption :=FloatToStr((ts3-ts2)/(fr/1000));
@@ -1548,6 +1548,7 @@ begin
     GState.MainIni.ReadInteger('POSITION','x',zoom[VZoom]div 2 +1),
     GState.MainIni.ReadInteger('POSITION','y',zoom[VZoom]div 2 +1)
   );
+  GState.InitViewState(GState.MapType[0], VZoom - 1, VScreenCenterPos, Point(map.Width, map.Height));
 
   FMainLayer := TMapMainLayer.Create(map, VScreenCenterPos);
   FMainLayer.Visible := True;
@@ -1559,6 +1560,7 @@ begin
   LayerMapNal:=TMapNalLayer.Create(map, VScreenCenterPos);
   LayerMapNal.Visible:=false;
 
+
   LayerGoto := TGotoLayer.Create(map, VScreenCenterPos);
   LayerMapNavToMark := TNavToMarkLayer.Create(map, VScreenCenterPos);
   FShowErrorLayer := TTileErrorInfoLayer.Create(map, VScreenCenterPos);
@@ -1566,12 +1568,13 @@ begin
   LayerScaleLine := TLayerScaleLine.Create(map);
   LayerStatBar:=TLayerStatBar.Create(map);
 
-  FMiniMap := TMiniMap.Create(Map);
-  FMiniMap.LayerMinMap.OnMouseDown:=LayerMinMapMouseDown;
-  FMiniMap.LayerMinMap.OnMouseUp:=LayerMinMapMouseUp;
-  FMiniMap.LayerMinMap.OnMouseMove:=LayerMinMapMouseMove;
+  FMiniMapLayer := TMiniMapLayer.Create(map, VScreenCenterPos, MapIcons18);
+  FMiniMapLayer.Visible := True;
+  FMiniMapLayer.OnChangePos := MiniMapChangePos;
 
- CreateMapUI;
+  GState.InitViewState(GState.MapType[0], VZoom - 1, VScreenCenterPos, Point(map.Width, map.Height));
+
+  CreateMapUI;
 
   Set_Pos(VScreenCenterPos, VZoom - 1, GState.sat_map_both);
  try
@@ -1663,7 +1666,6 @@ begin
  TBFullSize.Checked:=GState.FullScrean;
  NCiclMap.Checked:=GState.CiclMap;
 
- toSh;
  ProgramStart:=false;
 
  if Vzoom_mapzap<>-1 then TBMapZap.Caption:='x'+inttostr(vzoom_mapzap + 1)
@@ -1720,7 +1722,7 @@ begin
  SetFocus;
  if (FLogo<>nil)and(FLogo.Visible) then FLogo.Timer1.Enabled:=true;
  FUIDownLoader := TTileDownloaderUI.Create;
-
+ InitSearchers;
  TBXMainMenu.ProcessShortCuts:=true;
 end;
 
@@ -1817,7 +1819,6 @@ begin
 
  Set_Pos(VNewScreenCenterPos, ANewZoom - 1);
  MapZoomAnimtion:=0;
- toSh;
 end;
 
 procedure TFmain.NzoomInClick(Sender: TObject);
@@ -1861,11 +1862,13 @@ begin
     TerminateThread(FUIDownLoader.Handle, 0);
   end;
   if length(GState.MapType)<>0 then FSettings.Save;
+  FreeAndNil(FGoogleSearch);
+  FreeAndNil(FYandexSerach);
+
   FreeAndNil(FFillingMap);
   FreeAndNil(FWikiLayer);
   Application.ProcessMessages;
   FreeAndNil(FUIDownLoader);
-  FreeAndNil(FMiniMap);
   FreeAndNil(LayerMapScale);
   FreeAndNil(LayerStatBar);
   FreeAndNil(LayerScaleLine);
@@ -1877,6 +1880,7 @@ begin
   FreeAndNil(LayerMapNal);
   FreeAndNil(LayerMapNavToMark);
   FreeAndNil(FMainLayer);
+  FreeAndNil(FMiniMapLayer);
 end;
 
 procedure TFmain.TBmoveClick(Sender: TObject);
@@ -2352,86 +2356,21 @@ begin
 end;
 
 procedure TFmain.EditGoogleSrchAcceptText(Sender: TObject; var NewText: String; var Accept: Boolean);
-var s,slat,slon,par:string;
-    i,j:integer;
-    err:boolean;
-    lat,lon:real;
-    Buffer:array [1..64535] of char;
-    BufferLen:LongWord;
-    hSession,hFile:Pointer;
-    dwindex, dwcodelen,dwReserv: dword;
-    dwtype: array [1..20] of char;
-    strr:string;
+var
+  VScreenCenter: TPoint;
+  VZoom: Byte;
+  VConv: ICoordConverter;
+  VPos: TExtendedPoint;
+  VPoint: TDoublePoint;
 begin
- if NewText='' then exit;
- s:='';
- hSession:=InternetOpen(pChar('Mozilla/4.0 (compatible; MSIE 7.0; Windows NT 5.1; .NET CLR 2.0.50727)'),INTERNET_OPEN_TYPE_PRECONFIG,nil,nil,0);
- 
- if Assigned(hSession)
-  then begin
-        for i:=1 to length(NewText) do
-         if NewText[i]=' ' then NewText[i]:='+';
-
-        strr:='http://maps.google.com/maps/geo?q='+URLEncode(AnsiToUtf8(NewText))+'&output=xml&hl=ru&key=ABQIAAAA5M1y8mUyWUMmpR1jcFhV0xSHfE-V63071eGbpDusLfXwkeh_OhT9fZIDm0qOTP0Zey_W5qEchxtoeA';
-        hFile:=InternetOpenUrl(hSession,PChar(strr),PChar(par),length(par),INTERNET_FLAG_DONT_CACHE or INTERNET_FLAG_KEEP_CONNECTION or INTERNET_FLAG_RELOAD,0);
-        if Assigned(hFile)then
-         begin
-          dwcodelen:=150; dwReserv:=0; dwindex:=0;
-          if HttpQueryInfo(hFile,HTTP_QUERY_STATUS_CODE,@dwtype, dwcodelen, dwReserv)
-           then dwindex:=strtoint(pchar(@dwtype));
-          if (dwindex=HTTP_STATUS_PROXY_AUTH_REQ) then
-           begin
-            if (not GState.InetConnect.userwinset)and(GState.InetConnect.uselogin) then
-             begin
-              InternetSetOption (hFile, INTERNET_OPTION_PROXY_USERNAME,PChar(GState.InetConnect.loginstr), length(GState.InetConnect.loginstr));
-              InternetSetOption (hFile, INTERNET_OPTION_PROXY_PASSWORD,PChar(GState.InetConnect.passstr), length(GState.InetConnect.Passstr));
-              HttpSendRequest(hFile, nil, 0,Nil, 0);
-             end;
-            dwcodelen:=150; dwReserv:=0; dwindex:=0;
-            if HttpQueryInfo(hFile,HTTP_QUERY_STATUS_CODE,@dwtype, dwcodelen, dwReserv)
-             then dwindex:=strtoint(pchar(@dwtype));
-            if (dwindex=HTTP_STATUS_PROXY_AUTH_REQ) then //Неверные пароль логин
-             begin
-             	ShowMessage(SAS_ERR_Authorization);
-              InternetCloseHandle(hFile);
-              InternetCloseHandle(hSession);
-              exit;
-             end;
-           end;
-
-          repeat
-           err:=not(internetReadFile(hFile,@Buffer,SizeOf(Buffer),BufferLen));
-           s:=s+Buffer;
-          until (BufferLen=0)and(BufferLen<SizeOf(Buffer))and(err=false);
-
-          if PosEx(AnsiToUtf8('Placemark'),s)<1 then
-           begin
-            ShowMessage(SAS_STR_notfound);
-            exit;
-           end;
-          i:=PosEx('<address>',s);
-          j:=PosEx('</address>',s);
-          strr:=Utf8ToAnsi(Copy(s,i+9,j-(i+9)));
-          i:=PosEx('<coordinates>',s);
-          j:=PosEx(',',s,i+13);
-          slon:=Copy(s,i+13,j-(i+13));
-          i:=PosEx(',0</coordinates>',s,j);
-          slat:=Copy(s,j+1,i-(j+1));
-          if slat[1]='\' then delete(slat,1,1);
-          if slon[1]='\' then delete(slon,1,1);
-          try
-           lat:=str2r(slat);
-           lon:=str2r(slon);
-          except
-           ShowMessage('Ошибка при конвертации координат!'+#13#10+'Возможно отсутствует подключение к интернету,'+#13#10+'или Яндекс изменил формат.');
-           exit;
-          end;
-          toPos(ExtPoint(lon,lat),GState.zoom_size,true);
-          ShowMessage(SAS_STR_foundplace+' "'+strr+'"');
-         end
-        else ShowMessage(SAS_ERR_Noconnectionstointernet);
-       end
-  else ShowMessage(SAS_ERR_Noconnectionstointernet);
+  VScreenCenter := ScreenCenterPos;
+  VZoom := GState.zoom_size;
+  VConv := GState.sat_map_both.GeoConvert;
+  VConv.CheckPixelPosStrict(VScreenCenter, VZoom, True);
+  VPos := VConv.PixelPos2LonLat(VScreenCenter, VZoom);
+  VPoint.X := VPos.X;
+  VPoint.Y := VPos.Y;
+  FGoogleSearch.ModalSearch(NewText, VPoint);
 end;
 
 procedure TFmain.TBSubmenuItem1Click(Sender: TObject);
@@ -2557,7 +2496,7 @@ end;
 
 procedure TFmain.SetMiniMapVisible(visible:boolean);
 begin
-  FMiniMap.SetMiniMapVisible(visible, ScreenCenterPos);
+  FMiniMapLayer.Visible := visible;
   ShowMiniMap.Checked:=visible;
 end;
 
@@ -2575,38 +2514,6 @@ end;
 procedure TFmain.ShowLineClick(Sender: TObject);
 begin
  SetLineScaleVisible(ShowLine.Checked)
-end;
-
-procedure TFmain.NMMtype_0Click(Sender: TObject);
-var
-  VItem: TTBXItem;
-  VMap: TMapType;
-begin
-  VItem := TTBXItem(sender);
-  if VItem.Tag = 0 then begin
-    if FMiniMap.MapType <> nil then begin
-      FMiniMap.MapType.ShowOnSmMap := false;
-      FMiniMap.MapType.NSmItem.Checked := false;
-      FMiniMap.maptype := nil;
-    end;
-    NMMtype_0.Checked := true;
-  end else begin
-    VMap := TMapType(VItem.Tag);
-    if VMap.asLayer then begin
-      VMap.ShowOnSmMap := not(VMap.ShowOnSmMap);
-      VItem.Checked := VMap.ShowOnSmMap;
-    end else begin
-      NMMtype_0.Checked := false;
-      if FMiniMap.maptype <> nil then begin
-        FMiniMap.MapType.ShowOnSmMap := false;
-        FMiniMap.MapType.NSmItem.Checked := false;
-      end;
-      FMiniMap.maptype := VMap;
-      FMiniMap.maptype.NSmItem.Checked:=true;
-      FMiniMap.maptype.ShowOnSmMap:=true;
-    end;
-  end;
-  FMiniMap.sm_im_reset(FMiniMap.width div 2,FMiniMap.height div 2, ScreenCenterPos);
 end;
 
 procedure TFmain.N32Click(Sender: TObject);
@@ -2750,8 +2657,8 @@ begin
    LayerGoto.Resize;
    FShowErrorLayer.Resize;
    LayerMapNavToMark.Resize;
-   toSh;
-   FMiniMap.sm_im_reset(FMiniMap.width div 2,FMiniMap.height div 2, ScreenCenterPos)
+   FMiniMapLayer.Resize;
+   LayerStatBar.Redraw;
   end;
 end;
 
@@ -2819,78 +2726,21 @@ begin
 end;
 
 procedure TFmain.TBEditItem1AcceptText(Sender: TObject; var NewText: String; var Accept: Boolean);
-var s,slat,slon,par:string;
-    i,j:integer;
-    err:boolean;
-    lat,lon:real;
-    Buffer:array [1..64535] of char;
-    BufferLen:LongWord;
-    hSession,hFile:Pointer;
-    dwtype: array [1..20] of char;
-    dwindex, dwcodelen,dwReserv: dword;
+var
+  VScreenCenter: TPoint;
+  VZoom: Byte;
+  VConv: ICoordConverter;
+  VPos: TExtendedPoint;
+  VPoint: TDoublePoint;
 begin
- if NewText='' then exit;
- s:='';
- hSession:=InternetOpen(pChar('Mozilla/4.0 (compatible; MSIE 7.0; Windows NT 5.1; .NET CLR 2.0.50727)'),INTERNET_OPEN_TYPE_PRECONFIG,nil,nil,0);
- if Assigned(hSession)
-  then begin
-        hFile:=InternetOpenURL(hSession,PChar('http://maps.yandex.ru/?text='+URLEncode(AnsiToUtf8(NewText))),PChar(par),length(par),INTERNET_FLAG_DONT_CACHE or INTERNET_FLAG_KEEP_CONNECTION or INTERNET_FLAG_RELOAD,0);
-        dwcodelen:=SizeOf(dwindex);
-        if Assigned(hFile)then
-         begin
-          dwcodelen:=150; dwReserv:=0; dwindex:=0;
-          if HttpQueryInfo(hFile,HTTP_QUERY_STATUS_CODE,@dwtype, dwcodelen, dwReserv)
-           then dwindex:=strtoint(pchar(@dwtype));
-          if (dwindex=HTTP_STATUS_PROXY_AUTH_REQ) then
-           begin
-            if (not GState.InetConnect.userwinset)and(GState.InetConnect.uselogin) then
-             begin
-              InternetSetOption (hFile, INTERNET_OPTION_PROXY_USERNAME,PChar(GState.InetConnect.loginstr), length(GState.InetConnect.loginstr));
-              InternetSetOption (hFile, INTERNET_OPTION_PROXY_PASSWORD,PChar(GState.InetConnect.passstr), length(GState.InetConnect.Passstr));
-              HttpSendRequest(hFile, nil, 0,Nil, 0);
-             end;
-            dwcodelen:=150; dwReserv:=0; dwindex:=0;
-            if HttpQueryInfo(hFile,HTTP_QUERY_STATUS_CODE,@dwtype, dwcodelen, dwReserv)
-             then dwindex:=strtoint(pchar(@dwtype));
-            if (dwindex=HTTP_STATUS_PROXY_AUTH_REQ) then //Неверные пароль логин
-             begin
-             	ShowMessage(SAS_ERR_Authorization);
-              InternetCloseHandle(hFile);
-              InternetCloseHandle(hSession);
-              exit;
-             end;
-           end;
-
-          repeat
-           err:=not(internetReadFile(hFile,@Buffer,SizeOf(Buffer),BufferLen));
-           s:=s+Buffer;
-          until (BufferLen=0)and(BufferLen<SizeOf(Buffer))and(err=false);
-
-          if PosEx(AnsiToUtf8('Искомая комбинация'),s)>0 then
-           begin
-            ShowMessage(SAS_STR_notfound);
-            exit;
-           end;
-          i:=PosEx('"ll":[',s);
-          j:=PosEx(',',s,i+6);
-          slon:=Copy(s,i+6,j-(i+6));
-          i:=PosEx(']',s,j);
-          slat:=Copy(s,j+1,i-(j+1));
-          if slat[1]='\' then delete(slat,1,1);
-          if slon[1]='\' then delete(slon,1,1);
-          try
-           lat:=str2r(slat);
-           lon:=str2r(slon);
-          except
-           ShowMessage('Ошибка при конвертации координат!'+#13#10+'Возможно отсутствует подключение к интернету,'+#13#10+'или Яндекс изменил формат.');
-           exit;
-          end;
-          toPos(ExtPoint(lon,lat),GState.zoom_size,true);
-          ShowMessage(SAS_STR_foundplace+' "'+NewText+'"');
-         end
-        else ShowMessage(SAS_ERR_Noconnectionstointernet);
-       end
-  else ShowMessage(SAS_ERR_Noconnectionstointernet);
+  VScreenCenter := ScreenCenterPos;
+  VZoom := GState.zoom_size;
+  VConv := GState.sat_map_both.GeoConvert;
+  VConv.CheckPixelPosStrict(VScreenCenter, VZoom, True);
+  VPos := VConv.PixelPos2LonLat(VScreenCenter, VZoom);
+  VPoint.X := VPos.X;
+  VPoint.Y := VPos.Y;
+  FYandexSerach.ModalSearch(NewText, VPoint);
 end;
 
 procedure TFmain.PopupMenu1Popup(Sender: TObject);
@@ -3082,7 +2932,7 @@ begin
           end
      else begin
            LayerMapGPS.Redraw;
-           toSh;
+           LayerStatBar.Redraw;
           end;
    end;
   UpdateGPSsensors;
@@ -3154,65 +3004,6 @@ begin
     FEditMap.FMapType := TMapType(TTBXItem(sender).Tag);
   end;
   FEditMap.ShowModal;
-end;
-
-procedure TFmain.LayerMinMapMouseDown(Sender: TObject; Button: TMouseButton; Shift: TShiftState; X, Y: Integer);
-var ll,lt:integer;
-begin
-  map.PopupMenu:=nil;
-  case button of
-    mbRight: map.PopupMenu:=PopupMSmM;
-    mbLeft: begin
-      ll:=round(FMiniMap.LayerMinMap.Location.Left);
-      lt:=round(FMiniMap.LayerMinMap.Location.top);
-      if (x<ll+5) then begin
-        FMiniMap.size_dw:=true
-      end else if (x>ll+4)and(x<ll+18)and(y>lt+4)and(y<lt+18) then begin
-        FMiniMap.zooming:=true;
-        if FMiniMap.z1mz2>1 then dec(FMiniMap.z1mz2);
-        FMiniMap.sm_im_reset(FMiniMap.width div 2,FMiniMap.height div 2, ScreenCenterPos);
-      end else if (x>ll+18)and(x<ll+32)and(y>lt+4)and(y<lt+18) then begin
-        FMiniMap.zooming:=true;
-        if GState.zoom_size-FMiniMap.z1mz2>1 then inc(FMiniMap.z1mz2);
-        FMiniMap.sm_im_reset(FMiniMap.width div 2,FMiniMap.height div 2, ScreenCenterPos);
-      end else if (x>ll+5)and(y>lt) then begin
-        FMiniMap.m_dwn:=true;
-        FMiniMap.sm_im_reset(round(x-(FMiniMap.LayerMinMap.Location.Left+5)),round(y-(FMiniMap.LayerMinMap.Location.top)), ScreenCenterPos);
-      end;
-    end;
-  end;
-end;
-
-procedure TFmain.LayerMinMapMouseMove(Sender: TObject; Shift: TShiftState; X, Y: Integer);
-begin
- if (x<FMiniMap.LayerMinMap.Location.Left+5)and(map.Cursor<>crSizeNWSE) then FMiniMap.LayerMinMap.Cursor:=crSizeNWSE
-                                                               else FMiniMap.LayerMinMap.Cursor:=crHandPoint;
- if (FMiniMap.size_dw)and((map.Width-x-5)>40)
-  then begin
-        FMiniMap.width:=(map.Width-x-5);
-        FMiniMap.height:=(map.Width-x-5);
-        FMiniMap.sm_im_reset(FMiniMap.width div 2,FMiniMap.height div 2, ScreenCenterPos)
-       end;
- if (FMiniMap.m_dwn)and(x>FMiniMap.LayerMinMap.Location.Left+5)and(y>FMiniMap.LayerMinMap.Location.top+5)
-  then FMiniMap.sm_im_reset(round(x-(FMiniMap.LayerMinMap.Location.Left+5)),round(y-(FMiniMap.LayerMinMap.Location.top)), ScreenCenterPos);
-end;
-
-procedure TFmain.LayerMinMapMouseUp(Sender:TObject; Button:TMouseButton; Shift:TShiftState; X,Y:Integer);
-begin
- if (MapZoomAnimtion=1) then exit;
- FMiniMap.m_dwn:=false;
- FMiniMap.size_dw:=false;
- if (not(FMiniMap.size_dw))and(not(FMiniMap.zooming))and((x>FMiniMap.LayerMinMap.Location.Left+5)and(y>FMiniMap.LayerMinMap.Location.Top))
-  then begin
-        if FMiniMap.zoom>1 then begin
-         Set_Pos(Point(ScreenCenterPos.x+round((-(128-(FMiniMap.pos.x*(256/FMiniMap.width))))*power(2,GState.zoom_size-FMiniMap.zoom)),
-              ScreenCenterPos.y+round((-(128-(FMiniMap.pos.y*(256/FMiniMap.height))))*power(2,GState.zoom_size-FMiniMap.zoom))), GState.zoom_size - 1, GState.sat_map_both)
-         end else begin
-          Set_Pos(Point(round(FMiniMap.pos.X*(256/FMiniMap.height)*power(2,GState.zoom_size-FMiniMap.zoom)),round((FMiniMap.pos.Y*(256/FMiniMap.height))*power(2,GState.zoom_size-FMiniMap.zoom))), GState.zoom_size - 1, GState.sat_map_both);
-         end;
-       end
-  else FMiniMap.zooming:=false;
- toSh;
 end;
 
 procedure TFmain.mapMouseDown(Sender: TObject; Button: TMouseButton;
@@ -3384,7 +3175,7 @@ begin
  MouseUpPoint:=Point(x,y);
  if (y=MouseDownPoint.y)and(x=MouseDownPoint.x) then
   begin
-   toSh;
+   LayerStatBar.Redraw;
    LayerScaleLine.Redraw;
    if aoper=ao_line then begin
     TBEditPath.Visible:=(length(length_arr)>1);
@@ -3404,7 +3195,6 @@ begin
    if GState.GPS_enab then begin
      LayerMapGPS.Redraw;
      UpdateGPSsensors;
-     toSh;
    end;
    if aoper in [ao_add_line,ao_add_poly,ao_edit_line,ao_edit_poly] then begin
     TBEditPath.Visible:=(length(add_line_arr)>1);
@@ -3604,7 +3394,9 @@ begin
               LayerMapNavToMark.MoveTo(Point(MouseDownPoint.X-x, MouseDownPoint.Y-y));
              end
         else m_m:=point(x,y);
- if not(MapMoving) then toSh;
+ if not(MapMoving) then begin
+    LayerStatBar.Redraw;
+ end;
 
  if (not ShowActivHint) then begin
    if (HintWindow<>nil) then begin
@@ -4356,6 +4148,29 @@ end;
 procedure TFmain.NGoToCurClick(Sender: TObject);
 begin
   GState.ZoomingAtMousePos := (Sender as TTBXItem).Checked
+end;
+
+procedure TFmain.MiniMapChangePos(APoint: TPoint; AZoom: Byte);
+begin
+  Set_Pos(APoint, AZoom);
+end;
+
+procedure TFmain.InitSearchers;
+var
+  VGoto: IMapViewGoto;
+  VPresenter: ISearchResultPresenter;
+  VGeoCoder: IGeoCoder;
+  VProxy: IProxySettings;
+begin
+  VGoto := TMapViewGotoOnFMain.Create;
+  VPresenter := TSearchResultPresenterStuped.Create(VGoto);
+  VProxy := TProxySettingsFromTInetConnect.Create(GState.InetConnect);
+
+  VGeoCoder := TGeoCoderByGoogle.Create(VProxy);
+  FGoogleSearch := TGeoSearcher.Create(VGeoCoder, VPresenter);
+
+  VGeoCoder := TGeoCoderByYandex.Create(VProxy);
+  FYandexSerach := TGeoSearcher.Create(VGeoCoder, VPresenter);
 end;
 
 end.

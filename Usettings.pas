@@ -239,15 +239,25 @@ procedure TFSettings.Save;
 var
     i:integer;
     lock_tb_b:boolean;
+    VZoom: Byte;
+    VScreenCenterPos: TPoint;
 begin
+  GState.ViewState.LockRead;
+  try
+    VZoom := GState.ViewState.GetCurrentZoom;
+    VScreenCenterPos := GState.ViewState.GetCenterMapPixel;
+  finally
+    GState.ViewState.UnLockRead;
+  end;
+
  try
  SaveMaps;
  FShortcutEditor.Save;
  GState.MainIni.WriteBool('VIEW','ShowMapNameOnPanel',GState.ShowMapName);
  GState.MainIni.WriteBool('VIEW','ZoomingAtMousePos',GState.ZoomingAtMousePos);
- GState.MainIni.WriteInteger('POSITION','zoom_size',GState.Zoom_Size);
- GState.MainIni.WriteInteger('POSITION','x',FMain.ScreenCenterPos.x);
- GState.MainIni.WriteInteger('POSITION','y',FMain.ScreenCenterPos.y);
+ GState.MainIni.WriteInteger('POSITION','zoom_size',VZoom + 1);
+ GState.MainIni.WriteInteger('POSITION','x',VScreenCenterPos.x);
+ GState.MainIni.WriteInteger('POSITION','y',VScreenCenterPos.y);
  GState.MainIni.Writebool('VIEW','line',Fmain.ShowLine.Checked);
  GState.MainIni.Writeinteger('VIEW','DefCache',GState.DefCache);
  GState.MainIni.Writebool('VIEW','minimap',Fmain.ShowMiniMap.Checked);
@@ -264,12 +274,9 @@ begin
  GState.MainIni.WriteInteger('VIEW','FWidth',Fmain.Width);
  GState.MainIni.WriteInteger('VIEW','FHeight',Fmain.Height);
  GState.MainIni.WriteInteger('VIEW','TileSource',integer(Fmain.TileSource));
- GState.MainIni.WriteInteger('VIEW','SmMapW',FMain.FMiniMap.width);
- GState.MainIni.WriteInteger('VIEW','SmMapH',FMain.FMiniMap.height);
  if FMain.LayerMapScale<>nil then GState.MainIni.Writebool('VIEW','showscale', FMain.LayerMapScale.Visible);
  GState.MainIni.Writebool('VIEW','showselection', FMain.LayerSelection.Visible);
- GState.MainIni.WriteInteger('VIEW','SmMapDifference',FMain.FMiniMap.z1mz2);
- GState.MainIni.WriteInteger('VIEW','SmMapAlpha',FMain.FMiniMap.alpha);
+ Fmain.FMiniMapLayer.WriteIni;
  GState.MainIni.WriteInteger('VIEW','ShowPointType',Byte(GState.show_point));
  GState.MainIni.Writeinteger('VIEW','MapZap', Fmain.FFillingMap.SourceZoom);
  GState.MainIni.Writeinteger('VIEW','NumberFormat',byte(GState.num_format));
@@ -452,7 +459,6 @@ begin
  end;
  GState.ShowMapName:=CBShowmapname.Checked;
  GState.llStrType:=TDegrShowFormat(CB_llstrType.ItemIndex);
- FMain.FMiniMap.alpha:=SpinEditMiniMap.Value;
  GState.Resampling:= TTileResamplingType(ComboBox2.ItemIndex);
 
  GState.GPS_ArrowSize:=SESizeStr.Value;
@@ -464,7 +470,6 @@ begin
  GState.GPS_COM:=ComboBoxCOM.Text;
  GState.GPS_BaudRate:=StrToint(ComboBoxBoudRate.Text);
  GState.GPS_SensorsAutoShow:=CBSensorsBarAutoShow.Checked;
- FMain.FMiniMap.z1mz2:=smmapdif.Value;
  if (RBWinCon.Checked)and(not GState.InetConnect.userwinset) then ShowMessage(SAS_MSG_need_reload_application_curln);
  GState.InetConnect.userwinset:=RBWinCon.Checked;
  GState.InetConnect.proxyused:=CBProxyused.Checked;
@@ -513,7 +518,7 @@ begin
   begin
    CreateMapUI;
   end;
- Fmain.selectMap(GState.sat_map_both);
+ Fmain.selectMap(GState.ViewState.GetCurrentMap);
 end;
 
 procedure TFSettings.Button4Click(Sender: TObject);
@@ -580,7 +585,6 @@ begin
  CBCacheType.ItemIndex:=GState.DefCache-1;
  CBShowmapname.Checked:=GState.ShowMapName;
  CB_llstrType.ItemIndex:=byte(GState.llStrType);
- SpinEditMiniMap.Value:=FMain.FMiniMap.alpha;
  OldCPath.text:=GState.OldCPath_;
  NewCPath.text:=GState.NewCPath_;
  ESCPath.text:=GState.ESCPath_;
@@ -592,7 +596,6 @@ begin
  SESizeStr.Value:=GState.GPS_ArrowSize;
  SESizeTrack.Value:=GState.GPS_TrackWidth;
  ScrolInvert.Checked:=GState.MouseWheelInv;
- smmapdif.Value:=FMain.FMiniMap.z1mz2;
  ComboBox2.ItemIndex:=byte(GState.Resampling);
  ComboBoxCOM.Text:=GState.GPS_COM;
  ComboBoxBoudRate.Text:=inttostr(GState.GPS_BaudRate);

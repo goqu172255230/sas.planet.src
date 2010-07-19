@@ -53,8 +53,6 @@ procedure TTileDownloaderUIOneTile.AfterWriteToFile;
 begin
   if (Fmain.Enabled)and(not(Fmain.MapMoving))and(not(FMain.MapZoomAnimtion=1)) then begin
     Fmain.generate_im(FLastLoad, FErrorString);
-  end else begin
-    Fmain.toSh;
   end;
 end;
 
@@ -64,9 +62,9 @@ var
   fileBuf:TMemoryStream;
   res: TDownloadTileResult;
 begin
-  Flastload.TilePos.X := FLoadXY.X shr 8;
-  Flastload.TilePos.Y := FLoadXY.Y shr 8;
-  Flastload.Zoom := Fzoom - 1;
+  Flastload.TilePos.X := FLoadXY.X;
+  Flastload.TilePos.Y := FLoadXY.Y;
+  Flastload.Zoom := Fzoom;
   FlastLoad.mt := Ftypemap;
   FlastLoad.use :=true;
   if FTypeMap.UseDwn then begin
@@ -75,7 +73,7 @@ begin
       if FTypeMap.IncDownloadedAndCheckAntiBan then begin
         Synchronize(FTypeMap.addDwnforban);
       end;
-      res :=FTypeMap.DownloadTile(FLoadXY.X, FLoadXY.Y, FZoom, false, 0, FLoadUrl, ty, fileBuf);
+      res :=FTypeMap.DownloadTile(FLoadXY.X shl 8, FLoadXY.Y shl 8, FZoom + 1, false, 0, FLoadUrl, ty, fileBuf);
       if res = dtrBanError  then begin
         Synchronize(Ban);
       end;
@@ -84,11 +82,11 @@ begin
         GState.IncrementDownloaded(fileBuf.Size/1024, 1);
       end;
       if (res = dtrTileNotExists) and (GState.SaveTileNotExists) then begin
-        FTypeMap.SaveTileNotExists(FLoadXY.X, FLoadXY.Y, FZoom);
+        FTypeMap.SaveTileNotExists(FLoadXY, FZoom);
       end;
       if res = dtrOK then begin
         try
-          FTypeMap.SaveTileDownload(FLoadXY.X, FLoadXY.Y, FZoom, fileBuf, ty);
+          FTypeMap.SaveTileDownload(FLoadXY, FZoom, fileBuf, ty);
         except
           on E: Exception do begin
             FErrorString := E.Message;

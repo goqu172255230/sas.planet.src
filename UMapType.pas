@@ -33,7 +33,6 @@ type
  TMapType = class
    private
     FGuid: TGUID;
-    FActive: Boolean;
     FTileRect: TRect;
     Fpos: integer;
     FFileName: string;
@@ -41,7 +40,6 @@ type
     FUseDel: boolean;
     FIsStoreReadOnly: Boolean;
     FUseSave: boolean;
-    FShowOnSmMap: boolean;
     FIsCanShowOnSmMap: Boolean;
     FUseStick: boolean;
     FGetURLScript: string;
@@ -60,6 +58,8 @@ type
     FMimeTypeSubstList: TStringList;
     FPNum: integer;
     FMemCache: IMemObjCache;
+    FIcon24Index: Integer;
+    FIcon18Index: Integer;
     function GetCoordConverter: ICoordConverter;
     function GetIsStoreFileCache: Boolean;
     function GetUseDwn: Boolean;
@@ -69,8 +69,6 @@ type
     function GetIsStoreReadOnly: boolean;
     function GetIsCanShowOnSmMap: boolean;
     function GetUseStick: boolean;
-    function GetShowOnSmMap: boolean;
-    procedure SetShowOnSmMap(const Value: boolean);
     function GetBitmapTypeManager: IBitmapTypeExtManager;
     function GetIsCropOnDownload: Boolean;
     function GetIsBitmapTiles: Boolean;
@@ -88,11 +86,6 @@ type
     procedure LoadWebSourceParams(AIniFile: TCustomIniFile);
     procedure LoadUIParams(AIniFile: TCustomIniFile);
     procedure LoadMapInfo(AUnZip: TVCLZip);
-    // Процедуру нужно вызвать сразу после включения карты или слоя
-    procedure Activate();
-    // Процедуру нужно вызвать сразу после выключения карты или слоя
-    procedure Deactivate();
-    procedure SetActive(const Value: Boolean);
    public
     id: integer;
 
@@ -125,7 +118,6 @@ type
     DefNameInCache: string;
     NameInCache: string;
 
-    NSmItem: TTBXItem; //Пункт контекстного меню мини карты
     MainToolbarItem: TTBXItem; //Пункт списка в главном тулбаре
     MainToolbarSubMenuItem: TTBXSubmenuItem; //Подпункт списка в главном тулбаре
     TBFillingItem: TTBXItem; //Пункт главного меню Вид/Карта заполнения/Формировать для
@@ -197,7 +189,6 @@ type
     property GeoConvert: ICoordConverter read GetCoordConverter;
     property GUID: TGUID read FGuid;
     property GUIDString: string read GetGUIDString;
-    property Active: Boolean read FActive write SetActive;
     property IsStoreFileCache: Boolean read GetIsStoreFileCache;
     property IsBitmapTiles: Boolean read GetIsBitmapTiles;
     property IsKmlTiles: Boolean read GetIsKmlTiles;
@@ -212,11 +203,11 @@ type
     property DefaultContentType: string read FDefaultContent_Type;
     property ContentType: string read FContent_Type;
     property IsCropOnDownload: Boolean read GetIsCropOnDownload;
-    property ShowOnSmMap: boolean read GetShowOnSmMap write SetShowOnSmMap;
     property ZmpFileName: string read GetZmpFileName;
     property BitmapTypeManager: IBitmapTypeExtManager read GetBitmapTypeManager;
-    property bmp18: TBitmap read Fbmp18;
-    property bmp24: TBitmap read Fbmp24;
+    property Icon24Index: Integer read FIcon24Index;
+    property Icon18Index: Integer read FIcon18Index;
+
     constructor Create;
     procedure LoadMapTypeFromZipFile(AZipFileName : string; Apnum : Integer);
     destructor Destroy; override;
@@ -227,6 +218,7 @@ type
     FCSSaveTNF: TCriticalSection;
     FUrlGenerator : TUrlGenerator;
     FCoordConverter : ICoordConverter;
+    FConverterForUrlGenerator: ICoordConverterSimple;
     FPoolOfDownloaders: IPoolOfObjectsSimple;
     //Для борьбы с капчей
     ban_pg_ld: Boolean;
@@ -247,6 +239,7 @@ var
 
   procedure LoadMaps;
   procedure SaveMaps;
+  procedure CreateMapUI;
   function GetMapFromID(id: TGUID): TMapType;
 
 implementation
@@ -257,6 +250,7 @@ uses
   GR32_Resamplers,
   VCLUnZip,
   u_GlobalState,
+  Usettings,
   u_GeoToStr,
   unit1,
   UIMGFun,
@@ -265,6 +259,7 @@ uses
   u_PoolOfObjectsSimple,
   u_TileDownloaderBaseFactory,
   ImgMaker,
+  u_CoordConverterAbstract,
   u_CoordConverterMercatorOnSphere,
   u_CoordConverterMercatorOnEllipsoid,
   u_CoordConverterSimpleLonLat;
@@ -284,6 +279,123 @@ begin
   end;
 end;
 
+procedure CreateMapUI;
+var
+  i,j: integer;
+  VMapType: TMapType;
+begin
+  FSettings.MapList.Clear;
+  Fmain.MapIcons24.Clear;
+  Fmain.MapIcons18.Clear;
+  Fmain.TBSMB.Clear;
+  Fmain.NSMB.Clear;
+  Fmain.ldm.Clear;
+  Fmain.dlm.Clear;
+  Fmain.NLayerParams.Clear;
+  for i:=0 to Fmain.NLayerSel.Count-1 do Fmain.NLayerSel.Items[0].Free;
+  for i:=0 to Fmain.TBLayerSel.Count-1 do Fmain.TBLayerSel.Items[0].Free;
+  for i:=0 to Fmain.TBFillingTypeMap.Count-2 do Fmain.TBFillingTypeMap.Items[1].Free;
+
+  i:=length(GState.MapType)-1;
+
+  if i>0 then begin
+    for i:=0 to length(GState.MapType)-1 do begin
+      VMapType := GState.MapType[i];
+      With VMapType do begin
+        MainToolbarItem:=TTBXItem.Create(Fmain.TBSMB);
+        if ParentSubMenu='' then begin
+          if asLayer then begin
+            Fmain.TBLayerSel.Add(MainToolbarItem);
+          end else begin
+            Fmain.TBSMB.Add(MainToolbarItem);
+          end;
+        end else begin
+          j:=0;
+          While GState.MapType[j].ParentSubMenu<>ParentSubMenu do inc(j);
+          if j=i then begin
+            MainToolbarSubMenuItem:=TTBXSubmenuItem.Create(Fmain.TBSMB);
+            MainToolbarSubMenuItem.caption:=ParentSubMenu;
+            MainToolbarSubMenuItem.Images:=Fmain.MapIcons18;
+            if asLayer then begin
+              Fmain.TBLayerSel.Add(MainToolbarSubMenuItem)
+            end else begin
+              Fmain.TBSMB.Add(MainToolbarSubMenuItem);
+            end;
+          end;
+          GState.MapType[j].MainToolbarSubMenuItem.Add(MainToolbarItem);
+        end;
+        Fmain.MapIcons24.AddMasked(Fbmp24,RGB(255,0,255));
+        Fmain.MapIcons18.AddMasked(Fbmp18,RGB(255,0,255));
+        MainToolbarItem.Name:='TBMapN'+inttostr(id);
+        MainToolbarItem.ShortCut:=HotKey;
+        MainToolbarItem.ImageIndex:=i;
+        MainToolbarItem.Caption:=name;
+        MainToolbarItem.OnAdjustFont:=Fmain.AdjustFont;
+        MainToolbarItem.OnClick:=Fmain.TBmap1Click;
+
+        TBFillingItem:=TTBXItem.Create(Fmain.TBFillingTypeMap);
+        TBFillingItem.name:='TBMapFM'+inttostr(id);
+        TBFillingItem.ImageIndex:=i;
+        TBFillingItem.Caption:=name;
+        TBFillingItem.OnAdjustFont:=Fmain.AdjustFont;
+        TBFillingItem.OnClick:=Fmain.TBfillMapAsMainClick;
+        Fmain.TBFillingTypeMap.Add(TBFillingItem);
+
+        if asLayer then begin
+          NDwnItem:=TMenuItem.Create(nil);
+          NDwnItem.Caption:=name;
+          NDwnItem.ImageIndex:=i;
+          NDwnItem.OnClick:=Fmain.N21Click;
+          Fmain.ldm.Add(NDwnItem);
+          NDelItem:=TMenuItem.Create(nil);
+          NDelItem.Caption:=name;
+          NDelItem.ImageIndex:=i;
+          NDelItem.OnClick:=Fmain.NDelClick;
+          Fmain.dlm.Add(NDelItem);
+          NLayerParamsItem:=TTBXItem.Create(Fmain.NLayerParams);
+          NLayerParamsItem.Caption:=name;
+          NLayerParamsItem.ImageIndex:=i;
+          NLayerParamsItem.OnClick:=Fmain.NMapParamsClick;
+          Fmain.NLayerParams.Add(NLayerParamsItem);
+        end;
+        if (asLayer)and(GState.ViewState.IsHybrGUIDSelected(GUID)) then begin
+          MainToolbarItem.Checked:=true;
+        end;
+        if separator then begin
+          MainToolbarItem.Parent.Add(TTBXSeparatorItem.Create(Fmain.TBSMB));
+          TBFillingItem.Parent.Add(TTBXSeparatorItem.Create(TBFillingItem.Parent));
+        end;
+        MainToolbarItem.Tag:=Longint(VMapType);
+        TBFillingItem.Tag:=Longint(VMapType);
+        if asLayer then begin
+          NDwnItem.Tag:=longint(VMapType);
+          NDelItem.Tag:=longint(VMapType);
+          NLayerParamsItem.Tag:=longint(VMapType);
+        end;
+        FSettings.MapList.AddItem(VMapType.name,nil);
+        FSettings.MapList.Items.Item[i].Data:=VMapType;
+        FSettings.MapList.Items.Item[i].SubItems.Add(VMapType.NameInCache);
+        if VMapType.asLayer then begin
+          FSettings.MapList.Items.Item[i].SubItems.Add(SAS_STR_Layers+'\'+VMapType.ParentSubMenu);
+        end else begin
+          FSettings.MapList.Items.Item[i].SubItems.Add(SAS_STR_Maps+'\'+VMapType.ParentSubMenu);
+        end;
+        FSettings.MapList.Items.Item[i].SubItems.Add(ShortCutToText(VMapType.HotKey));
+        FSettings.MapList.Items.Item[i].SubItems.Add(VMapType.FFilename);
+      end;
+    end;
+  end;
+  if FSettings.MapList.Items.Count>0 then begin
+    FSettings.MapList.Items.Item[0].Selected:=true;
+  end;
+  Fmain.TBSMB.ImageIndex := GState.MapType[0].MainToolbarItem.ImageIndex;
+  GState.MapType[0].MainToolbarItem.Checked:=true;
+  if GState.Showmapname then begin
+    Fmain.TBSMB.Caption:=GState.MapType[0].name;
+  end else begin
+    Fmain.TBSMB.Caption:='';
+  end;
+end;
 function FindGUIDInFirstMaps(AGUID: TGUID; Acnt: Cardinal; out AMapType: TMapType): Boolean;
 var
   i: Integer;
@@ -347,8 +459,6 @@ begin
         if Ini.SectionExists(VGUIDString)then begin
           With VMapType do begin
             id:=Ini.ReadInteger(VGUIDString,'pnum',0);
-            active:=ini.ReadBool(VGUIDString,'active',false);
-            ShowOnSmMap:=ini.ReadBool(VGUIDString,'ShowOnSmMap',true);
             URLBase:=ini.ReadString(VGUIDString,'URLBase',URLBase);
             CacheType:=ini.ReadInteger(VGUIDString,'CacheType',cachetype);
             NameInCache:=ini.ReadString(VGUIDString,'NameInCache',NameInCache);
@@ -363,8 +473,6 @@ begin
             if Fpos < 0 then Fpos := i;
             id := Fpos;
             dec(i);
-            active:=false;
-            ShowOnSmMap:=false;
           end;
         end;
       except
@@ -402,6 +510,8 @@ begin
   end;
   for i:=0 to length(GState.MapType)-1 do begin
     GState.MapType[i].id:=i+1;
+    GState.MapType[i].FIcon24Index := i;
+    GState.MapType[i].FIcon18Index := i;
   end;
 end;
 
@@ -418,8 +528,7 @@ begin
       VMapType := GState.MapType[i];
       VGUIDString := VMapType.GUIDString;
       ini.WriteInteger(VGUIDString,'pnum',VMapType.id);
-      ini.WriteBool(VGUIDString,'active',VMapType.active);
-      ini.WriteBool(VGUIDString,'ShowOnSmMap',VMapType.ShowOnSmMap);
+
 
       if VMapType.URLBase<>VMapType.DefURLBase then begin
         ini.WriteString(VGUIDString,'URLBase',VMapType.URLBase);
@@ -536,7 +645,7 @@ begin
     FreeAndNil(MapParams);
   end;
   try
-    FUrlGenerator := TUrlGenerator.Create('procedure Return(Data: string); begin ResultURL := Data; end; ' + FGetURLScript, FCoordConverter);
+    FUrlGenerator := TUrlGenerator.Create('procedure Return(Data: string); begin ResultURL := Data; end; ' + FGetURLScript, FConverterForUrlGenerator);
     FUrlGenerator.GetURLBase := URLBase;
     //GetLink(0,0,0);
   except
@@ -581,6 +690,7 @@ end;
 procedure TMapType.LoadProjectionInfo(AIniFile: TCustomIniFile);
 var
   bfloat:string;
+  VConverter: TCoordConverterAbstract;
 begin
   projection:=AIniFile.ReadInteger('PARAMS','projection',1);
   bfloat:=AIniFile.ReadString('PARAMS','sradiusa','6378137');
@@ -588,11 +698,13 @@ begin
   bfloat:=AIniFile.ReadString('PARAMS','sradiusb',FloatToStr(FRadiusA));
   FRadiusB:=str2r(bfloat);
   case projection of
-    1: FCoordConverter := TCoordConverterMercatorOnSphere.Create(FRadiusA);
-    2: FCoordConverter := TCoordConverterMercatorOnEllipsoid.Create(FRadiusA, FRadiusB);
-    3: FCoordConverter := TCoordConverterSimpleLonLat.Create(FRadiusA, FRadiusB);
+    1: VConverter := TCoordConverterMercatorOnSphere.Create(FRadiusA);
+    2: VConverter := TCoordConverterMercatorOnEllipsoid.Create(FRadiusA, FRadiusB);
+    3: VConverter := TCoordConverterSimpleLonLat.Create(FRadiusA, FRadiusB);
     else raise Exception.Create('Ошибочный тип проэкции карты ' + IntToStr(projection));
   end;
+  FCoordConverter := VConverter;
+  FConverterForUrlGenerator := VConverter;
 end;
 
 procedure TMapType.LoadMimeTypeSubstList(AIniFile: TCustomIniFile);
@@ -1406,7 +1518,6 @@ end;
 
 constructor TMapType.Create;
 begin
-  FActive := False;
   FInitDownloadCS := TCriticalSection.Create;
   FCSSaveTile := TCriticalSection.Create;
   FCSSaveTNF := TCriticalSection.Create;
@@ -1427,30 +1538,6 @@ begin
   FPoolOfDownloaders := nil;
   FMemCache := nil;
   inherited;
-end;
-
-procedure TMapType.Activate;
-begin
-
-end;
-
-procedure TMapType.Deactivate;
-begin
-
-end;
-
-procedure TMapType.SetActive(const Value: Boolean);
-begin
-  if Value then begin
-    if FActive <> Value then begin
-      Activate;
-    end;
-  end else begin
-    if FActive <> Value then begin
-      Deactivate;
-    end;
-  end;
-  FActive := Value;
 end;
 
 function TMapType.DownloadTile(x, y: longint; AZoom: byte;
@@ -1558,20 +1645,6 @@ begin
   end else begin
     Result := False;
   end;
-end;
-
-function TMapType.GetShowOnSmMap: boolean;
-begin
-  if Self.IsCanShowOnSmMap then begin
-    Result := FShowOnSmMap;
-  end else begin
-    Result := False
-  end;
-end;
-
-procedure TMapType.SetShowOnSmMap(const Value: boolean);
-begin
-  FShowOnSmMap := Value;
 end;
 
 function TMapType.GetBitmapTypeManager: IBitmapTypeExtManager;

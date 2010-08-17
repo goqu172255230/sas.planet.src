@@ -32,7 +32,6 @@ type
     FWikiLayerElments: array of TWikiLayerElement;
     procedure addWL(var AData: TKMLData);
     procedure DrawWikiElement(var AData: TWikiLayerElement);
-    procedure DrawWikiElementGR32(var AData: TWikiLayerElement);
     procedure DoRedraw; override;
     procedure Clear;
     procedure AddFromLayer(Alayer: TMapType);
@@ -241,28 +240,10 @@ begin
       end;
     end;
   end;
-  DrawWikiElementGR32(FWikiLayerElments[lenLay - 1]);
+  DrawWikiElement(FWikiLayerElments[lenLay - 1]);
 end;
 
 procedure TWikiLayer.DrawWikiElement(var AData: TWikiLayerElement);
-begin
-  FLayer.Bitmap.Canvas.Pen.Width := 3;
-  FLayer.Bitmap.Canvas.Pen.Color := GState.WikiMapFonColor;
-  if length(AData.FPolygonOnBitmap) = 1 then begin
-    FLayer.Bitmap.Canvas.Ellipse(AData.FPolygonOnBitmap[0].x - 3, AData.FPolygonOnBitmap[0].y - 3, AData.FPolygonOnBitmap[0].x + 3, AData.FPolygonOnBitmap[0].y + 3);
-  end else begin
-    FLayer.Bitmap.Canvas.Polyline(AData.FPolygonOnBitmap);
-  end;
-  FLayer.Bitmap.Canvas.Pen.Width := 1;
-  FLayer.Bitmap.Canvas.Pen.Color := GState.WikiMapMainColor;
-  if length(AData.FPolygonOnBitmap) = 1 then begin
-    FLayer.Bitmap.Canvas.Ellipse(AData.FPolygonOnBitmap[0].x - 3, AData.FPolygonOnBitmap[0].y - 3, AData.FPolygonOnBitmap[0].x + 2, AData.FPolygonOnBitmap[0].y + 3);
-  end else begin
-    FLayer.Bitmap.Canvas.Polyline(AData.FPolygonOnBitmap);
-  end;
-end;
-
-procedure TWikiLayer.DrawWikiElementGR32(var AData: TWikiLayerElement);
 var
   VPolygon: TPolygon32;
   VLen: integer;

@@ -2888,7 +2888,7 @@ end;
 procedure TFmain.NMarkDelClick(Sender: TObject);
 begin
  FWikiLayer.MouseOnReg(FPWL,moveTrue);
- if DeleteMark(StrToInt(FPWL.numid),Handle) then
+ if DeleteMarkModal(StrToInt(FPWL.numid),Handle) then
   generate_im;
 end;
 
@@ -3781,7 +3781,6 @@ var
   LL:TExtendedPoint;
   id:integer;
   VMark: TMarkFull;
-  VPointCount: Integer;
 begin
  FWikiLayer.MouseOnReg(FPWL, moveTrue);
  if (not NMarkNav.Checked) then begin
@@ -3789,15 +3788,7 @@ begin
    VMark := GetMarkByID(id);
    if VMark = nil then Exit;
    try
-     VPointCount := Length(VMark.Points);
-     if (VMark.Points[0].Y=VMark.Points[VPointCount-1].Y)and
-        (VMark.Points[0].X=VMark.Points[VPointCount-1].X)
-     then begin
-      LL.X:= (VMark.LLRect.Left + VMark.LLRect.Right) / 2;
-      LL.Y:= (VMark.LLRect.Top + VMark.LLRect.Bottom) / 2;
-     end else begin
-      LL:=VMark.Points[0];
-     end;
+     LL := GetGoToMarkLonLat(VMark);
      LayerMapNavToMark.StartNav(LL, Id);
    finally
     VMark.Free;
@@ -4212,10 +4203,10 @@ var
   VMarkLonLatRect: TExtendedRect;
   VPixelPos: TPoint;
   VZoom: Byte;
+  marksFilter:string;
+  VCategoryFilter: string;
 begin
   if GState.show_point = mshNone then exit;
-  CDSKategory.Filtered:=true;
-  if CDSKategory.Eof then exit;
 
   VRect.Left := xy.X - 8;
   VRect.Top := xy.Y - 16;
@@ -4232,9 +4223,24 @@ begin
   finally
     GState.ViewState.UnLockRead;
   end;
-
-  CDSmarks.Filtered:=true;
+  marksFilter:='';
+  if GState.show_point = mshChecked then begin
+    marksFilter:=marksFilter+'visible=1';
+    marksFilter:=marksFilter+' and ';
+    VCategoryFilter := GetMarksFileterByCategories(VZoom);
+    if Length(VCategoryFilter) > 0 then begin
+      marksFilter:=marksFilter + VCategoryFilter + ' and ';
+    end;
+  end;
+    marksFilter:=marksFilter+'('+
+      ' LonR>'+floattostr(VLonLatRect.Left)+' and'+
+      ' LonL<'+floattostr(VLonLatRect.Right)+' and'+
+      ' LatB<'+floattostr(VLonLatRect.Top)+' and'+
+      ' LatT>'+floattostr(VLonLatRect.Bottom)+
+    ')';
   try
+    CDSmarks.Filter:=marksFilter;
+    CDSmarks.Filtered:=true;
     CDSmarks.First;
     while (not(CDSmarks.Eof))and((CDSmarksvisible.AsBoolean)or(GState.show_point=mshAll)) do begin
       VMarkLonLatRect.Left := CDSmarkslonL.AsFloat;
@@ -4253,7 +4259,7 @@ begin
           APWL.type_:=ROTpoint;
           exit;
         end else begin
-          arLL := VConverter.PoligonProject(VZoom, poly);
+          arLL := VConverter.PoligonProject(VZoom + 8, poly);
           if (poly[0].x<>poly[length(poly)-1].x)or
           (poly[0].y<>poly[length(poly)-1].y)then begin
             j:=1;

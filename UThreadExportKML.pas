@@ -10,23 +10,21 @@ uses
   GR32,
   UMapType,
   UGeoFun,
-  unit4,
   UResStrings,
   t_GeoTypes,
-  u_ExportThreadAbstract;
+  u_ThreadExportAbstract;
 
 type
-  TThreadExportKML = class(TExportThreadAbstract)
+  TThreadExportKML = class(TThreadExportAbstract)
   private
     FMapType: TMapType;
-    FProgressForm: TFprogress2;
     FIsReplace:boolean;
     FPathExport:string;
     RelativePath:boolean;
     KMLFile:TextFile;
     procedure KmlFileWrite(x,y:integer;z,level:byte);
   protected
-    procedure ExportRegion; override;
+    procedure ProcessRegion; override;
   public
     constructor Create(
       APath: string;
@@ -114,7 +112,7 @@ begin
   Write(KMLFile,ToFile);
 end;
 
-procedure TThreadExportKML.ExportRegion;
+procedure TThreadExportKML.ProcessRegion;
 var p_x,p_y,i,j:integer;
     polyg:TPointArray;
     ToFile:string;
@@ -148,14 +146,11 @@ begin
      p_y:=min.Y;
      while p_y<max.Y do
       begin
-       if not FProgressForm.Visible then begin
-          exit;
-        end;
-       if not(RgnAndRgn(Polyg,p_x,p_y,false)) then begin
-                                                    inc(p_y,256);
-                                                    CONTINUE;
-                                                   end;
-       KmlFileWrite(p_x,p_y,i+1,1);
+       if not IsCancel then begin
+         if (RgnAndRgn(Polyg,p_x,p_y,false)) then begin
+          KmlFileWrite(p_x,p_y,i+1,1);
+         end;
+       end;
        inc(p_y,256);
       end;
       inc(p_x,256);

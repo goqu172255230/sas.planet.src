@@ -16,36 +16,26 @@ uses
   UMapType,
   UGeoFun,
   unit4,
+  u_ThreadRegionProcessAbstract,
   UResStrings,
   Uimgfun,
   t_GeoTypes;
 
 type
-  TOpGenPreviousZoom = class(TThread)
+  TOpGenPreviousZoom = class(TThreadRegionProcessAbstract)
   private
     Replace:boolean;
     savefull:boolean;
     GenFormPrev:boolean;
-    PolygLL: TExtendedPointArray;
     FromZoom:byte;
     InZooms: TArrayOfByte;
     typemap:TMapType;
-    max,min:TPoint;
-    ProcessTiles:integer;
 
     Resampler:TTileResamplingType;
-    polyg:TPointArray;
-    Fprogress: TFprogress2;
     TileInProc:integer;
-    CurrentTile:integer;
-    procedure GenPreviousZoom;
-    procedure SetProgressForm;
-    procedure UpdateProgressForm;
-    procedure CloseProgressForm;
-    procedure SyncShowMessage;
-    procedure CloseFProgress(Sender: TObject; var Action: TCloseAction);
   protected
-    procedure Execute; override;
+    procedure ProcessRegion; override;
+    procedure ProgressFormUpdateOnProgress;
   public
     constructor Create(
       Azoom: byte;
@@ -57,7 +47,6 @@ type
       AGenFormPrev: boolean;
       AResampler:TTileResamplingType
     );
-    destructor Destroy; override;
   end;
 
 implementation
@@ -68,74 +57,19 @@ uses
 
 constructor TOpGenPreviousZoom.Create(Azoom:byte; AInZooms: TArrayOfByte; APolygLL: TExtendedPointArray; Atypemap:TMapType; AReplace:boolean; Asavefull:boolean; AGenFormPrev:boolean; AResampler:TTileResamplingType);
 begin
-  inherited Create(False);
-  Priority := tpLowest;
-  FreeOnTerminate:=true;
+  inherited Create(APolygLL);
   Replace := AReplace;
   savefull := Asavefull;
   GenFormPrev := AGenFormPrev;
   InZooms := AInZooms;
-  PolygLL := APolygLL;
+  FPolygLL := APolygLL;
   TileInProc:=0;
   FromZoom:=Azoom;
   typemap:=Atypemap;
   Resampler := AResampler;
 end;
 
-destructor TOpGenPreviousZoom.Destroy;
-begin
- Synchronize(CloseProgressForm);
- inherited ;
-end;
-
-procedure TOpGenPreviousZoom.Execute;
-var i:integer;
-begin
- setlength(polyg,length(PolygLL));
- ProcessTiles:=0;
- for i:=0 to length(InZooms)-1 do
-   begin
-    polyg := typemap.GeoConvert.LonLatArray2PixelArray(PolygLL, InZooms[i] - 1);
-    if (not GenFormPrev)or(i=0) then
-                  inc(ProcessTiles,GetDwnlNum(min,max,Polyg,true)*Round(IntPower(4,FromZoom-InZooms[i])))
-             else inc(ProcessTiles,GetDwnlNum(min,max,Polyg,true)*Round(IntPower(4,InZooms[i-1]-InZooms[i])));
-   end;
- Synchronize(SetProgressForm);
- GenPreviousZoom;
-end;
-
-procedure TOpGenPreviousZoom.CloseFProgress(Sender: TObject; var Action: TCloseAction);
-begin
- if not(Terminated) then Terminate;
-end;
-
-procedure TOpGenPreviousZoom.CloseProgressForm;
-begin
- fprogress.Free;
- GState.MainFileCache.Clear;
- Fmain.generate_im;
-end;
-
-procedure TOpGenPreviousZoom.UpdateProgressForm;
-begin
-  fprogress.MemoInfo.Lines[0]:=SAS_STR_Saves+': '+inttostr(TileInProc)+' '+SAS_STR_files;
-  FProgress.ProgressBar1.Progress1:=CurrentTile;
-  fprogress.MemoInfo.Lines[1]:=SAS_STR_Processed+' '+inttostr(CurrentTile);
-end;
-
-procedure TOpGenPreviousZoom.SetProgressForm;
-begin
-  Application.CreateForm(TFProgress2, FProgress);
-  FProgress.OnClose:=CloseFProgress;
-  FProgress.Visible:=true;
-  fprogress.Caption:=SAS_STR_ProcessedNoMore+': '+inttostr(ProcessTiles)+' '+SAS_STR_files;
-  fprogress.MemoInfo.Lines[0]:=SAS_STR_Processed+' 0';
-  fprogress.MemoInfo.Lines[1]:=SAS_STR_Saves+': 0';
-  FProgress.ProgressBar1.Progress1:=0;
-  FProgress.ProgressBar1.Max:=ProcessTiles;
-end;
-
-procedure TOpGenPreviousZoom.GenPreviousZoom;
+procedure TOpGenPreviousZoom.ProcessRegion;
 var
   bmp_ex:TCustomBitmap32;
   bmp:TCustomBitmap32;
@@ -144,17 +78,31 @@ var
   VZoom: Integer;
   VTile: TPoint;
   VSubTile: TPoint;
+  max,min:TPoint;
+  polyg:TPointArray;
 begin
+  FTilesToProcess:=0;
+  for i:=0 to length(InZooms)-1 do begin
+    polyg := typemap.GeoConvert.LonLatArray2PixelArray(FPolygLL, InZooms[i] - 1);
+    if (not GenFormPrev)or(i=0) then
+                  inc(FTilesToProcess,GetDwnlNum(min,max,Polyg,true)*Round(IntPower(4,FromZoom-InZooms[i])))
+             else inc(FTilesToProcess,GetDwnlNum(min,max,Polyg,true)*Round(IntPower(4,InZooms[i-1]-InZooms[i])));
+  end;
+  ProgressFormUpdateCaption(
+    '',
+    SAS_STR_ProcessedNoMore+': '+inttostr(FTilesToProcess)+' '+SAS_STR_files
+  );
+
   bmp_ex:=TCustomBitmap32.Create;
   bmp:=TCustomBitmap32.Create;
   try
     bmp.Resampler := CreateResampler(Resampler);
 
     TileInProc:=0;
-    CurrentTile:=0;
+    FTilesProcessed:=0;
     for i:=0 to length(InZooms)-1 do begin
      if Terminated then continue;
-     polyg := typemap.GeoConvert.LonLatArray2PixelArray(PolygLL, InZooms[i] - 1);
+     polyg := typemap.GeoConvert.LonLatArray2PixelArray(FPolygLL, InZooms[i] - 1);
      if (not GenFormPrev)or(i=0) then
                    c_d:=round(power(2,FromZoom-InZooms[i]))
               else c_d:=round(power(2,InZooms[i-1]-InZooms[i]));
@@ -163,18 +111,18 @@ begin
              else VZoom := InZooms[i-1];
      GetDwnlNum(min,max,Polyg,false);
      p_x:=min.x;
-     while (p_x<max.X)and(not Terminated) do
+     while (p_x<max.X)and(not IsCancel) do
       begin
        VTile.X := p_x shr 8;
        p_y:=min.y;
-       while (p_y<max.y)and(not Terminated) do
+       while (p_y<max.y)and(not IsCancel) do
         begin
          VTile.Y := p_y shr 8;
          if RgnAndRgn(Polyg,p_x,p_y,false) then begin
            if typemap.TileExists(VTile, InZooms[i] - 1)then begin
                                     if not(Replace)
                                      then begin
-                                           Synchronize(UpdateProgressForm);
+                                           ProgressFormUpdateOnProgress;
                                            inc(p_y,256);
                                            continue;
                                           end;
@@ -203,19 +151,15 @@ begin
                   Assert(False, 'Ошибка чтения тайла.');
                 end;
                end;
-              inc(CurrentTile);
-              if (CurrentTile mod 30 = 0) then Synchronize(UpdateProgressForm);
+              inc(FTilesProcessed);
+              if (FTilesProcessed mod 30 = 0) then ProgressFormUpdateOnProgress;
             end;
            end;
            if Terminated then continue;
-           if ((not savefull)or(save_len_tile=c_d*c_d))and(save_len_tile > 0) then
-             try
+           if ((not savefull)or(save_len_tile=c_d*c_d))and(save_len_tile > 0) then begin
               typemap.SaveTileSimple(VTile, InZooms[i] - 1, bmp_ex);
               inc(TileInProc);
-             except
-              Synchronize(SyncShowMessage);
-              Terminate;
-             end;
+           end;
          end;
          inc(p_y,256);
         end;
@@ -226,11 +170,16 @@ begin
     bmp_ex.Free;
     bmp.Free;
   end;
+  GState.MainFileCache.Clear;
 end;
 
-procedure TOpGenPreviousZoom.SyncShowMessage;
+procedure TOpGenPreviousZoom.ProgressFormUpdateOnProgress;
 begin
-  ShowMessage(SAS_ERR_Write);
+  ProgressFormUpdateProgressLine0AndLine1(
+    round((FTilesProcessed / FTilesToProcess) * 100),
+    SAS_STR_Saves+': '+inttostr(TileInProc)+' '+SAS_STR_files,
+    SAS_STR_Processed+' '+inttostr(FTilesProcessed)
+  );
 end;
 
 end.

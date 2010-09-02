@@ -193,8 +193,6 @@
     <DCCReference Include="u_CoordConverterSimpleLonLat.pas" />
     <DCCReference Include="u_EnumUnknown.pas" />
     <DCCReference Include="u_EnumUnknownEmpty.pas" />
-    <DCCReference Include="u_ExportThreadAbstract.pas" />
-    <DCCReference Include="u_ExportThreadToZip.pas" />
     <DCCReference Include="u_GarbageCollectorThread.pas" />
     <DCCReference Include="u_GECache.pas" />
     <DCCReference Include="u_GECrypt.pas" />
@@ -269,6 +267,9 @@
     <DCCReference Include="u_ProxySettingsFromTInetConnect.pas" />
     <DCCReference Include="u_SearchResultPresenterStuped.pas" />
     <DCCReference Include="u_SelectionLayer.pas" />
+    <DCCReference Include="u_ThreadExportAbstract.pas" />
+    <DCCReference Include="u_ThreadExportToZip.pas" />
+    <DCCReference Include="u_ThreadRegionProcessAbstract.pas" />
     <DCCReference Include="u_TileCacheSimpleGlobal.pas" />
     <DCCReference Include="u_TileDownloaderBase.pas" />
     <DCCReference Include="u_TileDownloaderBaseFactory.pas" />

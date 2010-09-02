@@ -13,17 +13,17 @@ uses
   UResStrings,
   UYaMobile,
   t_GeoTypes,
-  u_ExportThreadAbstract;
+  u_ThreadExportAbstract;
 
 type
-  TThreadExportYaMaps = class(TExportThreadAbstract)
+  TThreadExportYaMaps = class(TThreadExportAbstract)
   private
     FMapTypeArr:array of TMapType;
     FIsReplace:boolean;
     FExportPath: string;
     csat,cmap,chib:byte;
   protected
-    procedure ExportRegion; override;
+    procedure ProcessRegion; override;
   public
     constructor Create(
       APath: string;
@@ -69,7 +69,7 @@ begin
 end;
 
 
-procedure TThreadExportYaMaps.ExportRegion;
+procedure TThreadExportYaMaps.ProcessRegion;
 var
   p_x,p_y,i,j,xi,yi,hxyi,sizeim:integer;
   polyg:TPointArray;

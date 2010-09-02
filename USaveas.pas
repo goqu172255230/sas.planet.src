@@ -214,7 +214,7 @@ uses
   u_MapCombineThreadJPG,
   u_MapCombineThreadKMZ,
   UThreadExport,
-  u_ExportThreadToZip,
+  u_ThreadExportToZip,
   UThreadExportIPhone,
   UThreadExportKML,
   UThreadExportYaMaps,
@@ -253,10 +253,7 @@ end;
 procedure TFsaveas.DelRegion(APolyLL: TExtendedPointArray);
 begin
   if (MessageBox(handle,pchar(SAS_MSG_youasure),pchar(SAS_MSG_coution),36)=IDYES) then begin
-    with TOpDelTiles.Create(true,APolyLL,CBZoomload.ItemIndex+1,TMapType(CBmapDel.Items.Objects[CBmapDel.ItemIndex]),CBDelBytes.Checked) do begin
-      DelBytesNum:=SEDelBytes.Value;
-      Suspended:=false;
-    end;
+    TOpDelTiles.Create(APolyLL,CBZoomload.ItemIndex+1,TMapType(CBmapDel.Items.Objects[CBmapDel.ItemIndex]),CBDelBytes.Checked, SEDelBytes.Value);
   end;
 end;
 
@@ -344,7 +341,7 @@ begin
   path:=IncludeTrailingPathDelimiter(EditPath.Text);
   Replace:=CBReplace.Checked;
   if ziped then begin
-    TExportThreadToZip.Create(path,APolyLL,ZoomArr,typemaparr,GState.TileNameGenerator.GetGenerator(CBCahceType.ItemIndex + 1))
+    TThreadExportToZip.Create(path,APolyLL,ZoomArr,typemaparr,GState.TileNameGenerator.GetGenerator(CBCahceType.ItemIndex + 1))
   end else begin
     TThreadExport.Create(path,APolyLL,ZoomArr,typemaparr,CBMove.Checked,Replace,GState.TileNameGenerator.GetGenerator(CBCahceType.ItemIndex + 1))
   end;

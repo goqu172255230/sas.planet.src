@@ -10,36 +10,28 @@ uses
   t_GeoTypes,
   UMapType,
   unit4,
+  u_ThreadRegionProcessAbstract,
   UResStrings;
 
 type
-  TOpDelTiles = class(TThread)
+  TOpDelTiles = class(TThreadRegionProcessAbstract)
   private
-    Zoom:byte;
-    typemap:TMapType;
-    polyg:TPointArray;
-    max,min:TPoint;
-    ProcessTiles:integer;
-    Fprogress: TFprogress2;
-    TileInProc:integer;
+    FZoom:byte;
+    FMapType:TMapType;
+    FDeletedCount:integer;
     DelBytes:boolean;
-    procedure DeleteTiles;
-    procedure SetProgressForm;
-    procedure UpdateProgressForm;
-    procedure CloseProgressForm;
-    procedure CloseFProgress(Sender: TObject; var Action: TCloseAction);
-  protected
-    procedure Execute; override;
-  public
     DelBytesNum:integer;
+  protected
+    procedure ProcessRegion; override;
+    procedure ProgressFormUpdateOnProgress;
+  public
     constructor Create(
-      CrSusp:Boolean;
       APolyLL: TExtendedPointArray;
       Azoom: byte;
       Atypemap: TMapType;
-      ADelByte:boolean
+      ADelByte:boolean;
+      ADelBytesNum:integer
     );
-    destructor Destroy; override;
   end;
 
 implementation
@@ -49,84 +41,63 @@ uses
   unit1,
   Ugeofun;
 
-constructor TOpDelTiles.Create(CrSusp:Boolean; APolyLL: TExtendedPointArray; Azoom:byte;Atypemap:TMapType; ADelByte:boolean);
+constructor TOpDelTiles.Create(
+  APolyLL: TExtendedPointArray;
+  Azoom:byte;
+  Atypemap:TMapType;
+  ADelByte:boolean;
+  ADelBytesNum:integer
+);
 begin
-  inherited Create(CrSusp);
-  TileInProc:=0;
-  zoom:=Azoom;
-  typemap:=Atypemap;
-  polyg := typemap.GeoConvert.LonLatArray2PixelArray(APolyLL, (Zoom - 1));
-  ProcessTiles:=GetDwnlNum(min,max,Polyg,true);
-  Priority := tpLowest;
-  FreeOnTerminate:=true;
+  inherited Create(APolyLL);
+  FDeletedCount:=0;
+  FZoom:=Azoom;
+  FMapType:=Atypemap;
   DelBytes:=ADelByte;
+  DelBytesNum := ADelBytesNum;
 end;
 
-destructor TOpDelTiles.Destroy;
-begin
- Synchronize(CloseProgressForm);
- inherited;
-end;
-
-procedure TOpDelTiles.Execute;
-begin
- Synchronize(SetProgressForm);
- DeleteTiles;
-end;
-
-procedure TOpDelTiles.CloseFProgress(Sender: TObject; var Action: TCloseAction);
-begin
- if not(Terminated) then Terminate;
-end;
-
-procedure TOpDelTiles.CloseProgressForm;
-begin
- fprogress.Free;
- GState.MainFileCache.Clear;
- Fmain.generate_im;
-end;
-
-procedure TOpDelTiles.UpdateProgressForm;
-begin
-  fprogress.MemoInfo.Lines[0]:=SAS_STR_AllDelete+' '+inttostr(TileInProc)+' '+SAS_STR_files;
-  FProgress.ProgressBar1.Progress1:=FProgress.ProgressBar1.Progress1+1;
-  fprogress.MemoInfo.Lines[1]:=SAS_STR_Processed+' '+inttostr(FProgress.ProgressBar1.Progress1);
-end;
-
-procedure TOpDelTiles.SetProgressForm;
-begin
-  Application.CreateForm(TFProgress2, FProgress);
-  FProgress.OnClose:=CloseFProgress;
-  FProgress.Visible:=true;
-  fprogress.Caption:=SAS_STR_Deleted+' '+inttostr(ProcessTiles)+' '+SAS_STR_files+' (x'+inttostr(zoom)+')';
-  fprogress.MemoInfo.Lines[0]:=SAS_STR_AllDelete+' 0';
-  fprogress.MemoInfo.Lines[1]:=SAS_STR_Processed+' 0';
-  FProgress.ProgressBar1.Progress1:=0;
-  FProgress.ProgressBar1.Max:=ProcessTiles;
-end;
-
-procedure TOpDelTiles.DeleteTiles;
-var i,j:integer;
+procedure TOpDelTiles.ProcessRegion;
+var
+  i,j:integer;
   VTile: TPoint;
+  polyg:TPointArray;
+  max,min:TPoint;
 begin
+  polyg := FMapType.GeoConvert.LonLatArray2PixelArray(FPolygLL, (FZoom - 1));
+  FTilesToProcess:=GetDwnlNum(min,max,Polyg,true);
+  ProgressFormUpdateCaption(
+    '',
+    SAS_STR_Deleted+' '+inttostr(FTilesToProcess)+' '+SAS_STR_files+' (x'+inttostr(FZoom)+')'
+  );
   i:=min.x;
-  while (i<max.X)and(not Terminated) do begin
+  while (i<max.X)and(not IsCancel) do begin
     VTile.X := i shr 8;
     j:=min.Y;
-    while (j<max.y)and(not Terminated) do  begin
+    while (j<max.y)and(not IsCancel) do  begin
       VTile.Y := j shr 8;
       if RgnAndRgn(Polyg,i,j,false) then begin
-        if (not DelBytes or (DelBytesNum=typemap.TileSize(VTile, zoom - 1))) then begin
-          if typemap.DeleteTile(VTile, Zoom - 1) then begin
-            inc(TileInProc);
+        if (not DelBytes or (DelBytesNum=FMapType.TileSize(VTile, FZoom - 1))) then begin
+          if FMapType.DeleteTile(VTile, FZoom - 1) then begin
+            inc(FDeletedCount);
           end;
-          Synchronize(UpdateProgressForm);
+          ProgressFormUpdateOnProgress;
         end;
+        inc(FTilesProcessed);
       end;
       inc(j,256);
     end;
     inc(i,256);
   end;
+end;
+
+procedure TOpDelTiles.ProgressFormUpdateOnProgress;
+begin
+  ProgressFormUpdateProgressLine0AndLine1(
+    round((FTilesProcessed / FTilesToProcess) * 100),
+    SAS_STR_AllDelete+' '+inttostr(FDeletedCount)+' '+SAS_STR_files,
+    SAS_STR_Processed+' '+inttostr(FTilesProcessed)
+  );
 end;
 
 end.

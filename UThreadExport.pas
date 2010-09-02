@@ -12,10 +12,10 @@ uses
   UGeoFun,
   UResStrings,
   t_GeoTypes,
-  u_ExportThreadAbstract;
+  u_ThreadExportAbstract;
 
 type
-  TThreadExport = class(TExportThreadAbstract)
+  TThreadExport = class(TThreadExportAbstract)
   private
     FMapTypeArr: array of TMapType;
     FTileNameGen: ITileFileNameGenerator;
@@ -24,7 +24,7 @@ type
     FIsReplace: boolean;
     FPathExport: string;
   protected
-    procedure ExportRegion; override;
+    procedure ProcessRegion; override;
   public
     constructor Create(
       APath: string;
@@ -64,7 +64,7 @@ begin
   end;
 end;
 
-procedure TThreadExport.ExportRegion;
+procedure TThreadExport.ProcessRegion;
 var
   p_x, p_y, i, j: integer;
   polyg: TPointArray;

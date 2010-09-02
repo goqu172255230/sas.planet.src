@@ -50,8 +50,9 @@ uses
   u_MapCombineThreadECW in 'u_MapCombineThreadECW.pas',
   u_MapCombineThreadJPG in 'u_MapCombineThreadJPG.pas',
   u_MapCombineThreadKMZ in 'u_MapCombineThreadKMZ.pas',
-  u_ExportThreadAbstract in 'u_ExportThreadAbstract.pas',
-  u_ExportThreadToZip in 'u_ExportThreadToZip.pas',
+  u_ThreadRegionProcessAbstract in 'u_ThreadRegionProcessAbstract.pas',
+  u_ThreadExportAbstract in 'u_ThreadExportAbstract.pas',
+  u_ThreadExportToZip in 'u_ThreadExportToZip.pas',
   UThreadExport in 'UThreadExport.pas',
   UThreadExportIPhone in 'UThreadExportIPhone.pas',
   UThreadExportKML in 'UThreadExportKML.pas',
@@ -214,7 +215,7 @@ begin
       RenameFile(GState.ProgramPath+'SASPlanet.RUS',GState.ProgramPath+'SASPlanet.~RUS');
     end;
     Application.Initialize;
-    Application.Title := 'SAS.Планета';
+    Application.Title := 'SAS.пїЅпїЅпїЅпїЅ;
     LoadNewResourceModule(GState.Localization);
     //logo
     if GState.MainIni.ReadBool('VIEW','Show_logo',true) then begin

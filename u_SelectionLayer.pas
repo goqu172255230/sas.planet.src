@@ -77,9 +77,14 @@ begin
 end;
 
 procedure TSelectionLayer.LoadConfig(AConfigProvider: IConfigDataProvider);
+var
+  VConfigProvider: IConfigDataProvider;
 begin
   inherited;
-
+  VConfigProvider := AConfigProvider.GetSubItem('VIEW');
+  if VConfigProvider <> nil then begin
+    Visible := VConfigProvider.ReadBool('ShowLastSelection',false);
+  end;
 end;
 
 function TSelectionLayer.PreparePolygon(
@@ -134,9 +139,12 @@ begin
 end;
 
 procedure TSelectionLayer.SaveConfig(AConfigProvider: IConfigDataWriteProvider);
+var
+  VConfigProvider: IConfigDataWriteProvider;
 begin
   inherited;
-
+  VConfigProvider := AConfigProvider.GetOrCreateSubItem('VIEW');
+  VConfigProvider.WriteBool('ShowLastSelection', Visible);
 end;
 
 end.

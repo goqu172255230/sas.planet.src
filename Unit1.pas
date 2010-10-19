@@ -535,7 +535,6 @@ type
     Flock_toolbars: boolean;
     rect_dwn: Boolean;
     rect_p2: boolean;
-    FTileSource: TTileSource;
     FMainLayer: TMapMainLayer;
     LayerStatBar: TLayerStatBar;
     FShowErrorLayer: TTileErrorInfoLayer;
@@ -588,7 +587,6 @@ type
     procedure DoMessageEvent(var Msg: TMsg; var Handled: Boolean);
     procedure WMGetMinMaxInfo(var msg: TWMGetMinMaxInfo); message WM_GETMINMAXINFO;
     procedure Set_lock_toolbars(const Value: boolean);
-    procedure Set_TileSource(const Value: TTileSource);
     procedure MouseOnMyReg(var APWL:TResObj;xy:TPoint);
     procedure InitSearchers;
     procedure zooming(ANewZoom: byte; move: boolean);
@@ -602,6 +600,8 @@ type
     function GetStreamFromURL(var ms: TMemoryStream; url: string; conttype: string): integer;
     function GetIgnoredMenuItemsList: TList;
     procedure MapLayersVisibleChange;
+    procedure CopyStringToClipboard(s: Widestring);
+    procedure UpdateGPSsensors;
   public
     FGoogleGeoCoder: IGeoCoder;
     FYandexGeoCoder: IGeoCoder;
@@ -611,7 +611,6 @@ type
     aoper: TAOperation;
     EditMarkId:integer;
     property lock_toolbars: boolean read Flock_toolbars write Set_lock_toolbars;
-    property TileSource: TTileSource read FTileSource;
     property ShortCutManager: TShortcutManager read FShortCutManager;
 
     constructor Create(AOwner: TComponent); override;
@@ -622,9 +621,7 @@ type
     procedure OpenUrlInBrowser(URL: string);
     procedure CreateMapUI;
     procedure setalloperationfalse(newop: TAOperation);
-    procedure UpdateGPSsensors;
     procedure UpdateGPSSatellites;
-    procedure CopyStringToClipboard(s: Widestring);
     procedure SaveWindowConfigToIni(AProvider: IConfigDataWriteProvider);
   end;
 
@@ -759,6 +756,11 @@ begin
 end;
 
 procedure TFmain.MapLayersVisibleChange;
+var
+  VGUID: TGUID;
+  VEnumGUID: IEnumGUID;
+  i: Cardinal;
+  VMapType: TMapType;
 begin
   Showstatus.Checked := LayerStatBar.Visible;
   if LayerStatBar.Visible then begin
@@ -770,6 +772,41 @@ begin
   end;
   ShowMiniMap.Checked := FLayerMiniMap.Visible;
   ShowLine.Checked := FLayerScaleLine.Visible;
+  NShowSelection.Checked := LayerSelection.Visible;
+  N32.Checked:=FLayerMapScale.Visible;
+
+  TBSrc.ImageIndex := integer(FMainLayer.UseDownload);
+  case FMainLayer.UseDownload of
+    tsInternet: NSRCinet.Checked:=true;
+    tsCache: NSRCesh.Checked:=true;
+    tsCacheInternet: NSRCic.Checked:=true;
+  end;
+
+  if FLayerFillingMap.SourceZoom >-1 then begin
+    TBMapZap.Caption:='x'+inttostr(FLayerFillingMap.SourceZoom+1);
+  end else begin
+    TBMapZap.Caption:='';
+  end;
+
+  VMapType := FLayerFillingMap.SourceSelected;
+  if VMapType <> nil then begin
+    TBfillMapAsMain.Checked:=false;
+    VEnumGUID := FTBFillingItemList.GetGUIDEnum;
+    while VEnumGUID.Next(1, VGUID, i) = S_OK  do begin
+      if IsEqualGUID(VMapType.GUID, VGUID) then begin
+        TTBXItem(FTBFillingItemList.GetByGUID(VGUID)).Checked := True;
+      end else begin
+        TTBXItem(FTBFillingItemList.GetByGUID(VGUID)).Checked := False;
+      end;
+    end;
+  end else begin
+    TBfillMapAsMain.Checked:=true;
+    VEnumGUID := FTBFillingItemList.GetGUIDEnum;
+    while VEnumGUID.Next(1, VGUID, i) = S_OK  do begin
+      TTBXItem(FTBFillingItemList.GetByGUID(VGUID)).Checked := False;
+    end;
+  end;
+
   mapResize(nil);
 end;
 
@@ -865,18 +902,6 @@ begin
     QueryPerformanceFrequency(fr);
     Label1.caption :=FloatToStr((ts3-ts2)/(fr/1000));
   end;
-end;
-
-procedure TFMain.Set_TileSource(const Value: TTileSource);
-begin
- FTileSource:=Value;
- TBSrc.ImageIndex:=integer(Value);
- case Value of
-  tsInternet: NSRCinet.Checked:=true;
-  tsCache: NSRCesh.Checked:=true;
-  tsCacheInternet: NSRCic.Checked:=true;
- end;
- FMainLayer.UseDownload := Value;
 end;
 
 procedure TFMain.Set_lock_toolbars(const Value: boolean);
@@ -1237,11 +1262,9 @@ procedure TFmain.topos(LL:TExtendedPoint;zoom_:byte;draw:boolean);
 begin
   GState.ViewState.LockWrite;
   GState.ViewState.ChangeZoomAndUnlock(zoom_, LL);
-  zooming(zoom_,false);
   if draw then begin
     FLayerGoto.ShowGotoIcon(LL);
   end;
-  generate_im;
 end;
 
 procedure TFmain.generate_im;
@@ -1462,12 +1485,11 @@ var
   MainWindowMaximized: Boolean;
   VGUID: TGUID;
   VGUIDString: string;
-  VFillingmaptype: TMapType;
-  Vzoom_mapzap: integer;
   VScreenCenterPos: TPoint;
   VZoom: Byte;
   VLonLat: TExtendedPoint;
   VConverter: ICoordConverter;
+  VMapType: TMapType;
 begin
   GState.ScreenSize := Point(Screen.Width, Screen.Height);
   if not ProgramStart then exit;
@@ -1578,30 +1600,6 @@ begin
     CreateMapUI;
     FSettings.InitMapsList;
 
-    try
-      VGUIDString := GState.MainIni.ReadString('VIEW','FillingMap','');
-      if VGUIDString <> '' then begin
-        VGUID := StringToGUID(VGUIDString);
-        VFillingmaptype:=GState.GetMapFromID(VGUID);
-      end else begin
-        VFillingmaptype := nil;
-      end;
-    except
-      VFillingmaptype := nil;
-    end;
-    if VFillingmaptype<>nil then begin
-      TTBXItem(FTBFillingItemList.GetByGUID(Vfillingmaptype.GUID)).Checked:=true
-    end else begin
-      TBfillMapAsMain.Checked:=true;
-    end;
-    Vzoom_mapzap:=GState.MainIni.readinteger('VIEW','MapZap',-1);
-    FLayerFillingMap.SetSourceMap(VFillingmaptype, Vzoom_mapzap);
-    if Vzoom_mapzap<>-1 then begin
-      TBMapZap.Caption:='x'+inttostr(vzoom_mapzap + 1);
-    end else  begin
-      TBMapZap.Caption:='';
-    end;
-
     NGShScale10000.Checked := GState.GShScale = 10000;
     NGShScale25000.Checked := GState.GShScale = 25000;
     NGShScale50000.Checked := GState.GShScale = 50000;
@@ -1611,8 +1609,6 @@ begin
     NGShScale1000000.Checked := GState.GShScale = 1000000;
     NGShScale0.Checked := GState.GShScale = 0;
 
-    N32.Checked:=FLayerMapScale.Visible;
-    NShowSelection.Checked := LayerSelection.Visible;
     Ninvertcolor.Checked:=GState.InvertColor;
     TBGPSconn.Checked := GState.GPS_enab;
     if GState.GPS_enab then TBGPSconnClick(TBGPSconn);
@@ -1653,6 +1649,8 @@ begin
     LayerStatBar.VisibleChangeNotifier.Add(FMapLayersVsibleChangeListener);
     FLayerMiniMap.VisibleChangeNotifier.Add(FMapLayersVsibleChangeListener);
     FLayerScaleLine.VisibleChangeNotifier.Add(FMapLayersVsibleChangeListener);
+    FMainLayer.UseDownloadChangeNotifier.Add(FMapLayersVsibleChangeListener);
+    FLayerFillingMap.SourceMapChangeNotifier.Add(FMapLayersVsibleChangeListener);
 
     GState.ViewState.LoadViewPortState(GState.MainConfigProvider);
 
@@ -1668,10 +1666,9 @@ begin
         param:=paramstr(1);
         if param<>'' then begin
           VGUID := StringToGUID(param);
-          for i:=0 to length(GState.MapType)-1 do begin
-            if IsEqualGUID(GState.MapType[i].GUID, VGUID)then begin
-              GState.ViewState.ChangeMainMapAtCurrentPoint(GState.MapType[i]);
-            end;
+          VMapType := GState.GetMapFromID(VGUID);
+          if VMapType <> nil then begin
+            GState.ViewState.ChangeMainMapAtCurrentPoint(VMapType);
           end;
         end;
         if  (paramstr(2)<>'') and (paramstr(3)<>'')and(paramstr(4)<>'') then begin
@@ -1707,10 +1704,6 @@ begin
     GState.ViewState.ChangeViewSize(Point(map.Width, map.Height));
 
     FMainLayer.Visible := True;
-    LayerSelection.Visible := GState.MainIni.readbool('VIEW','showselection',false);
-    FLayerMapScale.Visible:=GState.MainIni.readbool('VIEW','showscale',false);
-    FLayerMapMarks.Visible := GState.show_point <> mshNone;
-    Set_TileSource(TTileSource(GState.MainIni.Readinteger('VIEW','TileSource',1)));
   finally
     Enabled:=true;
     map.SetFocus;
@@ -1737,17 +1730,17 @@ var i,steps:integer;
     Scale: Extended;
     VZoom: Byte;
 begin
-  TBZoom_Out.Enabled:=ANewZoom<=0;
-  TBZoomIn.Enabled:=ANewZoom>=23;
-  NZoomIn.Enabled:=TBZoomIn.Enabled;
-  NZoomOut.Enabled:=TBZoom_Out.Enabled;
+  TBZoom_Out.Enabled := False;
+  TBZoomIn.Enabled := False;
+  NZoomIn.Enabled := False;
+  NZoomOut.Enabled := False;
   RxSlider1.Value:=ANewZoom;
   VZoom := GState.ViewState.GetCurrentZoom;
   if (MapZoomAnimtion)or(MapMoving)or(ANewZoom>23) then exit;
   MapZoomAnimtion:=True;
-  steps:=11;
 
   if (abs(ANewZoom-VZoom)=1)and(GState.AnimateZoom) then begin
+   steps:=11;
    for i:=0 to steps-1 do begin
      QueryPerformanceCounter(ts1);
       if VZoom>ANewZoom then begin
@@ -2125,10 +2118,10 @@ begin
 end;
 
 procedure TFmain.N11Click(Sender: TObject);
-var
-  WindirP: PChar;
-  btm_ex:TBitmap;
-  path: string;
+//var
+//  WindirP: PChar;
+//  btm_ex:TBitmap;
+//  path: string;
 begin
   ShowMessage('Временно не работает');
 //  WinDirP:=StrAlloc(MAX_PATH);
@@ -2242,7 +2235,7 @@ end;
 
 procedure TFmain.NSRCinetClick(Sender: TObject);
 begin
- Set_TileSource(TTileSource(TTBXItem(Sender).Tag));
+  FMainLayer.UseDownload := TTileSource(TTBXItem(Sender).Tag);
 end;
 
 procedure TFmain.N16Click(Sender: TObject);
@@ -2285,9 +2278,12 @@ end;
 
 //карта заполнения в основном окне
 procedure TFmain.NFillMapClick(Sender: TObject);
+var
+  VZoom: Integer;
 begin
-  if FLayerFillingMap.SourceZoom > -1 then begin
-    TBXToolPalette1.SelectedCell:=Point((FLayerFillingMap.SourceZoom + 1) mod 5,(FLayerFillingMap.SourceZoom + 1) div 5);
+  VZoom := FLayerFillingMap.SourceZoom;
+  if VZoom > -1 then begin
+    TBXToolPalette1.SelectedCell:=Point((VZoom + 1) mod 5,(VZoom + 1) div 5);
   end else begin
     TBXToolPalette1.SelectedCell:=Point(0,0);
   end;
@@ -2298,12 +2294,6 @@ var
   Vzoom_mapzap: integer;
 begin
   Vzoom_mapzap:=((5*ARow)+ACol)-1;
-  if Vzoom_mapzap>-1 then begin
-    TBMapZap.Caption:='x'+inttostr(Vzoom_mapzap+1);
-    Vzoom_mapzap := Vzoom_mapzap;
-  end else begin
-    TBMapZap.Caption:='';
-  end;
   FLayerFillingMap.SetSourceMap(FLayerFillingMap.SourceSelected, Vzoom_mapzap);
 end;
 //X-карта заполнения в основном окне
@@ -2474,22 +2464,22 @@ end;
 
 procedure TFmain.ShowstatusClick(Sender: TObject);
 begin
-  LayerStatBar.Visible:=Showstatus.Checked;
+  LayerStatBar.Visible := TTBXItem(Sender).Checked;
 end;
 
 procedure TFmain.ShowMiniMapClick(Sender: TObject);
 begin
-  FLayerMiniMap.Visible := ShowMiniMap.Checked;
+  FLayerMiniMap.Visible := TTBXItem(Sender).Checked;
 end;
 
 procedure TFmain.ShowLineClick(Sender: TObject);
 begin
-  FLayerScaleLine.Visible := ShowLine.Checked;
+  FLayerScaleLine.Visible := TTBXItem(Sender).Checked;
 end;
 
 procedure TFmain.N32Click(Sender: TObject);
 begin
- FLayerMapScale.Visible:=TTBXItem(sender).Checked;
+ FLayerMapScale.Visible := TTBXItem(Sender).Checked;
 end;
 
 procedure TFmain.TBItem3Click(Sender: TObject);
@@ -3835,22 +3825,14 @@ end;
 
 procedure TFmain.TBfillMapAsMainClick(Sender: TObject);
 var
+  VItem: TTBXItem;
   VFillingMapType: TMapType;
 begin
-  VFillingMapType := FLayerFillingMap.SourceSelected;
-  if TTBXItem(sender).Tag=0 then begin
-    if Vfillingmaptype<>nil then begin
-      TTBXItem(FTBFillingItemList.GetByGUID(VFillingMapType.GUID)).Checked:=false;
-      Vfillingmaptype:=nil;
-    end;
-    TBfillMapAsMain.Checked:=true;
+  VItem := Sender as TTBXItem;
+  if VItem.Tag = 0 then begin
+    VFillingMapType := nil;
   end else begin
-    TBfillMapAsMain.Checked:=false;
-    if Vfillingmaptype<>nil then begin
-      TTBXItem(FTBFillingItemList.GetByGUID(VFillingMapType.GUID)).Checked:=false;
-    end;
-    Vfillingmaptype:=TMapType(TTBXItem(sender).Tag);
-    TTBXItem(FTBFillingItemList.GetByGUID(VFillingMapType.GUID)).Checked:=true;
+    VFillingMapType := TMapType(VItem.Tag);
   end;
   FLayerFillingMap.SetSourceMap(VFillingMapType, FLayerFillingMap.SourceZoom);
 end;
@@ -3973,19 +3955,7 @@ begin
   GState.MainIni.WriteInteger('VIEW','FWidth',Width);
   GState.MainIni.WriteInteger('VIEW','FHeight',Height);
 
-  GState.MainIni.Writebool('VIEW','line',ShowLine.Checked);
-  GState.MainIni.Writebool('VIEW','minimap',ShowMiniMap.Checked);
-  GState.MainIni.WriteInteger('VIEW','TileSource',integer(FTileSource));
-  GState.MainIni.Writebool('VIEW','showscale', FLayerMapScale.Visible);
-  GState.MainIni.Writebool('VIEW','showselection', LayerSelection.Visible);
   FLayersList.SaveConfig(AProvider);
-
-  GState.MainIni.Writeinteger('VIEW','MapZap', FLayerFillingMap.SourceZoom);
-  if FLayerFillingMap.SourceSelected=nil then begin
-    GState.MainIni.WriteString('VIEW','FillingMap','')
-  end else begin
-    GState.MainIni.WriteString('VIEW','FillingMap',FLayerFillingMap.SourceSelected.GUIDString);
-  end;
 
   GState.MainIni.WriteBool('VIEW','lock_toolbars',lock_toolbars);
   lock_tb_b:=lock_toolbars;
@@ -4133,7 +4103,7 @@ end;
 
 procedure TFmain.NShowSelectionClick(Sender: TObject);
 begin
- LayerSelection.Visible:=TTBXItem(sender).Checked;
+  LayerSelection.Visible := TTBXItem(sender).Checked;
 end;
 
 procedure TFmain.MouseOnMyReg(var APWL: TResObj; xy: TPoint);

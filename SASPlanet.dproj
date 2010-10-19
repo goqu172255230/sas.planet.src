@@ -262,7 +262,6 @@
     <DCCReference Include="u_ActiveMapConfig.pas" />
     <DCCReference Include="u_ActiveMapWithHybrConfig.pas" />
     <DCCReference Include="u_AntiBanStuped.pas" />
-    <DCCReference Include="u_BitmapLayerWithSortIndex.pas" />
     <DCCReference Include="u_BitmapTypeExtManagerSimple.pas" />
     <DCCReference Include="u_CenterScale.pas" />
     <DCCReference Include="u_CommonFormAndFrameParents.pas" />
@@ -348,6 +347,7 @@
     <DCCReference Include="u_PoolOfObjectsSimple.pas" />
     <DCCReference Include="u_PosChangeMessage.pas" />
     <DCCReference Include="u_ProxySettingsFromTInetConnect.pas" />
+    <DCCReference Include="u_SaveLoadTBConfigByConfigProvider.pas" />
     <DCCReference Include="u_SearchResultPresenterStuped.pas" />
     <DCCReference Include="u_SelectionLayer.pas" />
     <DCCReference Include="u_ShortcutManager.pas" />

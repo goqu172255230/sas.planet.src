@@ -11,23 +11,19 @@ uses
   t_GeoTypes,
   i_IConfigDataProvider,
   i_IConfigDataWriteProvider,
-  u_MapViewPortState,
-  u_BitmapLayerWithSortIndex;
+  u_MapViewPortState;
 
 type
   TWindowLayerBasic = class
   protected
     FParentMap: TImage32;
-    FLayer: TBitmapLayerWithSortIndex;
+    FLayerPositioned: TPositionedLayer;
     FViewPortState: TMapViewPortState;
     FMapPosChangeListener: IJclListener;
     FVisibleChangeNotifier: IJclNotifier;
 
     function GetVisible: Boolean; virtual;
     procedure SetVisible(const Value: Boolean); virtual;
-
-    // В наследниках нужно перекрывать если уровень слоя выше чем бекграунд.
-    function GetSortIndexForLayer: Integer; virtual;
 
 {
  Используемые системы координат:
@@ -59,6 +55,7 @@ type
     procedure DoResizeBitmap; virtual;
     procedure DoRedraw; virtual; abstract;
     procedure DoResize; virtual;
+    function CreateLayer(ALayerCollection: TLayerCollection): TPositionedLayer; virtual;
   public
     constructor Create(AParentMap: TImage32; AViewPortState: TMapViewPortState);
     destructor Destroy; override;
@@ -74,6 +71,15 @@ type
     property VisibleChangeNotifier: IJclNotifier read FVisibleChangeNotifier;
   end;
 
+  TWindowLayerBasicWithBitmap = class(TWindowLayerBasic)
+  protected
+    FLayer: TBitmapLayer;
+    function CreateLayer(ALayerCollection: TLayerCollection): TPositionedLayer; override;
+    procedure DoResizeBitmap; override;
+  public
+    constructor Create(AParentMap: TImage32; AViewPortState: TMapViewPortState);
+    procedure Hide; override;
+  end;
 
 implementation
 
@@ -87,15 +93,18 @@ begin
   FParentMap := AParentMap;
   FViewPortState := AViewPortState;
 
-  FLayer := TBitmapLayerWithSortIndex.Create(FParentMap.Layers, GetSortIndexForLayer);
+  FLayerPositioned := TBitmapLayer.Create(FParentMap.Layers);
 
-  FLayer.Bitmap.DrawMode := dmBlend;
-  FLayer.Bitmap.CombineMode := cmMerge;
-  FLayer.bitmap.Font.Charset := RUSSIAN_CHARSET;
-  FLayer.MouseEvents := false;
-  FLayer.Visible := false;
+  FLayerPositioned.MouseEvents := false;
+  FLayerPositioned.Visible := false;
 
   FVisibleChangeNotifier := TJclBaseNotifier.Create;
+end;
+
+function TWindowLayerBasic.CreateLayer(
+  ALayerCollection: TLayerCollection): TPositionedLayer;
+begin
+  Result := TPositionedLayer.Create(ALayerCollection);
 end;
 
 destructor TWindowLayerBasic.Destroy;
@@ -103,26 +112,20 @@ begin
   FMapPosChangeListener := nil;
   FViewPortState := nil;
   FParentMap := nil;
-  FLayer := nil;
+  FLayerPositioned := nil;
   FVisibleChangeNotifier := nil;
   inherited;
 end;
 
 function TWindowLayerBasic.GetVisible: Boolean;
 begin
-  Result := FLayer.Visible;
+  Result := FLayerPositioned.Visible;
 end;
 
 procedure TWindowLayerBasic.Hide;
 begin
-  FLayer.Visible := False;
+  FLayerPositioned.Visible := False;
   FVisibleChangeNotifier.Notify(nil);
-  FLayer.Bitmap.Lock;
-  try
-    FLayer.Bitmap.SetSize(0, 0);
-  finally
-    FLayer.Bitmap.Unlock;
-  end;
 end;
 
 procedure TWindowLayerBasic.LoadConfig(AConfigProvider: IConfigDataProvider);
@@ -132,7 +135,7 @@ end;
 
 procedure TWindowLayerBasic.Resize;
 begin
-  if FLayer.Visible then begin
+  if FLayerPositioned.Visible then begin
     DoResize;
   end;
 end;
@@ -159,8 +162,8 @@ end;
 
 procedure TWindowLayerBasic.Show;
 begin
-  if not FLayer.Visible then begin
-    FLayer.Visible := True;
+  if not FLayerPositioned.Visible then begin
+    FLayerPositioned.Visible := True;
     FVisibleChangeNotifier.Notify(nil);
     Resize;
     Redraw;
@@ -186,23 +189,12 @@ begin
 end;
 
 procedure TWindowLayerBasic.DoResizeBitmap;
-var
-  VBitmapSizeInPixel: TPoint;
 begin
-  VBitmapSizeInPixel := GetBitmapSizeInPixel;
-  if (FLayer.Bitmap.Width <> VBitmapSizeInPixel.X) or (FLayer.Bitmap.Height <> VBitmapSizeInPixel.Y) then begin
-    FLayer.Bitmap.Lock;
-    try
-      FLayer.Bitmap.SetSize(VBitmapSizeInPixel.X, VBitmapSizeInPixel.Y);
-    finally
-      FLayer.Bitmap.Unlock;
-    end;
-  end;
 end;
 
 procedure TWindowLayerBasic.DoResize;
 begin
-  FLayer.Location := floatrect(GetMapLayerLocationRect);
+  FLayerPositioned.Location := floatrect(GetMapLayerLocationRect);
 end;
 
 function TWindowLayerBasic.GetVisibleSizeInPixel: TPoint;
@@ -280,9 +272,47 @@ begin
   Result.Y := (Pnt.Y - VFreezePointInBitmapPixel.Y) * VScale + VFreezePointInVisualPixel.Y;
 end;
 
-function TWindowLayerBasic.GetSortIndexForLayer: Integer;
+constructor TWindowLayerBasicWithBitmap.Create(AParentMap: TImage32;
+  AViewPortState: TMapViewPortState);
 begin
-  Result := 0;
+  inherited;
+  FLayer := TBitmapLayer(FLayerPositioned);
+
+  FLayer.Bitmap.DrawMode := dmBlend;
+  FLayer.Bitmap.CombineMode := cmMerge;
+  FLayer.bitmap.Font.Charset := RUSSIAN_CHARSET;
+end;
+
+function TWindowLayerBasicWithBitmap.CreateLayer(ALayerCollection: TLayerCollection): TPositionedLayer;
+begin
+  Result := TBitmapLayer.Create(ALayerCollection);
+end;
+
+procedure TWindowLayerBasicWithBitmap.DoResizeBitmap;
+var
+  VBitmapSizeInPixel: TPoint;
+begin
+  inherited;
+  VBitmapSizeInPixel := GetBitmapSizeInPixel;
+  if (FLayer.Bitmap.Width <> VBitmapSizeInPixel.X) or (FLayer.Bitmap.Height <> VBitmapSizeInPixel.Y) then begin
+    FLayer.Bitmap.Lock;
+    try
+      FLayer.Bitmap.SetSize(VBitmapSizeInPixel.X, VBitmapSizeInPixel.Y);
+    finally
+      FLayer.Bitmap.Unlock;
+    end;
+  end;
+end;
+
+procedure TWindowLayerBasicWithBitmap.Hide;
+begin
+  inherited;
+  FLayer.Bitmap.Lock;
+  try
+    FLayer.Bitmap.SetSize(0, 0);
+  finally
+    FLayer.Bitmap.Unlock;
+  end;
 end;
 
 end.

@@ -19,7 +19,6 @@ uses
 
 type
   TfrTilesDownload = class(TFrame)
-    lblMap: TLabel;
     lblZoom: TLabel;
     lblStat: TLabel;
     chkReplace: TCheckBox;
@@ -36,6 +35,8 @@ type
     pnlTileReplaceCondition: TPanel;
     pnlReplaceOlder: TPanel;
     lblReplaceOlder: TLabel;
+    lblMap: TLabel;
+    Bevel1: TBevel;
     procedure chkReplaceClick(Sender: TObject);
     procedure chkReplaceOlderClick(Sender: TObject);
   private

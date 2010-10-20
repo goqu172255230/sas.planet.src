@@ -14,6 +14,7 @@ object Fsaveas: TFsaveas
   FormStyle = fsStayOnTop
   OldCreateOrder = False
   Position = poMainFormCenter
+  OnActivate = FormActivate
   OnClose = FormClose
   OnShow = FormShow
   PixelsPerInch = 96
@@ -23,34 +24,24 @@ object Fsaveas: TFsaveas
     Top = 0
     Width = 680
     Height = 283
-    ActivePage = TabSheet5
+    ActivePage = TabSheet1
     Align = alClient
     TabOrder = 0
     TabWidth = 83
     object TabSheet1: TTabSheet
       Caption = #1047#1072#1075#1088#1091#1079#1080#1090#1100
-      ExplicitLeft = 0
-      ExplicitTop = 0
-      ExplicitWidth = 0
-      ExplicitHeight = 0
     end
     object TabSheet2: TTabSheet
       Tag = 1
       Caption = #1057#1082#1083#1077#1080#1090#1100
       ImageIndex = 1
-      ExplicitLeft = 0
-      ExplicitTop = 0
-      ExplicitWidth = 0
-      ExplicitHeight = 0
+      ExplicitLeft = 6
+      ExplicitTop = 22
     end
     object TabSheet3: TTabSheet
       Tag = 2
       Caption = #1057#1092#1086#1088#1084#1080#1088#1086#1074#1072#1090#1100
       ImageIndex = 2
-      ExplicitLeft = 0
-      ExplicitTop = 0
-      ExplicitWidth = 0
-      ExplicitHeight = 0
     end
     object TabSheet4: TTabSheet
       Tag = 3
@@ -95,16 +86,16 @@ object Fsaveas: TFsaveas
         Align = alClient
         BevelOuter = bvNone
         TabOrder = 1
+        ExplicitLeft = 2
+        ExplicitTop = 31
       end
     end
     object TabSheet6: TTabSheet
       Tag = 5
       Caption = #1057#1082#1086#1087#1080#1088#1086#1074#1072#1090#1100
       ImageIndex = 5
-      ExplicitLeft = 0
-      ExplicitTop = 0
-      ExplicitWidth = 0
-      ExplicitHeight = 0
+      ExplicitLeft = 2
+      ExplicitTop = 28
     end
   end
   object pnlBottomButtons: TPanel

@@ -20,13 +20,13 @@ uses
   i_IKmlInfoSimpleLoader,
   i_IBitmapLayerProvider,
   i_MapTypeIconsList,
-  i_IGPSRecorder,
   u_GarbageCollectorThread,
   u_GeoToStr,
   u_MapViewPortState,
   Uimgfun,
   UMapType,
   u_MemFileCache,
+  u_GPSState,
   u_GlobalCahceConfig;
 
 type
@@ -47,7 +47,6 @@ type
     FCacheElemensMaxCnt: integer;
     FCacheConfig: TGlobalCahceConfig;
     FMarksBitmapProvider: IBitmapLayerProvider;
-    FGPSRecorder: IGPSRecorder;
     FMapTypeIcons18List: IMapTypeIconsList;
     FMapTypeIcons24List: IMapTypeIconsList;
     FLanguageManager: ILanguageManager;
@@ -106,37 +105,7 @@ type
     // Способ ресамплинга картинки
     Resampling: TTileResamplingType;
 
-    GPS_enab: Boolean;
-
-    //COM-порт, к которому подключен GPS
-    GPS_COM: string;
-    //Скорость GPS COM порта
-    GPS_BaudRate: Integer;
-    // Максимальное время ожидания данных от GPS
-    GPS_TimeOut: integer;
-    // Интервал между точками от GPS
-    GPS_Delay: Integer;
-    //Размер указателя направления при GPS-навигации
-    GPS_ArrowSize: Integer;
-    //Цвет указателя направления при навигацци
-    GPS_ArrowColor: TColor;
-    //Отображать GPS трек
-    GPS_ShowPath: Boolean;
-    // Толщина отображемого GPS трека
-    GPS_TrackWidth: Integer;
-    //Центрировать карту на GPS позиции
-    GPS_MapMove: Boolean;
     GPS_MapMoveCentered:Boolean;
-    //Заисывать GPS трек в файл
-    GPS_WriteLog: boolean;
-    //Файл для записи GPS трека (Нужно будет заменить отдельным объектом)
-    GPS_LogFile: TextFile;
-    //Максимальное количество оотображаемых точек трека
-    GPS_NumTrackPoints: integer;
-    //Скрывать/показывать панель датчиков при подключении/отключении GPS
-    GPS_SensorsAutoShow: boolean;
-    //Писать лог NMEA
-    GPS_NMEALog: boolean;
     GPSpar: TGPSpar;
 
     LastSelectionColor: TColor;
@@ -246,7 +215,6 @@ type
     property MainConfigFileName: string read GetMainConfigFileName;
     // Менеджер типов растровых тайлов. Теоретически, каждая карта может иметь свой собственный.
     property BitmapTypeManager: IBitmapTypeExtManager read FBitmapTypeManager;
-    property GPSRecorder: IGPSRecorder read FGPSRecorder;
     property MapCalibrationList: IInterfaceList read FMapCalibrationList;
     property KmlLoader: IKmlInfoSimpleLoader read FKmlLoader;
     property KmzLoader: IKmlInfoSimpleLoader read FKmzLoader;
@@ -303,7 +271,6 @@ uses
   u_KmlInfoSimpleParser,
   u_KmzInfoSimpleParser,
   u_MapMarksBitmapLayerProviderStuped,
-  u_GPSRecorderStuped,
   u_MapTypeIconsList,
   u_LanguageManager,
   UResStrings,
@@ -335,8 +302,9 @@ begin
   VList := TListOfObjectsWithTTL.Create;
   FGCThread := TGarbageCollectorThread.Create(VList, 1000);
   FMarksBitmapProvider := TMapMarksBitmapLayerProviderStuped.Create;
-  FGPSRecorder := TGPSRecorderStuped.Create;
+  GPSpar := TGPSpar.Create;
   LoadMainParams;
+  GPSpar.LoadConfig(MainConfigProvider);
   LoadMarkIcons;
 end;
 
@@ -364,10 +332,10 @@ begin
   FMarksBitmapProvider := nil;
   FMapTypeIcons18List := nil;
   FMapTypeIcons24List := nil;
-  FGPSRecorder := nil;
   FreeAndNil(FViewState);
   FreeAllMaps;
   FreeAndNil(FCacheConfig);
+  FreeAndNil(GPSpar);
   inherited;
 end;
 
@@ -621,23 +589,7 @@ begin
   GammaN:=MainIni.Readinteger('COLOR_LEVELS','gamma',50);
   ContrastN:=MainIni.Readinteger('COLOR_LEVELS','contrast',0);
   InvertColor:=MainIni.ReadBool('COLOR_LEVELS','InvertColor',false);
-  GPS_COM:=MainIni.ReadString('GPS','com','COM0');
-  GPS_BaudRate:=MainIni.ReadInteger('GPS','BaudRate',4800);
-  GPS_TimeOut:=MainIni.ReadInteger('GPS','timeout',300);
-  GPS_Delay:=MainIni.ReadInteger('GPS','update',1000);
-  GPS_enab:=MainIni.ReadBool('GPS','enbl',false);
-  GPS_WriteLog:=MainIni.Readbool('GPS','log',true);
-  GPS_NMEALog:=MainIni.Readbool('GPS','NMEAlog',false);
-  GPS_ArrowSize:=MainIni.ReadInteger('GPS','SizeStr',25);
-  GPS_TrackWidth:=MainIni.ReadInteger('GPS','SizeTrack',5);
-  GPS_ArrowColor:=MainIni.ReadInteger('GPS','ColorStr',clRed);
-  GPS_ShowPath:=MainIni.ReadBool('GPS','path',true);
-  GPS_MapMove:=MainIni.ReadBool('GPS','go',true);
   GPS_MapMoveCentered:=MainIni.ReadBool('GPS','goCentered',false);
-  GPSpar.Odometr:=str2r(MainIni.ReadString('GPS','Odometr','0'));
-  GPSpar.Odometr2:=str2r(MainIni.ReadString('GPS','Odometr2','0'));
-  GPS_SensorsAutoShow:=MainIni.ReadBool('GPS','SensorsAutoShow',true);
-  GPS_NumTrackPoints:=MainIni.ReadInteger('GPS','NumShowTrackPoints',5000);
 
   GSMpar.Port:=MainIni.ReadString('GSM','port','COM1');
   GSMpar.BaudRate:=MainIni.ReadInteger('GSM','BaudRate',4800);
@@ -830,24 +782,7 @@ begin
   MainIni.Writeinteger('COLOR_LEVELS','contrast',ContrastN);
   MainIni.WriteBool('COLOR_LEVELS','InvertColor',InvertColor);
 
-  MainIni.WriteBool('GPS','enbl',GPS_enab);
-  MainIni.WriteBool('GPS','path',GPS_ShowPath);
-  MainIni.WriteBool('GPS','go',GPS_MapMove);
   MainIni.WriteBool('GPS','goCentered',GPS_MapMoveCentered);
-  MainIni.WriteString('GPS','COM',GPS_COM);
-  MainIni.WriteInteger('GPS','BaudRate',GPS_BaudRate);
-  MainIni.Writeinteger('GPS','update',GPS_Delay);
-  MainIni.WriteBool('GPS','log',GPS_WriteLog);
-  MainIni.WriteBool('GPS','NMEALog',GPS_NMEALog);
-  MainIni.WriteInteger('GPS','SizeStr',GPS_ArrowSize);
-  MainIni.WriteInteger('GPS','SizeTrack',GPS_TrackWidth);
-  MainIni.WriteInteger('GPS','ColorStr',GPS_ArrowColor);
-
-  MainIni.WriteFloat('GPS','Odometr',GPSpar.Odometr);
-  MainIni.WriteFloat('GPS','Odometr2',GPSpar.Odometr2);
-  MainIni.WriteBool('GPS','SensorsAutoShow',GPS_SensorsAutoShow);
-  MainIni.WriteInteger('GPS','NumShowTrackPoints',GPS_NumTrackPoints);
-
   MainIni.WriteString('GSM','port',GSMpar.Port);
   MainIni.WriteInteger('GSM','BaudRate',GSMpar.BaudRate);
   MainIni.WriteBool('GSM','Auto',GSMpar.auto);
@@ -872,6 +807,7 @@ begin
   MainIni.WriteBool('INTERNET','SessionLastSuccess',SessionLastSuccess);
 
   MainIni.Writebool('NPARAM','stat',WebReportToAuthor);
+  GPSpar.SaveConfig(MainConfigProvider);
   SaveLastSelectionPolygon;
 end;
 

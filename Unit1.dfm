@@ -26,6 +26,7 @@ object Fmain: TFmain
     Width = 850
     Height = 562
     TabOrder = 5
+    Silent = False
     DisableCtrlShortcuts = 'N'
     DownloadOptions = [DownloadImages, DownloadVideos]
     UserInterfaceOptions = [EnablesFormsAutoComplete, EnableThemes]
@@ -192,16 +193,13 @@ object Fmain: TFmain
       object TBSMB: TTBXSubmenuItem
         DisplayMode = nbdmImageAndText
         ImageIndex = 3
-        Images = MapIcons24
         Options = [tboDropdownArrow]
-        SubMenuImages = MapIcons18
         Caption = ''
         Hint = #1042#1099#1073#1088#1072#1090#1100' '#1090#1080#1087' '#1082#1072#1088#1090#1099
       end
       object TBLayerSel: TTBXSubmenuItem
         ImageIndex = 3
         Options = [tboDropdownArrow]
-        SubMenuImages = MapIcons18
         Caption = ''
         Hint = #1042#1099#1073#1086#1088' '#1089#1083#1086#1077#1074' '#1086#1090#1086#1073#1088#1072#1078#1072#1077#1084#1099#1093' '#1087#1086#1074#1077#1088#1093' '#1086#1089#1085#1086#1074#1085#1086#1081' '#1082#1072#1088#1090#1099
       end
@@ -602,7 +600,6 @@ object Fmain: TFmain
           Hint = ''
           object TBFillingTypeMap: TTBXSubmenuItem
             Options = [tboDropdownArrow]
-            SubMenuImages = MapIcons18
             Caption = #1060#1086#1088#1084#1080#1088#1086#1074#1072#1090#1100' '#1076#1083#1103'...'
             Hint = ''
             object TBfillMapAsMain: TTBXItem
@@ -872,13 +869,11 @@ object Fmain: TFmain
       end
       object NSMB: TTBXSubmenuItem
         LinkSubitems = TBSMB
-        SubMenuImages = MapIcons18
         Caption = '&'#1050#1072#1088#1090#1099
         Hint = ''
       end
       object NLayerSel: TTBXSubmenuItem
         LinkSubitems = TBLayerSel
-        SubMenuImages = MapIcons18
         Caption = #1057#1083#1086#1080
         Hint = ''
       end
@@ -924,35 +919,35 @@ object Fmain: TFmain
           Hint = #1059#1087#1088#1072#1074#1083#1077#1085#1080#1077' '#1084#1077#1090#1082#1072#1084#1080
         end
       end
-      object NGPS: TTBXSubmenuItem
+      object tbsbmGPS: TTBXSubmenuItem
         SubMenuImages = TBImageList1
         Caption = 'GPS'
         Hint = ''
-        object NGPSconn: TTBXItem
+        object tbitmGPSConnect: TTBXItem
           AutoCheck = True
           ShortCut = 49223
           OnClick = TBGPSconnClick
           Caption = #1055#1086#1076#1082#1083#1102#1095#1080#1090#1100' '#1087#1088#1080#1077#1084#1085#1080#1082
           Hint = ''
         end
-        object NGPSPath: TTBXItem
+        object tbitmGPSTrackShow: TTBXItem
           AutoCheck = True
           ShortCut = 49236
           OnClick = TBGPSPathClick
           Caption = #1054#1090#1086#1073#1088#1072#1078#1072#1090#1100' '#1090#1088#1077#1082
           Hint = ''
         end
-        object NGPSToPoint: TTBXItem
+        object tbitmGPSCenterMap: TTBXItem
           AutoCheck = True
           OnClick = TBGPSToPointClick
           Caption = #1062#1077#1085#1090#1088#1080#1088#1086#1074#1072#1090#1100' '#1082#1072#1088#1090#1091
           Hint = ''
         end
-        object TBXSeparatorItem13: TTBXSeparatorItem
+        object tbsprtGPS1: TTBXSeparatorItem
           Caption = ''
           Hint = ''
         end
-        object NSaveTreck: TTBXItem
+        object tbitmGPSTrackSave: TTBXItem
           ImageIndex = 18
           Images = TBImageList1
           ShortCut = 49235
@@ -960,26 +955,26 @@ object Fmain: TFmain
           Caption = #1057#1086#1093#1088#1072#1085#1080#1090#1100' '#1090#1088#1077#1082
           Hint = ''
         end
-        object N36: TTBXItem
+        object tbitmGPSTrackSaveToDb: TTBXItem
           ImageIndex = 18
           Images = TBImageList1
           OnClick = TBItem5Click
           Caption = #1057#1086#1093#1088#1072#1085#1080#1090#1100' '#1090#1088#1077#1082' '#1074' '#1073#1072#1079#1077
           Hint = ''
         end
-        object N39: TTBXItem
+        object tbitmGPSTrackClear: TTBXItem
           ImageIndex = 11
           Images = TBImageList1
           OnClick = TBItemDelTrackClick
           Caption = #1059#1076#1072#1083#1080#1090#1100' '#1090#1088#1077#1082
           Hint = ''
         end
-        object TBXSeparatorItem18: TTBXSeparatorItem
+        object tbsprtGPS2: TTBXSeparatorItem
           Caption = ''
           Hint = ''
         end
-        object TBXItem7: TTBXItem
-          OnClick = TBXItem7Click
+        object tbitmPositionByGSM: TTBXItem
+          OnClick = tbitmPositionByGSMClick
           Caption = #1054#1087#1088#1077#1076#1077#1083#1080#1090#1100' '#1087#1086#1079#1080#1094#1080#1102' '#1087#1086' '#1073#1072#1079#1086#1074#1099#1084' '#1089#1090#1072#1085#1094#1080#1103#1084' '#1089#1086#1090#1086#1074#1086#1081' '#1089#1077#1090#1080
           Hint = ''
         end
@@ -996,7 +991,6 @@ object Fmain: TFmain
           Hint = ''
         end
         object NLayerParams: TTBXSubmenuItem
-          SubMenuImages = MapIcons18
           Caption = #1055#1072#1088#1072#1084#1077#1090#1088#1099' '#1089#1083#1086#1103
           Hint = ''
         end
@@ -1077,9 +1071,9 @@ object Fmain: TFmain
       end
     end
     object TBXToolBarSearch: TTBXToolbar
-      Left = 424
+      Left = 430
       Top = 0
-      DockPos = 424
+      DockPos = 430
       Stretch = True
       TabOrder = 6
       Visible = False
@@ -2991,12 +2985,10 @@ object Fmain: TFmain
     end
     object ldm: TMenuItem
       Caption = #1047#1072#1075#1088#1091#1079#1080#1090#1100' '#1090#1072#1081#1083' '#1089#1083#1086#1103
-      SubMenuImages = MapIcons18
       ImageIndex = 13
     end
     object dlm: TMenuItem
       Caption = #1059#1076#1072#1083#1080#1090#1100' '#1090#1072#1081#1083' '#1089#1083#1086#1103
-      SubMenuImages = MapIcons18
       ImageIndex = 11
     end
     object N1: TMenuItem
@@ -6943,18 +6935,6 @@ object Fmain: TFmain
       F00008000000800000E00003F80018000003C00001F00007FE000080003FC000
       01F8000FFFFE01FC01FFF00F03FF003F00000000000000000000000000000000
       000000000000}
-  end
-  object MapIcons24: TTBImageList
-    Height = 24
-    Width = 24
-    Left = 28
-    Top = 249
-  end
-  object MapIcons18: TTBImageList
-    Height = 18
-    Width = 18
-    Left = 36
-    Top = 281
   end
   object EditCommentsImgs: TImageList
     Left = 24

@@ -333,6 +333,9 @@
     <DCCReference Include="u_MapCalibrationTab.pas" />
     <DCCReference Include="u_MapCalibrationWorldFiles.pas" />
     <DCCReference Include="u_MapChangeMessage.pas" />
+    <DCCReference Include="u_MapLayerBase.pas" />
+    <DCCReference Include="u_MapLayerFixedBase.pas" />
+    <DCCReference Include="u_MapLayerScaledBase.pas" />
     <DCCReference Include="u_MapMarksBitmapLayerProviderStuped.pas" />
     <DCCReference Include="u_MapsConfigByConfigDataProvider.pas" />
     <DCCReference Include="u_MapTypeBasic.pas" />

@@ -678,10 +678,9 @@ uses
 
 {$R *.dfm}
 
-type
-
 { TListenerOfMainForm }
 
+type
   TListenerOfMainForm = class(TJclBaseListener)
   protected
     FMainForm: TFmain;
@@ -1308,8 +1307,7 @@ end;
 
 procedure TFmain.UpdateGPSSatellites;
 var
-  i,bar_width,bar_height,bar_x1,bar_dy,bar_i:integer;
-  VSatCount: Integer;
+  i,bar_width,bar_height,bar_x1,bar_dy:integer;
   VPosition: IGPSPosition;
   VSattelite: IGPSSatelliteInfo;
 begin
@@ -1848,6 +1846,7 @@ begin
         Scale := 3 - (1/(1+i/(steps - 1)))*2;
       end;
       if move then begin
+        GState.ViewState.ScaleTo(Scale, MouseCursorPos);
         FMainLayer.ScaleTo(Scale, MouseCursorPos);
         LayerSelection.ScaleTo(Scale, MouseCursorPos);
         FLayerMapMarks.ScaleTo(Scale, MouseCursorPos);
@@ -1922,6 +1921,12 @@ begin
     GState.ViewState.MapChangeNotifier.Remove(FMainMapChangeListener);
     GState.ViewState.HybrChangeNotifier.Remove(FHybrChangeListener);
   end;
+  LayerStatBar.VisibleChangeNotifier.Remove(FMapLayersVsibleChangeListener);
+  FLayerMiniMap.VisibleChangeNotifier.Remove(FMapLayersVsibleChangeListener);
+  FLayerScaleLine.VisibleChangeNotifier.Remove(FMapLayersVsibleChangeListener);
+  FMainLayer.UseDownloadChangeNotifier.Remove(FMapLayersVsibleChangeListener);
+  FLayerFillingMap.SourceMapChangeNotifier.Remove(FMapLayersVsibleChangeListener);
+  FMapLayersVsibleChangeListener := nil;
   //останавливаем GPS
   GState.SendTerminateToThreads;
   for i := 0 to Screen.FormCount - 1 do begin
@@ -2951,7 +2956,7 @@ var
 begin
   GState.ViewState.LockRead;
   try
-    VSize := GState.ViewState.GetVisibleSizeInPixel;
+    VSize := GState.ViewState.GetViewSizeInVisiblePixel;
     VPos:=GState.ViewState.VisiblePixel2LonLat(moveTrue);
   finally
     GState.ViewState.UnLockRead;
@@ -2980,14 +2985,11 @@ begin
 end;
 
 procedure TFmain.GPSReceiverReceive;
-var s2f,sb:string;
-    xYear, xMonth, xDay, xHr, xMin, xSec, xMSec: word;
-    VPointCurr: TExtendedPoint;
-    VPointPrev: TExtendedPoint;
-    VPointDelta: TExtendedPoint;
-    VDistToPrev: Extended;
-    VTrackPoint: TGPSTrackPoint;
-    VPosition: IGPSPosition;
+var
+  VPointCurr: TExtendedPoint;
+  VPointPrev: TExtendedPoint;
+  VPointDelta: TExtendedPoint;
+  VPosition: IGPSPosition;
 begin
   VPosition := GState.GPSpar.GPSModele.Position;
   if FSettings.Visible then FSettings.SatellitePaint;
@@ -3021,7 +3023,6 @@ begin
 end;
 
 procedure TFmain.GPSReceiverConnect;
-var S:string;
 begin
   tbitmGPSConnect.Enabled := True;
   TBGPSconn.Enabled := True;
@@ -3221,7 +3222,7 @@ begin
     VLonLat := GState.ViewState.VisiblePixel2LonLat(moveTrue);
     VMap := GState.ViewState.GetCurrentMap;
     VConverter := GState.ViewState.GetCurrentCoordConverter;
-    VVisibleSizeInPixel := GState.ViewState.GetVisibleSizeInPixel;
+    VVisibleSizeInPixel := GState.ViewState.GetViewSizeInVisiblePixel;
  finally
    GState.ViewState.UnLockRead;
  end;
@@ -3480,6 +3481,7 @@ begin
                       end;
  if MapZoomAnimtion then exit;
  if MapMoving then begin
+              GState.ViewState.MoveTo(Point(MouseDownPoint.X-x, MouseDownPoint.Y-y));
               FMainLayer.MoveTo(Point(MouseDownPoint.X-x, MouseDownPoint.Y-y));
               LayerSelection.MoveTo(Point(MouseDownPoint.X-x, MouseDownPoint.Y-y));
               FLayerMapNal.MoveTo(Point(MouseDownPoint.X-x, MouseDownPoint.Y-y));

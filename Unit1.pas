@@ -958,7 +958,6 @@ begin
       FLayerScaleLine.Redraw;
       FMainLayer.SetScreenCenterPos(VPoint, VZoomCurr, VConverter);
       FLayerFillingMap.SetScreenCenterPos(VPoint, VZoomCurr, VConverter);
-      LayerSelection.SetScreenCenterPos(VPoint, VZoomCurr, VConverter);
       FLayerMapMarks.SetScreenCenterPos(VPoint, VZoomCurr, VConverter);
       FLayerMapNal.SetScreenCenterPos(VPoint, VZoomCurr, VConverter);
       FWikiLayer.SetScreenCenterPos(VPoint, VZoomCurr, VConverter);
@@ -1845,10 +1844,11 @@ begin
         //Scale := 1 + i/(steps - 1);
         Scale := 3 - (1/(1+i/(steps - 1)))*2;
       end;
+      map.BeginUpdate;
+      try
       if move then begin
         GState.ViewState.ScaleTo(Scale, MouseCursorPos);
         FMainLayer.ScaleTo(Scale, MouseCursorPos);
-        LayerSelection.ScaleTo(Scale, MouseCursorPos);
         FLayerMapMarks.ScaleTo(Scale, MouseCursorPos);
         FLayerMapGPS.ScaleTo(Scale, MouseCursorPos);
         FWikiLayer.ScaleTo(Scale, MouseCursorPos);
@@ -1858,8 +1858,8 @@ begin
         FShowErrorLayer.ScaleTo(Scale, MouseCursorPos);
         LayerMapNavToMark.ScaleTo(Scale, MouseCursorPos);
       end else begin
+        GState.ViewState.ScaleTo(Scale);
         FMainLayer.ScaleTo(Scale);
-        LayerSelection.ScaleTo(Scale);
         FLayerMapMarks.ScaleTo(Scale);
         FLayerMapGPS.ScaleTo(Scale);
         FWikiLayer.ScaleTo(Scale);
@@ -1868,6 +1868,10 @@ begin
         FLayerGoto.ScaleTo(Scale);
         FShowErrorLayer.ScaleTo(Scale);
         LayerMapNavToMark.ScaleTo(Scale);
+      end;
+      finally
+        map.EndUpdate;
+        map.Invalidate;
       end;
      application.ProcessMessages;
      QueryPerformanceCounter(ts2);
@@ -2372,10 +2376,14 @@ begin
 end;
 
 procedure TFmain.TBPreviousClick(Sender: TObject);
+var
+  VZoom: Byte;
+  VPolygon: TExtendedPointArray;
 begin
-  if length(GState.LastSelectionPolygon)>0 then begin
-    fsaveas.Show_(GState.poly_zoom_save, GState.LastSelectionPolygon);
-    LayerSelection.Redraw;
+  VZoom := GState.LastSelectionInfo.Zoom;
+  VPolygon := Copy(GState.LastSelectionInfo.Polygon);
+  if length(VPolygon)>0 then begin
+    fsaveas.Show_(VZoom, VPolygon);
   end else begin
     showmessage(SAS_MSG_NeedHL);
   end;
@@ -2535,11 +2543,11 @@ var
 begin
   VSelLonLat:= TFSelLonLat.Create(Self);
   Try
-    GetMinMax(VLonLatRect, GState.LastSelectionPolygon);
+    Poly := GState.LastSelectionInfo.Polygon;
+    GetMinMax(VLonLatRect, Poly);
     if VSelLonLat.Execute(VLonLatRect) Then Begin
       Poly := PolygonFromRect(VLonLatRect);
       fsaveas.Show_(GState.ViewState.GetCurrentZoom, Poly);
-      LayerSelection.Redraw;
       Poly := nil;
     End;
   Finally
@@ -2708,7 +2716,6 @@ begin
     FMainLayer.Resize;
     LayerStatBar.Resize;
     FLayerScaleLine.Resize;
-    LayerSelection.Resize;
     FLayerMapNal.Resize;
     FLayerMapMarks.Resize;
     FLayerMapGPS.Resize;
@@ -3125,7 +3132,6 @@ begin
         VPoly[4] := VSelectionRect.TopLeft;
         fsaveas.Show_(GState.ViewState.GetCurrentZoom, VPoly);
         FLayerMapNal.DrawNothing;
-        LayerSelection.Redraw;
         VPoly := nil;
         rect_p2:=false;
       end;
@@ -3481,9 +3487,10 @@ begin
                       end;
  if MapZoomAnimtion then exit;
  if MapMoving then begin
+              map.BeginUpdate;
+              try
               GState.ViewState.MoveTo(Point(MouseDownPoint.X-x, MouseDownPoint.Y-y));
               FMainLayer.MoveTo(Point(MouseDownPoint.X-x, MouseDownPoint.Y-y));
-              LayerSelection.MoveTo(Point(MouseDownPoint.X-x, MouseDownPoint.Y-y));
               FLayerMapNal.MoveTo(Point(MouseDownPoint.X-x, MouseDownPoint.Y-y));
               FLayerMapMarks.MoveTo(Point(MouseDownPoint.X-x, MouseDownPoint.Y-y));
               FWikiLayer.MoveTo(Point(MouseDownPoint.X-x, MouseDownPoint.Y-y));
@@ -3492,6 +3499,10 @@ begin
               FLayerGoto.MoveTo(Point(MouseDownPoint.X-x, MouseDownPoint.Y-y));
               FShowErrorLayer.MoveTo(Point(MouseDownPoint.X-x, MouseDownPoint.Y-y));
               LayerMapNavToMark.MoveTo(Point(MouseDownPoint.X-x, MouseDownPoint.Y-y));
+              finally
+                map.EndUpdate;
+                map.Invalidate;
+              end;
              end
         else MouseCursorPos:=point(x,y);
  if not(MapMoving) then begin
@@ -3960,7 +3971,6 @@ begin
          FLayerMapNal.DrawNothing;
          Fsaveas.Show_(GState.ViewState.GetCurrentZoom,reg_arr);
          setalloperationfalse(ao_movemap);
-         LayerSelection.Redraw;
         end;
   end;
 end;

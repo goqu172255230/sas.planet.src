@@ -540,10 +540,9 @@ type
     LenShow: boolean;
     RectWindow: TRect;
     marshrutcomment: string;
-    movepoint: integer;
+    movepoint: boolean;
     lastpoint: integer;
     FSelectionRect: TExtendedRect;
-    length_arr: TExtendedPointArray;
     add_line_arr: TExtendedPointArray;
     reg_arr: TExtendedPointArray;
 
@@ -592,7 +591,7 @@ type
     procedure InitSearchers;
     procedure zooming(ANewZoom: byte; move: boolean);
     procedure PrepareSelectionRect(Shift: TShiftState; var ASelectedLonLat: TExtendedRect);
-    procedure insertinpath(pos: integer; APoint: TExtendedPoint);
+    procedure insertinpath(pos: integer; APoint: TExtendedPoint; var add_line_arr:TExtendedPointArray);
     procedure delfrompath(pos: integer);
     procedure ProcessPosChangeMessage(AMessage: IPosChangeMessage);
     procedure ProcessMapChangeMessage(AMessage: IMapChangeMessage);
@@ -1032,7 +1031,7 @@ begin
   end
 end;
 
-procedure TFmain.insertinpath(pos: integer; APoint: TExtendedPoint);
+procedure TFmain.insertinpath(pos: integer; APoint: TExtendedPoint; var add_line_arr:TExtendedPointArray);
 var
   VCount: Integer;
 begin
@@ -1080,7 +1079,6 @@ begin
  TBEditPathLabel.Visible:=(newop=ao_line);
  TBEditPathMarsh.Visible:=(newop=ao_Add_line)or(newop=ao_Edit_line);
  rect_dwn:=false;
- setlength(length_arr,0);
  setlength(add_line_arr,0);
  setlength(reg_arr,0);
  rect_p2:=false;
@@ -1110,6 +1108,7 @@ var
   dWMB: integer;
   VZoom: Byte;
   VNewZoom: integer;
+  bkAO:TAOperation;
 begin
 
  if Active then
@@ -1136,12 +1135,15 @@ begin
                 end;
    WM_KEYUP: begin
              dWhenMovingButton:=5;
-             if (Msg.wParam=VK_Delete)and(aoper=ao_line) then
-               begin
-                if length(length_arr)>0 then setlength(length_arr,length(length_arr)-1);
-                TBEditPath.Visible:=(length(length_arr)>1);
-                FLayerMapNal.DrawLineCalc(length_arr, LenShow);
+             if (Msg.wParam=VK_Delete)and(aoper=ao_line) then begin
+               if length(add_line_arr)>0 then begin
+                 delfrompath(lastpoint);
+                 TBEditPath.Visible:=(length(add_line_arr)>1);
+                 FLayerMapNal.DrawLineCalc(add_line_arr, LenShow, lastpoint);
+               end else begin
+                 lastpoint:=-1;
                end;
+             end;
              if (Msg.wParam=VK_Delete)and(aoper=ao_reg) then
                begin
                 if length(reg_arr)>0 then setlength(reg_arr,length(reg_arr)-1);
@@ -1154,21 +1156,16 @@ begin
                 delfrompath(lastpoint);
                 TBEditPath.Visible:=(length(add_line_arr)>1);
                 FLayerMapNal.DrawNewPath(add_line_arr, (aoper=ao_add_poly)or(aoper=ao_edit_poly), lastpoint);
+               end else begin
+                 lastpoint:=-1;
                end;
-             if (Msg.wParam=VK_ESCAPE)and(aoper=ao_Reg) then
+              if (Msg.wParam=VK_ESCAPE)and(aoper=ao_Reg) then
               if length(reg_arr)=0 then TBmoveClick(self)
                                    else begin
                                          setlength(reg_arr,0);
                                          TBEditPath.Visible:=(length(reg_arr)>1);
                                          FLayerMapNal.DrawReg(reg_arr);
                                         end;
-             if (Msg.wParam=VK_ESCAPE)and(aoper=ao_line) then
-              if length(length_arr)=0 then TBmoveClick(self)
-                                      else begin
-                                            setlength(length_arr,0);
-                                            TBEditPath.Visible:=(length(length_arr)>1);
-                                            FLayerMapNal.DrawLineCalc(length_arr, LenShow);
-                                           end;
              if (Msg.wParam=VK_ESCAPE)and(aoper=ao_rect) then
               begin
                if rect_dwn then begin
@@ -1178,8 +1175,14 @@ begin
                            else setalloperationfalse(ao_movemap);
               end;
              if (Msg.wParam=VK_ESCAPE)and(aoper=ao_Add_Point) then setalloperationfalse(ao_movemap);
-             if (Msg.wParam=VK_ESCAPE)and(aoper in [ao_add_line,ao_add_poly,ao_edit_line,ao_edit_poly]) then begin
-               setalloperationfalse(ao_movemap)
+             if (Msg.wParam=VK_ESCAPE)and(aoper in [ao_line,ao_add_line,ao_add_poly,ao_edit_line,ao_edit_poly]) then begin
+               if (lastpoint>=0) then begin
+                 bkAO:=aoper;
+                 setalloperationfalse(ao_movemap);
+                 setalloperationfalse(bkAO);
+               end else begin
+                 setalloperationfalse(ao_movemap);
+               end;
              end;
              if (Msg.wParam=13)and(aoper in [ao_add_Poly,ao_add_line,ao_edit_Poly,ao_edit_line])and(length(add_line_arr)>1) then begin
                TBEditPathSaveClick(Self);
@@ -1377,8 +1380,8 @@ begin
   if not(lastload.use) then begin
     case aoper of
       ao_line: begin
-        TBEditPath.Visible:=(length(length_arr)>1);
-        FLayerMapNal.DrawLineCalc(length_arr, LenShow);
+        TBEditPath.Visible:=(length(add_line_arr)>1);
+        FLayerMapNal.DrawLineCalc(add_line_arr, LenShow, lastpoint);
       end;
       ao_reg: begin
         TBEditPath.Visible:=(length(reg_arr)>1);
@@ -1621,7 +1624,7 @@ begin
       )
     end;
 
-    movepoint:=0;
+    movepoint:=false;
 
     GState.MarksDb.LoadMarksFromFile;
     GState.MarksDb.LoadCategoriesFromFile;
@@ -3078,6 +3081,7 @@ var
   VClickRect: TRect;
   VClickLonLatRect: TExtendedRect;
   VPoly:  TExtendedPointArray;
+  SelPointOnLine:boolean;
   VPWL: TResObj;
 begin
   if (HintWindow<>nil) then begin
@@ -3103,11 +3107,31 @@ begin
     GState.ViewState.UnLockRead;
   end;
   if (Button=mbLeft)and(aoper<>ao_movemap) then begin
-    if (aoper=ao_line)then begin
-      setlength(length_arr,length(length_arr)+1);
-      length_arr[length(length_arr)-1]:= VClickLonLat;
-      TBEditPath.Visible:=(length(length_arr)>1);
-      FLayerMapNal.DrawLineCalc(length_arr, LenShow);
+    if (aoper in [ao_line,ao_add_line,ao_add_poly,ao_edit_line,ao_edit_poly])then begin
+      movepoint:=true;
+      SelPointOnLine:=false;
+      for i:=0 to length(add_line_arr)-1 do begin
+        if (VClickLonLatRect.Left < add_line_arr[i].X) and
+           (VClickLonLatRect.Top > add_line_arr[i].Y) and
+           (VClickLonLatRect.Right > add_line_arr[i].X) and
+           (VClickLonLatRect.Bottom < add_line_arr[i].Y)
+        then begin
+          lastpoint:=i;
+          SelPointOnLine:=true;
+          Break;
+        end;
+      end;
+      if not(SelPointOnLine) then begin
+        inc(lastpoint);
+        insertinpath(lastpoint, VClickLonLat,add_line_arr);
+      end;
+      TBEditPath.Visible:=(length(add_line_arr)>1);
+      case aoper of
+        ao_line:
+          FLayerMapNal.DrawLineCalc(add_line_arr, LenShow, lastpoint);
+        ao_add_line,ao_add_poly,ao_edit_line,ao_edit_poly:
+          FLayerMapNal.DrawNewPath(add_line_arr, (aoper=ao_add_poly)or(aoper=ao_edit_poly), lastpoint);
+      end;
     end;
     if (aoper=ao_Reg) then begin
       setlength(reg_arr,length(reg_arr)+1);
@@ -3146,26 +3170,6 @@ begin
         setalloperationfalse(ao_movemap);
         generate_im;
       end;
-    end;
-    if (aoper in [ao_add_line,ao_add_poly,ao_edit_line,ao_edit_poly]) then begin
-      for i:=0 to length(add_line_arr)-1 do begin
-        if (VClickLonLatRect.Left < add_line_arr[i].X) and
-          (VClickLonLatRect.Top > add_line_arr[i].Y) and
-          (VClickLonLatRect.Right > add_line_arr[i].X) and
-          (VClickLonLatRect.Bottom < add_line_arr[i].Y)
-        then begin
-          movepoint:=i+1;
-          lastpoint:=i;
-          TBEditPath.Visible:=(length(add_line_arr)>1);
-          FLayerMapNal.DrawNewPath(add_line_arr, (aoper=ao_add_poly)or(aoper=ao_edit_poly), lastpoint);
-          exit;
-        end;
-      end;
-      inc(lastpoint);
-      movepoint:=lastpoint + 1;
-      insertinpath(lastpoint, VClickLonLat);
-      TBEditPath.Visible:=(length(add_line_arr)>1);
-      FLayerMapNal.DrawNewPath(add_line_arr, (aoper=ao_add_poly)or(aoper=ao_edit_poly), lastpoint);
     end;
     exit;
   end;
@@ -3258,9 +3262,8 @@ begin
    exit;
   end;
 
- if movepoint>0 then begin
-  movepoint:=0;
- end;
+ movepoint:=false;
+
  if (((aoper<>ao_movemap)and(Button=mbLeft))or
      ((aoper=ao_movemap)and(Button=mbRight))) then exit;
  if (MapZoomAnimtion) then exit;
@@ -3283,8 +3286,8 @@ begin
    LayerStatBar.Redraw;
    FLayerScaleLine.Redraw;
    if aoper=ao_line then begin
-    TBEditPath.Visible:=(length(length_arr)>1);
-    FLayerMapNal.DrawLineCalc(length_arr, LenShow);
+    TBEditPath.Visible:=(length(add_line_arr)>1);
+    FLayerMapNal.DrawLineCalc(add_line_arr, LenShow, lastpoint);
    end;
    if aoper=ao_reg then begin
     TBEditPath.Visible:=(length(reg_arr)>1);
@@ -3443,11 +3446,15 @@ begin
   GState.ViewState.UnLockRead;
  end;
  VConverter.CheckPixelPosStrict(VPoint, VZoomCurr, False);
- if movepoint>0 then
+ if (movepoint) then
   begin
-   add_line_arr[movepoint-1]:=VLonLat;
+   add_line_arr[lastpoint]:=VLonLat;
    TBEditPath.Visible:=(length(add_line_arr)>1);
-   FLayerMapNal.DrawNewPath(add_line_arr, (aoper=ao_add_poly)or(aoper=ao_edit_poly), lastpoint);
+   if (aoper=ao_line) then begin
+     FLayerMapNal.DrawLineCalc(add_line_arr, LenShow, lastpoint);
+   end else begin
+     FLayerMapNal.DrawNewPath(add_line_arr, (aoper=ao_add_poly)or(aoper=ao_edit_poly), lastpoint);
+   end;
    exit;
   end;
  if (aoper=ao_rect)and(rect_dwn)and(not(ssRight in Shift))
@@ -3650,10 +3657,11 @@ end;
 procedure TFmain.TBEditPathDelClick(Sender: TObject);
 begin
  case aoper of
-  ao_line: begin
-         if length(length_arr)>0 then setlength(length_arr,length(length_arr)-1);
-         TBEditPath.Visible:=(length(length_arr)>1);
-         FLayerMapNal.DrawLineCalc(length_arr, LenShow);
+  ao_line:
+        if lastpoint>0 then begin
+         if length(add_line_arr)>0 then delfrompath(lastpoint);
+         TBEditPath.Visible:=(length(add_line_arr)>1);
+         FLayerMapNal.DrawLineCalc(add_line_arr, LenShow, lastpoint);
         end;
   ao_Reg : begin
          if length(reg_arr)>0 then setlength(reg_arr,length(reg_arr)-1);
@@ -3674,7 +3682,7 @@ procedure TFmain.TBEditPathLabelClick(Sender: TObject);
 begin
   if aoper = ao_line then begin
     LenShow:=not(LenShow);
-    FLayerMapNal.DrawLineCalc(length_arr, LenShow);
+    FLayerMapNal.DrawLineCalc(add_line_arr, LenShow, lastpoint);
   end;
 end;
 

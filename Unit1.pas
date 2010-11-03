@@ -1591,7 +1591,7 @@ begin
   VConverter := GState.MapType[0].GeoConvert;
   VZoom := GState.MainIni.ReadInteger('POSITION','zoom_size',1) - 1;
   VConverter.CheckZoom(VZoom);
-  VScreenCenterPos.X := VConverter.PixelsAtZoom(VZoom) div 2 + 1;
+  VScreenCenterPos.X := VConverter.PixelsAtZoom(VZoom) div 2;
   VScreenCenterPos.Y := VScreenCenterPos.X;
   VScreenCenterPos := Point(
     GState.MainIni.ReadInteger('POSITION','x',VScreenCenterPos.X),
@@ -1693,7 +1693,8 @@ begin
     FLayersList.Add(FLayerMiniMap);
 
     FMainLayer.ErrorShowLayer := FShowErrorLayer;
-    
+    FMainLayer.KmlLayer := FWikiLayer;
+
     CreateMapUI;
     FSettings.InitMapsList;
 
@@ -1768,6 +1769,7 @@ begin
     FLayersList.StartThreads;
     ProgramStart:=false;
 
+    GState.ViewState.ChangeViewSize(Point(map.Width, map.Height));
     GState.ViewState.LockWrite;
     GState.ViewState.ChangeZoomAndUnlock(VZoom, VScreenCenterPos);
 
@@ -1811,7 +1813,6 @@ begin
       WebBrowser1.Navigate('http://sasgis.ru/stat/index.html');
     end;
 
-    GState.ViewState.ChangeViewSize(Point(map.Width, map.Height));
 
     GState.StartThreads;
     FMainLayer.Visible := True;

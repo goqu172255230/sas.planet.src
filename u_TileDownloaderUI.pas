@@ -26,6 +26,7 @@ type
     FErrorString: string;
     FTileMaxAgeInInternet: TDateTime;
     FMainLayer: TMapLayerBasic;
+    FKmlLayer: TMapLayerBasic;
     FErrorShowLayer: TTileErrorInfoLayer;
     FViewPortState: TMapViewPortState;
     FUseDownloadChangeNotifier: IJclNotifier;
@@ -43,6 +44,7 @@ type
     destructor Destroy; override;
     property TileMaxAgeInInternet: TDateTime read FTileMaxAgeInInternet;
     property MainLayer: TMapLayerBasic read FMainLayer write FMainLayer;
+    property KmlLayer: TMapLayerBasic read FKmlLayer write FKmlLayer;
     property ErrorShowLayer: TTileErrorInfoLayer read FErrorShowLayer write FErrorShowLayer;
     property UseDownload: TTileSource read GetUseDownload write SetUseDownload;
     property UseDownloadChangeNotifier: IJclNotifier read FUseDownloadChangeNotifier;
@@ -131,8 +133,14 @@ begin
     if FErrorShowLayer <> nil then begin
       FErrorShowLayer.Visible := False;
     end;
-    if FMainLayer <> nil then begin
-      FMainLayer.Redraw;
+    if FLastLoad.mt.IsBitmapTiles then begin
+      if FMainLayer <> nil then begin
+        FMainLayer.Redraw;
+      end;
+    end else if FLastLoad.mt.IsKmlTiles then begin
+      if FKmlLayer <> nil then begin
+        FKmlLayer.Redraw;
+      end;
     end;
   end;
 end;
@@ -150,7 +158,7 @@ var
   VNeedDownload: Boolean;
 begin
   repeat
-    if UseDownload = tsCache then begin
+    if FUseDownload = tsCache then begin
       if Terminated then begin
         break;
       end;
@@ -251,13 +259,13 @@ begin
                     FlastLoad.use := true;
                     VNeedDownload := False;
                     if VMap.TileExists(FLoadXY, Fzoom) then begin
-                      if UseDownload = tsInternet then begin
+                      if FUseDownload = tsInternet then begin
                         if Now - VMap.TileLoadDate(FLoadXY, FZoom) > FTileMaxAgeInInternet then begin
                           VNeedDownload := True;
                         end;
                       end;
                     end else begin
-                      if (UseDownload = tsInternet) or (UseDownload = tsCacheInternet) then begin
+                      if (FUseDownload = tsInternet) or (FUseDownload = tsCacheInternet) then begin
                         if not(VMap.TileNotExistsOnServer(FLoadXY, Fzoom)) then begin
                           VNeedDownload := True;
                         end;

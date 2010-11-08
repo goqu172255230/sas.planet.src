@@ -12,7 +12,7 @@ uses
 type
   TThreadDownloadTiles = class(TTileDownloaderThreadBase)
   private
-    FPolygLL: TExtendedPointArray;
+    FPolygLL: TDoublePointArray;
     FSecondLoadTNE:boolean;
     FReplaceExistTiles: boolean;
     FCheckExistTileSize: boolean;
@@ -39,7 +39,7 @@ type
   public
     constructor Create(
       ALog: ILogSimple;
-      APolygon: TExtendedPointArray;
+      APolygon: TDoublePointArray;
       Azamena: boolean;
       ACheckExistTileSize: boolean;
       Azdate: boolean;
@@ -72,13 +72,13 @@ uses
   Types,
   i_ITileDownlodSession,
   u_GlobalState,
-  u_TileIteratorAbstract,
+  i_ITileIterator,
   u_TileIteratorStuped,
   UResStrings;
 
 constructor TThreadDownloadTiles.Create(
   ALog: ILogSimple;
-  APolygon: TExtendedPointArray;
+  APolygon: TDoublePointArray;
   Azamena, ACheckExistTileSize, Azdate, ASecondLoadTNE: boolean;
   AZoom: byte;
   Atypemap: TMapType;
@@ -207,7 +207,7 @@ var
   razlen: integer;
   VGotoNextTile: Boolean;
   VTile: TPoint;
-  VTileIterator: TTileIteratorAbstract;
+  VTileIterator: ITileIterator;
 begin
   FStartTime := Now;
 
@@ -344,7 +344,7 @@ begin
       end;
     end;
   finally
-    FreeAndNil(VTileIterator);
+    VTileIterator := nil;
   end;
   if not Terminated then begin
     FLog.WriteText(SAS_MSG_ProcessFilesComplete, 0);
@@ -372,3 +372,4 @@ begin
 end;
 
 end.
+

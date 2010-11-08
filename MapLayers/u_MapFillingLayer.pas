@@ -30,6 +30,7 @@ type
     FMainMapChangeListener: IJclListener;
     FSourceMapChangeNotifier: IJclNotifier;
     procedure DoRedraw; override;
+    procedure DoHide; override;
   public
     constructor Create(AParentMap: TImage32; AViewPortState: TMapViewPortState);
     destructor Destroy; override;
@@ -39,7 +40,6 @@ type
     procedure SaveConfig(AConfigProvider: IConfigDataWriteProvider); override;
     procedure SetSourceMap(AMapType: TMapType; AZoom: integer);
     procedure SetScreenCenterPos(const AScreenCenterPos: TPoint; const AZoom: byte; AGeoConvert: ICoordConverter); override;
-    procedure Hide; override;
     procedure Redraw; override;
     property SourceSelected: TMapType read FSourceSelected;
     property SourceZoom: integer read FSourceZoom;
@@ -53,8 +53,8 @@ uses
   u_GlobalState,
   u_JclNotify,
   u_WindowLayerBasic,
-  u_TileIteratorAbstract,
-  u_TileIteratorStuped;
+  i_ITileIterator,
+  u_TileIteratorSpiralByRect;
 
 type
   TFillingMapListener = class(TJclBaseListener)
@@ -142,10 +142,10 @@ begin
   end;
 end;
 
-procedure TMapFillingLayer.Hide;
+procedure TMapFillingLayer.DoHide;
 begin
-  inherited;
   TMapFillingThread(FThread).PrepareToChangeScene;
+  inherited;
 end;
 
 procedure TMapFillingLayer.LoadConfig(AConfigProvider: IConfigDataProvider);
@@ -181,11 +181,11 @@ end;
 procedure TMapFillingLayer.Redraw;
 begin
   if (FSourceMapType <> nil) and (FGeoConvert <> nil) and (FZoom <= FSourceZoom) then begin
-    if not FLayer.Visible then begin
-      FLayer.Visible := true;
+    if not Visible then begin
+      Visible := true;
     end;
   end else begin
-    FLayer.Visible := false;
+    Visible := false;
   end;
   inherited;
 
@@ -313,7 +313,7 @@ var
   {
     Географические координаты растра
   }
-  VSourceLonLatRect: TExtendedRect;
+  VSourceLonLatRect: TDoubleRect;
 
   {
     Прямоугольник пикселов текущего зума, покрывающий растр, в кооординатах
@@ -352,8 +352,7 @@ var
 
   VSourceGeoConvert: ICoordConverter;
   VGeoConvert: ICoordConverter;
-  i, j: integer;
-  VTileIterator: TTileIteratorAbstract;
+  VTileIterator: ITileIterator;
 begin
   VBmp := TCustomBitmap32.Create;
   try
@@ -365,19 +364,19 @@ begin
     VBitmapOnMapPixelRect.TopLeft := FLayer.BitmapPixel2MapPixel(Point(0, 0));
     VBitmapOnMapPixelRect.BottomRight := FLayer.BitmapPixel2MapPixel(FLayer.GetBitmapSizeInPixel);
     if not FNeedRedrow then begin
-      VGeoConvert.CheckPixelRect(VBitmapOnMapPixelRect, VZoom, False);
+      VGeoConvert.CheckPixelRect(VBitmapOnMapPixelRect, VZoom);
       VSourceLonLatRect := VGeoConvert.PixelRect2LonLatRect(VBitmapOnMapPixelRect, VZoom);
       VPixelSourceRect := VSourceGeoConvert.LonLatRect2PixelRect(VSourceLonLatRect, VZoom);
       VTileSourceRect := VSourceGeoConvert.PixelRect2TileRect(VPixelSourceRect, VZoom);
-      VTileIterator := TTileIteratorStuped.Create(VZoom, VSourceLonLatRect, VSourceGeoConvert);
+      VTileIterator := TTileIteratorSpiralByRect.Create(VTileSourceRect);
       while VTileIterator.Next(VTile) do begin
         if FNeedRedrow then begin
           break;
         end;
         VCurrTilePixelRectSource := VSourceGeoConvert.TilePos2PixelRect(VTile, VZoom);
         VTilePixelsToDraw.TopLeft := Point(0, 0);
-        VTilePixelsToDraw.Right := VCurrTilePixelRectSource.Right - VCurrTilePixelRectSource.Left + 1;
-        VTilePixelsToDraw.Bottom := VCurrTilePixelRectSource.Bottom - VCurrTilePixelRectSource.Top + 1;
+        VTilePixelsToDraw.Right := VCurrTilePixelRectSource.Right - VCurrTilePixelRectSource.Left;
+        VTilePixelsToDraw.Bottom := VCurrTilePixelRectSource.Bottom - VCurrTilePixelRectSource.Top;
 
         if VCurrTilePixelRectSource.Left < VPixelSourceRect.Left then begin
           VTilePixelsToDraw.Left := VPixelSourceRect.Left - VCurrTilePixelRectSource.Left;
@@ -390,12 +389,12 @@ begin
         end;
 
         if VCurrTilePixelRectSource.Right > VPixelSourceRect.Right then begin
-          VTilePixelsToDraw.Right := VPixelSourceRect.Right - VCurrTilePixelRectSource.Left + 1;
+          VTilePixelsToDraw.Right := VPixelSourceRect.Right - VCurrTilePixelRectSource.Left;
           VCurrTilePixelRectSource.Right := VPixelSourceRect.Right;
         end;
 
         if VCurrTilePixelRectSource.Bottom > VPixelSourceRect.Bottom then begin
-          VTilePixelsToDraw.Bottom := VPixelSourceRect.Bottom - VCurrTilePixelRectSource.Top + 1;
+          VTilePixelsToDraw.Bottom := VPixelSourceRect.Bottom - VCurrTilePixelRectSource.Top;
           VCurrTilePixelRectSource.Bottom := VPixelSourceRect.Bottom;
         end;
 
@@ -407,8 +406,6 @@ begin
         end;
         VCurrTilePixelRectAtBitmap.TopLeft := FLayer.MapPixel2BitmapPixel(VCurrTilePixelRect.TopLeft);
         VCurrTilePixelRectAtBitmap.BottomRight := FLayer.MapPixel2BitmapPixel(VCurrTilePixelRect.BottomRight);
-        Inc(VCurrTilePixelRectAtBitmap.Bottom);
-        Inc(VCurrTilePixelRectAtBitmap.Right);
         if FNeedRedrow then begin
           break;
         end;
@@ -426,7 +423,7 @@ begin
       Synchronize(UpdateLayer);
     end;
   finally
-    FreeAndNil(VTileIterator);
+    VTileIterator := nil;
     VBmp.Free;
   end;
 end;

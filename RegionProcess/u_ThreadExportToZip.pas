@@ -27,7 +27,7 @@ type
   public
     constructor Create(
       ATargetFile: string;
-      APolygon: TExtendedPointArray;
+      APolygon: TDoublePointArray;
       Azoomarr: array of boolean;
       AMapType: TMapType;
       ATileNameGen: ITileFileNameGenerator
@@ -38,13 +38,15 @@ type
 implementation
 
 uses
-  u_TileIteratorAbstract,
+  Variants,
+  i_ITileIterator,
+  i_ITileInfoBasic,
   u_TileIteratorStuped,
   u_TileStorageAbstract;
 
 constructor TThreadExportToZip.Create(
   ATargetFile: string;
-  APolygon: TExtendedPointArray;
+  APolygon: TDoublePointArray;
   Azoomarr: array of boolean;
   AMapType: TMapType;
   ATileNameGen: ITileFileNameGenerator);
@@ -69,11 +71,12 @@ var
   VExt: string;
   VPath: string;
   VTile: TPoint;
-  VTileIterators: array of TTileIteratorAbstract;
-  VTileIterator: TTileIteratorAbstract;
+  VTileIterators: array of ITileIterator;
+  VTileIterator: ITileIterator;
   VTileStorage: TTileStorageAbstract;
   VMemStream: TMemoryStream;
   VFileTime: TDateTime;
+  VTileInfo: ITileInfoBasic;
 begin
   inherited;
   FTilesToProcess := 0;
@@ -107,18 +110,17 @@ begin
             if IsCancel then begin
               exit;
             end;
-            if VTileStorage.ExistsTile(VTile, VZoom) then begin
+            VMemStream.Position := 0;
+            VTileInfo := VTileStorage.GetTileInfo(VTile, VZoom, Unassigned);
+            if VTileStorage.LoadTile(VTile, VZoom, Unassigned, VMemStream, VTileInfo) then begin
+              VFileTime := VTileInfo.GetLoadDate;
               VMemStream.Position := 0;
-              if VTileStorage.LoadTile(VTile, VZoom, VMemStream) then begin
-                VFileTime := VTileStorage.TileLoadDate(VTile, VZoom);
-                VMemStream.Position := 0;
-                FZip.AddStream(
-                  FTileNameGen.GetTileFileName(VTile, VZoom)+ VTileStorage.GetTileFileExt,
-                  faArchive,
-                  VFileTime,
-                  VMemStream
-                );
-              end;
+              FZip.AddStream(
+                FTileNameGen.GetTileFileName(VTile, VZoom)+ VTileStorage.GetTileFileExt,
+                faArchive,
+                VFileTime,
+                VMemStream
+              );
             end;
             inc(FTilesProcessed);
             if FTilesProcessed mod 100 = 0 then begin
@@ -131,7 +133,7 @@ begin
     end;
   finally
     for i := 0 to Length(FZooms) - 1 do begin
-      VTileIterators[i].Free;
+      VTileIterators[i] := nil;
     end;
     VTileIterators := nil;
   end;

@@ -35,7 +35,7 @@ type
   public
     constructor Create(
       APath: string;
-      APolygon: TExtendedPointArray;
+      APolygon: TDoublePointArray;
       Azoomarr: array of boolean;
       Atypemaparr: array of TMapType;
       AActiveMapIndex: Integer;
@@ -52,7 +52,7 @@ implementation
 uses
   u_GeoToStr,
   UResStrings,
-  u_TileIteratorAbstract,
+  i_ITileIterator,
   u_TileIteratorStuped,
   i_BitmapTileSaveLoad,
   u_BitmapTileVampyreSaver,
@@ -61,7 +61,7 @@ uses
 
 constructor TThreadExportIPhone.Create(
   APath: string;
-  APolygon: TExtendedPointArray;
+  APolygon: TDoublePointArray;
   Azoomarr: array of boolean;
   Atypemaparr: array of TMapType;
   AActiveMapIndex: Integer;
@@ -118,7 +118,7 @@ end;
 procedure TThreadExportIPhone.WritePListFile(AGeoConvert: ICoordConverter);
 var
   PList: Text;
-  VLLCenter: TExtendedPoint;
+  VLLCenter: TDoublePoint;
   VPolyg: TPointArray;
   max, min: TPoint;
   VZoom: Integer;
@@ -157,8 +157,8 @@ var
   VBitmaps: array of TCustomBitmap32;
   Vbmp32crop: TCustomBitmap32;
   VFlags: array of integer;
-  VTileIterators: array of TTileIteratorAbstract;
-  VTileIterator: TTileIteratorAbstract;
+  VTileIterators: array of ITileIterator;
+  VTileIterator: ITileIterator;
 begin
   inherited;
   if (FMapTypeArr[0] = nil) and (FMapTypeArr[1] = nil) and (FMapTypeArr[2] = nil) then begin
@@ -288,7 +288,7 @@ begin
     end;
   finally
     for i := 0 to Length(VTileIterators) - 1 do begin
-      VTileIterators[i].Free;
+      VTileIterators[i] := nil;
     end;
     VTileIterators := nil;
   end;

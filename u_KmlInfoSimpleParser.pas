@@ -291,9 +291,10 @@ var
   VComa: PChar;
   VSpace: PChar;
   VLineStart: PChar;
-  VCurCoord: TExtendedPoint;
+  VCurCoord: TDoublePoint;
   VAllocated: Integer;
   VUsed: Integer;
+  VValue: Extended;
 begin
   len := ALen;
   ii := 1;
@@ -312,7 +313,8 @@ begin
         VNumEndPos := PosOfChar(',', VCurPos, len - ii + 1);
         if VNumEndPos <> nil then begin
           VNumEndPos^ := #0;
-          if TextToFloat(VCurPos, VCurCoord.x, fvExtended, FFormat) then begin
+          if TextToFloat(VCurPos, VValue, fvExtended, FFormat) then begin
+            VCurCoord.x := VValue;
             VCurPos := VNumEndPos;
             Inc(VCurPos);
             ii := VCurPos - VLineStart + 1;
@@ -336,7 +338,8 @@ begin
               VNumEndPos := VLineStart + Len;
             end;
             VNumEndPos^ := #0;
-            if TextToFloat(VCurPos, VCurCoord.y, fvExtended, FFormat) then begin
+            if TextToFloat(VCurPos, VValue, fvExtended, FFormat) then begin
+              VCurCoord.Y := VValue;
               if VUsed >= VAllocated then begin
                 VAllocated := VAllocated * 2;
                 SetLength(Adata.coordinates, VAllocated);
@@ -368,20 +371,20 @@ begin
   end;
   SetLength(Adata.coordinates, VUsed);
   if VUsed > 0 then begin
-    Adata.coordinatesLT := Adata.coordinates[0];
-    Adata.coordinatesRD := Adata.coordinates[0];
+    Adata.Bounds.TopLeft := Adata.coordinates[0];
+    Adata.Bounds.BottomRight := Adata.coordinates[0];
     for ii := 0 to length(Adata.coordinates) - 1 do begin
-      if Adata.coordinatesLT.x > Adata.coordinates[ii].X then begin
-        Adata.coordinatesLT.x := Adata.coordinates[ii].X;
+      if Adata.Bounds.Left > Adata.coordinates[ii].X then begin
+        Adata.Bounds.Left := Adata.coordinates[ii].X;
       end;
-      if Adata.coordinatesRD.x < Adata.coordinates[ii].X then begin
-        Adata.coordinatesRD.x := Adata.coordinates[ii].X;
+      if Adata.Bounds.Right < Adata.coordinates[ii].X then begin
+        Adata.Bounds.Right := Adata.coordinates[ii].X;
       end;
-      if Adata.coordinatesLT.y < Adata.coordinates[ii].y then begin
-        Adata.coordinatesLT.y := Adata.coordinates[ii].y;
+      if Adata.Bounds.Top < Adata.coordinates[ii].y then begin
+        Adata.Bounds.Top := Adata.coordinates[ii].y;
       end;
-      if Adata.coordinatesRD.y > Adata.coordinates[ii].y then begin
-        Adata.coordinatesRD.y := Adata.coordinates[ii].y;
+      if Adata.Bounds.Bottom > Adata.coordinates[ii].y then begin
+        Adata.Bounds.Bottom := Adata.coordinates[ii].y;
       end;
     end;
     Result := True;

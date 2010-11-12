@@ -137,15 +137,15 @@ end;
 
 procedure TMapMainLayer.DrawGenShBorders;
 var
-  z: TExtendedPoint;
+  z: TDoublePoint;
   twidth, theight: integer;
   ListName: WideString;
   VZoomCurr: Byte;
   VLoadedRect: TRect;
-  VLoadedLonLatRect: TExtendedRect;
-  VGridLonLatRect: TExtendedRect;
+  VLoadedLonLatRect: TDoubleRect;
+  VGridLonLatRect: TDoubleRect;
   VGridRect: TRect;
-  VDrawLonLatRect: TExtendedRect;
+  VDrawLonLatRect: TDoubleRect;
   VDrawRectFloat: TExtendedRect;
   VColor: TColor32;
   VDrawScreenRect: TRect;
@@ -159,7 +159,7 @@ begin
   VLoadedRect.TopLeft := BitmapPixel2MapPixel(Point(0, 0));
   VLoadedRect.BottomRight := BitmapPixel2MapPixel(GetBitmapSizeInPixel);
 
-  FGeoConvert.CheckPixelRect(VLoadedRect, VZoomCurr, False);
+  FGeoConvert.CheckPixelRect(VLoadedRect, VZoomCurr);
   VLoadedLonLatRect := FGeoConvert.PixelRect2LonLatRect(VLoadedRect, VZoomCurr);
 
   VGridLonLatRect.Left := VLoadedLonLatRect.Left - z.X;
@@ -175,7 +175,7 @@ begin
   VGridRect := FGeoConvert.LonLatRect2PixelRect(VGridLonLatRect, VZoomCurr);
 
   VDrawLonLatRect.TopLeft := VGridLonLatRect.TopLeft;
-  VDrawLonLatRect.BottomRight := ExtPoint(VGridLonLatRect.Left + z.X, VGridLonLatRect.Bottom);
+  VDrawLonLatRect.BottomRight := DoublePoint(VGridLonLatRect.Left + z.X, VGridLonLatRect.Bottom);
   VDrawRectFloat := FGeoConvert.LonLatRect2PixelRectFloat(VDrawLonLatRect, VZoomCurr);
 
   if abs(VDrawRectFloat.Right - VDrawRectFloat.Left) < 4 then begin
@@ -239,7 +239,7 @@ begin
     while VDrawLonLatRect.Left + z.X / 2 <= VGridLonLatRect.Right do begin
       VDrawRectFloat := FGeoConvert.LonLatRect2PixelRectFloat(VDrawLonLatRect, VZoomCurr);
       ListName := LonLat2GShListName(
-        ExtPoint(VDrawLonLatRect.Left + z.X / 2, VDrawLonLatRect.Top - z.Y / 2),
+        DoublePoint(VDrawLonLatRect.Left + z.X / 2, VDrawLonLatRect.Top - z.Y / 2),
         GState.GShScale, GSHprec
       );
       twidth := FLayer.bitmap.TextWidth(ListName);
@@ -278,7 +278,7 @@ var
   {
     Географические координаты растра
   }
-  VSourceLonLatRect: TExtendedRect;
+  VSourceLonLatRect: TDoubleRect;
 
   {
     Прямоугольник пикселов текущего зума, покрывающий растр, в кооординатах
@@ -338,19 +338,19 @@ begin
     VGeoConvert := FGeoConvert;
     VBitmapOnMapPixelRect.TopLeft := BitmapPixel2MapPixel(Point(0, 0));
     VBitmapOnMapPixelRect.BottomRight := BitmapPixel2MapPixel(GetBitmapSizeInPixel);
-    VGeoConvert.CheckPixelRect(VBitmapOnMapPixelRect, VZoom, False);
+    VGeoConvert.CheckPixelRect(VBitmapOnMapPixelRect, VZoom);
     VSourceLonLatRect := VGeoConvert.PixelRect2LonLatRect(VBitmapOnMapPixelRect, VZoom);
     VPixelSourceRect := VSourceGeoConvert.LonLatRect2PixelRect(VSourceLonLatRect, VZoom);
     VTileSourceRect := VSourceGeoConvert.PixelRect2TileRect(VPixelSourceRect, VZoom);
 
-    for i := VTileSourceRect.Left to VTileSourceRect.Right do begin
+    for i := VTileSourceRect.Left to VTileSourceRect.Right - 1 do begin
       VTile.X := i;
-      for j := VTileSourceRect.Top to VTileSourceRect.Bottom do begin
+      for j := VTileSourceRect.Top to VTileSourceRect.Bottom - 1 do begin
         VTile.Y := j;
         VCurrTilePixelRectSource := VSourceGeoConvert.TilePos2PixelRect(VTile, VZoom);
         VTilePixelsToDraw.TopLeft := Point(0, 0);
-        VTilePixelsToDraw.Right := VCurrTilePixelRectSource.Right - VCurrTilePixelRectSource.Left + 1;
-        VTilePixelsToDraw.Bottom := VCurrTilePixelRectSource.Bottom - VCurrTilePixelRectSource.Top + 1;
+        VTilePixelsToDraw.Right := VCurrTilePixelRectSource.Right - VCurrTilePixelRectSource.Left;
+        VTilePixelsToDraw.Bottom := VCurrTilePixelRectSource.Bottom - VCurrTilePixelRectSource.Top;
 
         if VCurrTilePixelRectSource.Left < VPixelSourceRect.Left then begin
           VTilePixelsToDraw.Left := VPixelSourceRect.Left - VCurrTilePixelRectSource.Left;
@@ -377,8 +377,6 @@ begin
 
         VCurrTilePixelRectAtBitmap.TopLeft := MapPixel2BitmapPixel(VCurrTilePixelRect.TopLeft);
         VCurrTilePixelRectAtBitmap.BottomRight := MapPixel2BitmapPixel(VCurrTilePixelRect.BottomRight);
-        Inc(VCurrTilePixelRectAtBitmap.Bottom);
-        Inc(VCurrTilePixelRectAtBitmap.Right);
         if VSourceMapType.LoadTileOrPreZ(VBmp, VTile, VZoom, true, False, VUsePre) then begin
           Gamma(VBmp);
         end;
@@ -403,10 +401,10 @@ var
   textoutx, textouty: string;
   Sz1, Sz2: TSize;
   VLoadedRect: TRect;
-  VLoadedRelativeRect: TExtendedRect;
+  VLoadedRelativeRect: TDoubleRect;
   VCurrentZoom: Byte;
   VTilesRect: TRect;
-  VTileRelativeRect: TExtendedRect;
+  VTileRelativeRect: TDoubleRect;
   VTileRect: TRect;
   VTileIndex: TPoint;
   VTileScreenRect: TRect;
@@ -428,7 +426,7 @@ begin
   VLoadedRect.TopLeft := BitmapPixel2MapPixel(Point(0, 0));
   VLoadedRect.BottomRight := BitmapPixel2MapPixel(GetBitmapSizeInPixel);
 
-  FGeoConvert.CheckPixelRect(VLoadedRect, VCurrentZoom, False);
+  FGeoConvert.CheckPixelRect(VLoadedRect, VCurrentZoom);
   VLoadedRelativeRect := FGeoConvert.PixelRect2RelativeRect(VLoadedRect, VCurrentZoom);
   VTilesRect := FGeoConvert.RelativeRect2TileRect(VLoadedRelativeRect, VGridZoom);
 
@@ -438,7 +436,7 @@ begin
   VTilesLineRect.Right := VTilesRect.Right;
   for i := VTilesRect.Top to VTilesRect.Bottom do begin
     VTilesLineRect.Top := i;
-    VTilesLineRect.Bottom := i;
+    VTilesLineRect.Bottom := i + 1;
 
     VTileRelativeRect := FGeoConvert.TileRect2RelativeRect(VTilesLineRect, VGridZoom);
     VTileRect := FGeoConvert.RelativeRect2PixelRect(VTileRelativeRect, VCurrentZoom);
@@ -452,7 +450,7 @@ begin
   VTilesLineRect.Bottom := VTilesRect.Bottom;
   for j := VTilesRect.Left to VTilesRect.Right do begin
     VTilesLineRect.Left := j;
-    VTilesLineRect.Right := j;
+    VTilesLineRect.Right := j + 1;
 
     VTileRelativeRect := FGeoConvert.TileRect2RelativeRect(VTilesLineRect, VGridZoom);
     VTileRect := FGeoConvert.RelativeRect2PixelRect(VTileRelativeRect, VCurrentZoom);
@@ -469,9 +467,9 @@ begin
     exit;
   end;
 
-  for i := VTilesRect.Top to VTilesRect.Bottom do begin
+  for i := VTilesRect.Top to VTilesRect.Bottom - 1 do begin
     VTileIndex.Y := i;
-    for j := VTilesRect.Left to VTilesRect.Right do begin
+    for j := VTilesRect.Left to VTilesRect.Right - 1 do begin
       VTileIndex.X := j;
       VTileRelativeRect := FGeoConvert.TilePos2RelativeRect(VTileIndex, VGridZoom);
       VTileRect := FGeoConvert.RelativeRect2PixelRect(VTileRelativeRect, VCurrentZoom);
@@ -563,3 +561,5 @@ begin
 end;
 
 end.
+
+

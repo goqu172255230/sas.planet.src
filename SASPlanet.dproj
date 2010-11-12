@@ -47,6 +47,7 @@
     <DCCReference Include="BitmapTileSaveLoad\u_BitmapTileVampyreLoader.pas" />
     <DCCReference Include="BitmapTileSaveLoad\u_BitmapTileVampyreSaver.pas" />
     <DCCReference Include="bmpUtil.pas" />
+    <DCCReference Include="c_CoordConverter.pas" />
     <DCCReference Include="c_SasVersion.pas" />
     <DCCReference Include="dm_MarksDb.pas">
       <Form>DMMarksDb</Form>
@@ -72,6 +73,7 @@
     </DCCReference>
     <DCCReference Include="i_ActiveMapsConfigSaveLoad.pas" />
     <DCCReference Include="i_BitmapTileSaveLoad.pas" />
+    <DCCReference Include="i_ContentTypeInfo.pas" />
     <DCCReference Include="i_GeoCoder.pas" />
     <DCCReference Include="i_GPS.pas" />
     <DCCReference Include="i_IActiveMapsConfig.pas" />
@@ -80,7 +82,10 @@
     <DCCReference Include="i_IBitmapTypeExtManager.pas" />
     <DCCReference Include="i_IConfigDataProvider.pas" />
     <DCCReference Include="i_IConfigDataWriteProvider.pas" />
+    <DCCReference Include="i_IContentConverter.pas" />
+    <DCCReference Include="i_IContentTypeManager.pas" />
     <DCCReference Include="i_ICoordConverter.pas" />
+    <DCCReference Include="i_ICoordConverterFactory.pas" />
     <DCCReference Include="i_IGPSModule.pas" />
     <DCCReference Include="i_IGPSModuleByCOMPortSettings.pas" />
     <DCCReference Include="i_IGPSRecorder.pas" />
@@ -105,6 +110,8 @@
     <DCCReference Include="i_ITileDownlodSession.pas" />
     <DCCReference Include="i_ITileFileNameGenerator.pas" />
     <DCCReference Include="i_ITileFileNameGeneratorsList.pas" />
+    <DCCReference Include="i_ITileInfoBasic.pas" />
+    <DCCReference Include="i_ITileIterator.pas" />
     <DCCReference Include="i_ITileObjCache.pas" />
     <DCCReference Include="i_MapTypeIconsList.pas" />
     <DCCReference Include="i_MapTypes.pas" />
@@ -115,9 +122,12 @@
     <DCCReference Include="MapLayers\u_LayerStatBar.pas" />
     <DCCReference Include="MapLayers\u_MapFillingLayer.pas" />
     <DCCReference Include="MapLayers\u_MapGPSLayer.pas" />
+    <DCCReference Include="MapLayers\u_MapLayerBase.pas" />
     <DCCReference Include="MapLayers\u_MapLayerBasic.pas" />
+    <DCCReference Include="MapLayers\u_MapLayerFixedBase.pas" />
     <DCCReference Include="MapLayers\u_MapLayerGoto.pas" />
     <DCCReference Include="MapLayers\u_MapLayerNavToMark.pas" />
+    <DCCReference Include="MapLayers\u_MapLayerScaledBase.pas" />
     <DCCReference Include="MapLayers\u_MapLayerShowError.pas" />
     <DCCReference Include="MapLayers\u_MapLayerWiki.pas" />
     <DCCReference Include="MapLayers\u_MapMainLayer.pas" />
@@ -296,8 +306,15 @@
     <DCCReference Include="u_ConfigDataProviderByKaZip.pas" />
     <DCCReference Include="u_ConfigDataWriteProviderByIniFile.pas" />
     <DCCReference Include="u_ConfigDataWriteProviderByIniFileSection.pas" />
+    <DCCReference Include="u_ContentConverterBase.pas" />
+    <DCCReference Include="u_ContentConverterBitmap.pas" />
+    <DCCReference Include="u_ContentConverterKml2Kmz.pas" />
+    <DCCReference Include="u_ContentConverterKmz2Kml.pas" />
+    <DCCReference Include="u_ContentTypeInfo.pas" />
+    <DCCReference Include="u_ContentTypeManagerSimple.pas" />
     <DCCReference Include="u_CoordConverterAbstract.pas" />
     <DCCReference Include="u_CoordConverterBasic.pas" />
+    <DCCReference Include="u_CoordConverterFactorySimple.pas" />
     <DCCReference Include="u_CoordConverterMercatorOnEllipsoid.pas" />
     <DCCReference Include="u_CoordConverterMercatorOnSphere.pas" />
     <DCCReference Include="u_CoordConverterSimpleLonLat.pas" />
@@ -306,6 +323,7 @@
     <DCCReference Include="u_GarbageCollectorThread.pas" />
     <DCCReference Include="u_GECache.pas" />
     <DCCReference Include="u_GECrypt.pas" />
+    <DCCReference Include="u_GEIndexFile.pas" />
     <DCCReference Include="u_GeoCodePalcemark.pas" />
     <DCCReference Include="u_GeoCoderBasic.pas" />
     <DCCReference Include="u_GeoCoderByGoogle.pas" />
@@ -330,6 +348,7 @@
     <DCCReference Include="u_KmzInfoSimpleParser.pas" />
     <DCCReference Include="u_LanguageManager.pas" />
     <DCCReference Include="u_LanguagesEx.pas" />
+    <DCCReference Include="u_LastSelectionInfo.pas" />
     <DCCReference Include="u_ListOfObjectsWithTTL.pas" />
     <DCCReference Include="u_LogForTaskThread.pas" />
     <DCCReference Include="u_MapCalibrationDat.pas" />
@@ -378,10 +397,14 @@
     <DCCReference Include="u_TileFileNameGM2.pas" />
     <DCCReference Include="u_TileFileNameGMV.pas" />
     <DCCReference Include="u_TileFileNameSAS.pas" />
+    <DCCReference Include="u_TileInfoBasic.pas" />
     <DCCReference Include="u_TileIteratorAbstract.pas" />
+    <DCCReference Include="u_TileIteratorByRect.pas" />
+    <DCCReference Include="u_TileIteratorSpiralByRect.pas" />
     <DCCReference Include="u_TileIteratorStuped.pas" />
     <DCCReference Include="u_TileStorageAbstract.pas" />
     <DCCReference Include="u_TileStorageFileSystem.pas" />
+    <DCCReference Include="u_TileStorageGE.pas" />
     <DCCReference Include="u_TileStorageGEStuped.pas" />
     <DCCReference Include="u_UrlGenerator.pas" />
     <DCCReference Include="u_WindowLayerBasicList.pas" />

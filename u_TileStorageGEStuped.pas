@@ -7,78 +7,84 @@ uses
   Classes,
   GR32,
   i_ICoordConverter,
+  i_ITileInfoBasic,
+  i_IConfigDataProvider,
   u_MapTypeCacheConfig,
   u_TileStorageAbstract;
 
 type
   TTileStorageGEStuped = class(TTileStorageAbstract)
   private
+    FCoordConverter: ICoordConverter;
     FCacheConfig: TMapTypeCacheConfigAbstract;
   public
-    constructor Create(ACoordConverter: ICoordConverter);
+    constructor Create(AConfig: IConfigDataProvider);
     destructor Destroy; override;
+
+    function GetMainContentType: string; override;
+    function GetAllowDifferentContentTypes: Boolean; override;
 
     function GetIsStoreFileCache: Boolean; override;
     function GetUseDel: boolean; override;
     function GetUseSave: boolean; override;
     function GetIsStoreReadOnly: boolean; override;
-
-    function ExistsTile(AXY: TPoint; Azoom: byte): Boolean; override;
-    function ExistsTNE(AXY: TPoint; Azoom: byte): Boolean; override;
-
-    function DeleteTile(AXY: TPoint; Azoom: byte): Boolean; override;
-    function DeleteTNE(AXY: TPoint; Azoom: byte): Boolean; override;
-
-    function GetTileFileName(AXY: TPoint; Azoom: byte): string; override;
     function GetTileFileExt: string; override;
+    function GetCoordConverter: ICoordConverter; override;
     function GetCacheConfig: TMapTypeCacheConfigAbstract; override;
 
-    function LoadTile(AXY: TPoint; Azoom: byte; AStream: TStream): Boolean; override;
-    function TileLoadDate(AXY: TPoint; Azoom: byte): TDateTime; override;
-    function TileSize(AXY: TPoint; Azoom: byte): integer; override;
+    function GetTileFileName(AXY: TPoint; Azoom: byte; AVersion: Variant): string; override;
 
-    procedure SaveTile(AXY: TPoint; Azoom: byte; AStream: TStream); override;
-    procedure SaveTNE(AXY: TPoint; Azoom: byte); override;
+    function GetTileInfo(AXY: TPoint; Azoom: byte; AVersion: Variant): ITileInfoBasic; override;
+
+    function LoadTile(AXY: TPoint; Azoom: byte; AVersion: Variant; AStream: TStream; out ATileInfo: ITileInfoBasic): Boolean; override;
+
+    function DeleteTile(AXY: TPoint; Azoom: byte; AVersion: Variant): Boolean; override;
+    function DeleteTNE(AXY: TPoint; Azoom: byte; AVersion: Variant): Boolean; override;
+
+    procedure SaveTile(AXY: TPoint; Azoom: byte; AVersion: Variant; AStream: TStream); override;
+    procedure SaveTNE(AXY: TPoint; Azoom: byte; AVersion: Variant); override;
   end;
 
 implementation
 
 uses
   SysUtils,
+  Variants,
+  u_TileInfoBasic,
+  u_GlobalState,
   u_GECache;
 
 { TTileStorageGEStuped }
 
-constructor TTileStorageGEStuped.Create(ACoordConverter: ICoordConverter);
+constructor TTileStorageGEStuped.Create(AConfig: IConfigDataProvider);
+var
+  VParams: IConfigDataProvider;
 begin
-  inherited Create(ACoordConverter);
+  VParams := AConfig.GetSubItem('params.txt').GetSubItem('PARAMS');
+  FCoordConverter := GState.CoordConverterFactory.GetCoordConverterByConfig(VParams);
   FCacheConfig := TMapTypeCacheConfigGE.Create;
-end;
-
-function TTileStorageGEStuped.DeleteTile(AXY: TPoint; Azoom: byte): Boolean;
-begin
-  Result := False;
-  Abort;
-end;
-
-function TTileStorageGEStuped.DeleteTNE(AXY: TPoint; Azoom: byte): Boolean;
-begin
-  Result := False;
-  Abort;
 end;
 
 destructor TTileStorageGEStuped.Destroy;
 begin
+  FCoordConverter := nil;
   FreeAndNil(FCacheConfig);
   inherited;
 end;
 
-function TTileStorageGEStuped.ExistsTile(AXY: TPoint; Azoom: byte): Boolean;
+function TTileStorageGEStuped.DeleteTile(AXY: TPoint; Azoom: byte; AVersion: Variant): Boolean;
 begin
-  result:=GETileExists(FCacheConfig.BasePath+'dbCache.dat.index', AXY.X, AXY.Y, Azoom + 1,GeoConvert);
+  Result := False;
+  Abort;
 end;
 
-function TTileStorageGEStuped.ExistsTNE(AXY: TPoint; Azoom: byte): Boolean;
+function TTileStorageGEStuped.DeleteTNE(AXY: TPoint; Azoom: byte; AVersion: Variant): Boolean;
+begin
+  Result := False;
+  Abort;
+end;
+
+function TTileStorageGEStuped.GetAllowDifferentContentTypes: Boolean;
 begin
   Result := False;
 end;
@@ -86,6 +92,11 @@ end;
 function TTileStorageGEStuped.GetCacheConfig: TMapTypeCacheConfigAbstract;
 begin
   Result := FCacheConfig;
+end;
+
+function TTileStorageGEStuped.GetCoordConverter: ICoordConverter;
+begin
+  Result := FCoordConverter;
 end;
 
 function TTileStorageGEStuped.GetIsStoreFileCache: Boolean;
@@ -98,14 +109,29 @@ begin
   Result := True;
 end;
 
+function TTileStorageGEStuped.GetMainContentType: string;
+begin
+  Result := 'image/jpeg';
+end;
+
 function TTileStorageGEStuped.GetTileFileExt: string;
 begin
   Result := '';
 end;
 
-function TTileStorageGEStuped.GetTileFileName(AXY: TPoint; Azoom: byte): string;
+function TTileStorageGEStuped.GetTileFileName(AXY: TPoint; Azoom: byte; AVersion: Variant): string;
 begin
   Abort;
+end;
+
+function TTileStorageGEStuped.GetTileInfo(AXY: TPoint; Azoom: byte;
+  AVersion: Variant): ITileInfoBasic;
+begin
+  if GETileExists(FCacheConfig.BasePath+'dbCache.dat.index', AXY.X, AXY.Y, Azoom + 1, FCoordConverter) then begin
+    Result := TTileInfoBasicExists.Create(0, 0, Unassigned);
+  end else begin
+    Result := TTileInfoBasicNotExists.Create(0, Unassigned);
+  end;
 end;
 
 function TTileStorageGEStuped.GetUseDel: boolean;
@@ -118,32 +144,22 @@ begin
   Result := False;
 end;
 
-function TTileStorageGEStuped.LoadTile(AXY: TPoint; Azoom: byte;
-  AStream: TStream): Boolean;
+function TTileStorageGEStuped.LoadTile(AXY: TPoint; Azoom: byte; AVersion: Variant;
+  AStream: TStream; out ATileInfo: ITileInfoBasic): Boolean;
 begin
   Result := False;
   Abort;
 end;
 
-procedure TTileStorageGEStuped.SaveTile(AXY: TPoint; Azoom: byte;
+procedure TTileStorageGEStuped.SaveTile(AXY: TPoint; Azoom: byte; AVersion: Variant;
   AStream: TStream);
 begin
   Abort;
 end;
 
-procedure TTileStorageGEStuped.SaveTNE(AXY: TPoint; Azoom: byte);
+procedure TTileStorageGEStuped.SaveTNE(AXY: TPoint; Azoom: byte; AVersion: Variant);
 begin
   Abort;
-end;
-
-function TTileStorageGEStuped.TileLoadDate(AXY: TPoint; Azoom: byte): TDateTime;
-begin
-  Result := 0;
-end;
-
-function TTileStorageGEStuped.TileSize(AXY: TPoint; Azoom: byte): integer;
-begin
-  Result := 0;
 end;
 
 end.

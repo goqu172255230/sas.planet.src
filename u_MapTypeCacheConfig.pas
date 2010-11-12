@@ -22,9 +22,14 @@ type
 
     FBasePath: String;
     FFileNameGenerator: ITileFileNameGenerator;
+
+    FConfigChangeNotifier: IJclNotifier;
+
     procedure SetCacheType(const Value: byte); virtual; abstract;
     procedure SetNameInCache(const Value: string); virtual;
   public
+    constructor Create;
+    destructor Destroy; override;
     function GetTileFileName(AXY: TPoint; Azoom: byte): string;
 
     property DefCachetype: byte read FDefCachetype;
@@ -36,12 +41,13 @@ type
     property NameInCache: string read FNameInCache write SetNameInCache;
 
     property BasePath: string read FBasePath;
+    property ConfigChangeNotifier: IJclNotifier read FConfigChangeNotifier;
   end;
 
   TMapTypeCacheConfig = class(TMapTypeCacheConfigAbstract)
   private
     FGlobalSettingsListener: IJclListener;
-    procedure OnSettingsEdit;
+    procedure OnSettingsEdit(Sender: TObject);
   protected
     procedure SetCacheType(const Value: byte); override;
     procedure SetNameInCache(const Value: string); override;
@@ -55,6 +61,8 @@ type
     procedure SetCacheType(const Value: byte); override;
   public
     constructor Create;
+    function GetIndexFileName: string;
+    function GetDataFileName: string;
   end;
 
 
@@ -63,9 +71,21 @@ implementation
 uses
   SysUtils,
   u_JclNotify,
+  u_NotifyEventListener,
   u_GlobalState;
 
 { TMapTypeCacheConfigAbstract }
+
+constructor TMapTypeCacheConfigAbstract.Create;
+begin
+  FConfigChangeNotifier := TJclBaseNotifier.Create;
+end;
+
+destructor TMapTypeCacheConfigAbstract.Destroy;
+begin
+  FConfigChangeNotifier := nil;
+  inherited;
+end;
 
 function TMapTypeCacheConfigAbstract.GetTileFileName(AXY: TPoint; Azoom: byte): string;
 begin
@@ -79,40 +99,16 @@ begin
   end;
 end;
 
-
-
-{ TListenerOfTMapCacheConfig }
-
-type
-  TListenerOfTMapCacheConfig = class(TJclBaseListener)
-  protected
-    FConfig: TMapTypeCacheConfig;
-  public
-    constructor Create(AConfig: TMapTypeCacheConfig);
-    procedure Notification(msg: IJclNotificationMessage); override;
-  end;
-
-constructor TListenerOfTMapCacheConfig.Create(AConfig: TMapTypeCacheConfig);
-begin
-  FConfig := AConfig;
-end;
-
-procedure TListenerOfTMapCacheConfig.Notification(
-  msg: IJclNotificationMessage);
-begin
-  inherited;
-  FConfig.OnSettingsEdit;
-end;
-
 { TMapTypeCacheConfig }
 
 constructor TMapTypeCacheConfig.Create(AConfig: IConfigDataProvider);
 var
   VParams: IConfigDataProvider;
 begin
+  inherited Create;
   VParams := AConfig.GetSubItem('params.txt').GetSubItem('PARAMS');
 
-  FGlobalSettingsListener := TListenerOfTMapCacheConfig.Create(Self);
+  FGlobalSettingsListener := TNotifyEventListener.Create(OnSettingsEdit);
   GState.CacheConfig.CacheChangeNotifier.Add(FGlobalSettingsListener);
 
   FTileFileExt := LowerCase(VParams.ReadString('Ext', '.jpg'));
@@ -129,7 +125,7 @@ begin
   inherited;
 end;
 
-procedure TMapTypeCacheConfig.OnSettingsEdit;
+procedure TMapTypeCacheConfig.OnSettingsEdit(Sender: TObject);
 var
   VCacheType: Byte;
   VBasePath: string;
@@ -174,7 +170,7 @@ procedure TMapTypeCacheConfig.SetCacheType(const Value: byte);
 begin
   if FCacheType <> Value then begin
     FCacheType := Value;
-    OnSettingsEdit;
+    OnSettingsEdit(nil);
   end;
 end;
 
@@ -182,7 +178,7 @@ procedure TMapTypeCacheConfig.SetNameInCache(const Value: string);
 begin
   if FNameInCache <> Value then begin
     FNameInCache := Value;
-    OnSettingsEdit;
+    OnSettingsEdit(nil);
   end;
 end;
 
@@ -195,6 +191,16 @@ begin
   FDefCacheType := FCacheType;
   FNameInCache := '';
   FDefNameInCache := FNameInCache;
+end;
+
+function TMapTypeCacheConfigGE.GetDataFileName: string;
+begin
+  Result := FBasePath + 'dbCache.dat';
+end;
+
+function TMapTypeCacheConfigGE.GetIndexFileName: string;
+begin
+  Result := FBasePath + 'dbCache.dat.index';
 end;
 
 procedure TMapTypeCacheConfigGE.SetCacheType(const Value: byte);

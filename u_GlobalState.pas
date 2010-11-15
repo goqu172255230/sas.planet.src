@@ -20,9 +20,11 @@ uses
   i_IKmlInfoSimpleLoader,
   i_IBitmapLayerProvider,
   i_MapTypeIconsList,
+  i_ICoordConverterFactory,
   u_GarbageCollectorThread,
   u_GeoToStr,
   u_MapViewPortState,
+  u_LastSelectionInfo,
   u_MarksReadWriteSimple,
   Uimgfun,
   UMapType,
@@ -52,7 +54,9 @@ type
     FMapTypeIcons24List: IMapTypeIconsList;
     FLanguageManager: ILanguageManager;
     FMainConfigProvider: IConfigDataWriteProvider;
+    FLastSelectionInfo: TLastSelectionInfo;
     FMarksDB: TMarksDB;
+    FCoordConverterFactory: ICoordConverterFactory;
     function GetMarkIconsPath: string;
     function GetMarksFileName: string;
     function GetMarksBackUpFileName: string;
@@ -68,8 +72,6 @@ type
     procedure FreeMarkIcons;
     procedure SetScreenSize(const Value: TPoint);
     procedure SetCacheElemensMaxCnt(const Value: integer);
-    procedure SaveLastSelectionPolygon;
-    procedure LoadLastSelectionPolygon;
     procedure LoadMaps;
     procedure LoadCacheConfig;
     procedure LoadMapIconsList;
@@ -109,9 +111,6 @@ type
     Resampling: TTileResamplingType;
 
     GPSpar: TGPSpar;
-
-    LastSelectionColor: TColor;
-    LastSelectionAlfa: Byte;
 
     BorderColor: TColor;
     BorderAlpha: byte;
@@ -182,11 +181,6 @@ type
 
     MapType: array of TMapType;
 
-    // Полигон последнего выделения при операциях с областью.
-    LastSelectionPolygon: TExtendedPointArray;
-    // Масштаб, на котором было последнее выделение
-    poly_zoom_save: byte;
-
     property CacheConfig: TGlobalCahceConfig read FCacheConfig;
     // Количество элементов в кэше в памяти
     property CacheElemensMaxCnt: integer read FCacheElemensMaxCnt write SetCacheElemensMaxCnt;
@@ -217,6 +211,7 @@ type
     property MainConfigFileName: string read GetMainConfigFileName;
     // Менеджер типов растровых тайлов. Теоретически, каждая карта может иметь свой собственный.
     property BitmapTypeManager: IBitmapTypeExtManager read FBitmapTypeManager;
+    property CoordConverterFactory: ICoordConverterFactory read FCoordConverterFactory;
     property MapCalibrationList: IInterfaceList read FMapCalibrationList;
     property KmlLoader: IKmlInfoSimpleLoader read FKmlLoader;
     property KmzLoader: IKmlInfoSimpleLoader read FKmzLoader;
@@ -228,6 +223,7 @@ type
     property ViewState: TMapViewPortState read FViewState;
     property LanguageManager: ILanguageManager read FLanguageManager;
     property MainConfigProvider: IConfigDataWriteProvider read FMainConfigProvider;
+    property LastSelectionInfo: TLastSelectionInfo read FLastSelectionInfo;
     property MarksDB: TMarksDB read FMarksDB;
 
     constructor Create;
@@ -271,6 +267,7 @@ uses
   u_KmzInfoSimpleParser,
   u_MapMarksBitmapLayerProviderStuped,
   u_MapTypeIconsList,
+  u_CoordConverterFactorySimple,
   u_LanguageManager,
   UResStrings,
   u_TileFileNameGeneratorsSimpleList;
@@ -292,6 +289,7 @@ begin
   FMainConfigProvider := TConfigDataWriteProviderByIniFile.Create(MainIni);
   FLanguageManager := TLanguageManager.Create(MainIni);
 
+  FCoordConverterFactory := TCoordConverterFactorySimple.Create;
   FMemFileCache := TMemFileCache.Create;
   MainFileCache := FMemFileCache;
   FTileNameGenerator := TTileFileNameGeneratorsSimpleList.Create;
@@ -304,6 +302,7 @@ begin
   FMarksDB := TMarksDB.Create;
   FMarksBitmapProvider := TMapMarksBitmapLayerProviderStuped.Create;
   GPSpar := TGPSpar.Create;
+  FLastSelectionInfo := TLastSelectionInfo.Create;
 end;
 
 destructor TGlobalState.Destroy;
@@ -331,9 +330,11 @@ begin
   FreeAndNil(FMarksDB);
   FMapTypeIcons18List := nil;
   FMapTypeIcons24List := nil;
+  FreeAndNil(FLastSelectionInfo);
   FreeAndNil(GPSpar);
   FreeAndNil(FViewState);
   FreeAllMaps;
+  FCoordConverterFactory := nil;
   FreeAndNil(FCacheConfig);
   inherited;
 end;
@@ -494,22 +495,7 @@ begin
   LoadCacheConfig;
   LoadMapIconsList;
   GPSpar.LoadConfig(MainConfigProvider);
-end;
-
-procedure TGlobalState.LoadLastSelectionPolygon;
-var
-  i: Integer;
-begin
-  i:=1;
-  while str2r(MainIni.ReadString('HIGHLIGHTING','pointx_'+inttostr(i),'2147483647'))<>2147483647 do begin
-    setlength(LastSelectionPolygon,i);
-    LastSelectionPolygon[i-1].x:=str2r(MainIni.ReadString('HIGHLIGHTING','pointx_'+inttostr(i),'2147483647'));
-    LastSelectionPolygon[i-1].y:=str2r(MainIni.ReadString('HIGHLIGHTING','pointy_'+inttostr(i),'2147483647'));
-    inc(i);
-  end;
-  if length(LastSelectionPolygon)>0 then begin
-    poly_zoom_save:=MainIni.Readinteger('HIGHLIGHTING','zoom',1);
-  end;
+  FLastSelectionInfo.LoadConfig(MainConfigProvider.GetSubItem('LastSelection'));
 end;
 
 procedure TGlobalState.LoadBitmapFromJpegRes(const Name: String; Abmp: TCustomBitmap32);
@@ -588,9 +574,6 @@ begin
   MapZapTneColor:=MainIni.Readinteger('VIEW','MapZapTneColor',clRed);
   MapZapAlpha:=MainIni.Readinteger('VIEW','MapZapAlpha',110);
 
-  LastSelectionColor:=MainIni.Readinteger('VIEW','LastSelectionColor',clBlack);
-  LastSelectionAlfa:=MainIni.Readinteger('VIEW','LastSelectionAlpha',210);
-
   CacheElemensMaxCnt:=MainIni.ReadInteger('VIEW','TilesOCache',150);
   ShowHintOnMarks:=MainIni.ReadBool('VIEW','ShowHintOnMarks',true);
   SrchType:=TSrchType(MainIni.ReadInteger('VIEW','SearchType',0));
@@ -606,7 +589,6 @@ begin
   GSMpar.BaudRate:=MainIni.ReadInteger('GSM','BaudRate',4800);
   GSMpar.auto:=MainIni.ReadBool('GSM','Auto',true);
   GSMpar.WaitingAnswer:=MainIni.ReadInteger('GSM','WaitingAnswer',200);
-  LoadLastSelectionPolygon;
 end;
 
 procedure TGlobalState.LoadMapIconsList;
@@ -723,25 +705,6 @@ begin
   FScreenSize := Value;
 end;
 
-procedure TGlobalState.SaveLastSelectionPolygon;
-var
-  i: Integer;
-begin
-  i:=1;
-  while MainIni.ReadString('HIGHLIGHTING','pointx_'+inttostr(i),'2147483647')<>'2147483647' do begin
-    MainIni.DeleteKey('HIGHLIGHTING','pointx_'+inttostr(i));
-    MainIni.DeleteKey('HIGHLIGHTING','pointy_'+inttostr(i));
-    inc(i);
-  end;
-  if length(LastSelectionPolygon)>0 then begin
-    MainIni.WriteInteger('HIGHLIGHTING','zoom',poly_zoom_save);
-    for i := 0 to length(LastSelectionPolygon) - 1 do begin
-      MainIni.WriteFloat('HIGHLIGHTING','pointx_'+inttostr(i+1),LastSelectionPolygon[i].x);
-      MainIni.WriteFloat('HIGHLIGHTING','pointy_'+inttostr(i+1),LastSelectionPolygon[i].y);
-    end;
-  end;
-end;
-
 procedure TGlobalState.SaveMainParams;
 var
   VZoom: Byte;
@@ -782,8 +745,6 @@ begin
   MainIni.Writeinteger('VIEW','MapZapAlpha',MapZapAlpha);
   MainIni.WriteInteger('VIEW','TilesOCache', CacheElemensMaxCnt);
   MainIni.WriteBool('VIEW','ShowHintOnMarks', ShowHintOnMarks);
-  MainIni.Writeinteger('VIEW','LastSelectionColor',LastSelectionColor);
-  MainIni.Writeinteger('VIEW','LastSelectionAlfa',LastSelectionAlfa);
   MainIni.WriteInteger('VIEW','SearchType',integer(SrchType));
   MainIni.WriteInteger('VIEW','Background',BGround);
   MainIni.Writeinteger('Wikimapia','MainColor',WikiMapMainColor);
@@ -817,7 +778,7 @@ begin
 
   MainIni.Writebool('NPARAM','stat',WebReportToAuthor);
   GPSpar.SaveConfig(MainConfigProvider);
-  SaveLastSelectionPolygon;
+  FLastSelectionInfo.SaveConfig(MainConfigProvider.GetOrCreateSubItem('LastSelection'));
 end;
 
 procedure TGlobalState.SaveMaps;

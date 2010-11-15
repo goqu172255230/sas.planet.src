@@ -26,7 +26,7 @@ type
   public
     constructor Create(
       APath: string;
-      APolygon: TExtendedPointArray;
+      APolygon: TDoublePointArray;
       Azoomarr: array of boolean;
       Atypemaparr: array of TMapType;
       Amove: boolean;
@@ -39,12 +39,12 @@ implementation
 
 uses
   i_ICoordConverter,
-  u_TileIteratorAbstract,
+  i_ITileIterator,
   u_TileIteratorStuped;
 
 constructor TThreadExportToFileSystem.Create(
   APath: string;
-  APolygon: TExtendedPointArray;
+  APolygon: TDoublePointArray;
   Azoomarr: array of boolean;
   Atypemaparr: array of TMapType;
   Amove, Areplace: boolean;
@@ -73,8 +73,8 @@ var
   VTile: TPoint;
   VMapType: TMapType;
   VGeoConvert: ICoordConverter;
-  VTileIterators: array of array of TTileIteratorAbstract;
-  VTileIterator: TTileIteratorAbstract;
+  VTileIterators: array of array of ITileIterator;
+  VTileIterator: ITileIterator;
 begin
   inherited;
   SetLength(VTileIterators, length(FMapTypeArr), Length(FZooms));
@@ -124,7 +124,7 @@ begin
   finally
     for j := 0 to length(FMapTypeArr) - 1 do begin
       for i := 0 to Length(FZooms) - 1 do begin
-        VTileIterators[j, i].Free;
+        VTileIterators[j, i] := nil;
       end;
     end;
     VTileIterators := nil;

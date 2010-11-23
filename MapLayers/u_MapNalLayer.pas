@@ -19,8 +19,8 @@ type
   TMapNalLayer = class(TMapLayerBasic)
   private
     FDrawType: TMapNalDrawType;
-    FPath: TExtendedPointArray;
-    FSelectedLonLat: TExtendedRect;
+    FPath: TDoublePointArray;
+    FSelectedLonLat: TDoubleRect;
     FPolyActivePointIndex: integer;
     FLenShow: Boolean;
 
@@ -55,7 +55,7 @@ type
 
     procedure DrawPolyPoint(
       const ABitmapSize: TPoint;
-      const APosOnBitmap: TExtendedPoint;
+      const APosOnBitmap: TDoublePoint;
       const ASize: Integer;
       const AFillColor: TColor32;
       const ARectColor: TColor32
@@ -72,10 +72,10 @@ type
     procedure LoadConfig(AConfigProvider: IConfigDataProvider); override;
     procedure SaveConfig(AConfigProvider: IConfigDataWriteProvider); override;
     procedure DrawNothing;
-    procedure DrawSelectionRect(ASelectedLonLat: TExtendedRect);
-    procedure DrawReg(ASelectedLonLatPoly: TExtendedPointArray);
-    procedure DrawLineCalc(APathLonLat: TExtendedPointArray; ALenShow: Boolean; AActiveIndex: Integer);
-    procedure DrawNewPath(APathLonLat: TExtendedPointArray; AIsPoly: boolean; AActiveIndex: Integer);
+    procedure DrawSelectionRect(ASelectedLonLat: TDoubleRect);
+    procedure DrawReg(ASelectedLonLatPoly: TDoublePointArray);
+    procedure DrawLineCalc(APathLonLat: TDoublePointArray; ALenShow: Boolean; AActiveIndex: Integer);
+    procedure DrawNewPath(APathLonLat: TDoublePointArray; AIsPoly: boolean; AActiveIndex: Integer);
   end;
 
 implementation
@@ -138,14 +138,14 @@ end;
 procedure TMapNalLayer.DoDrawCalcLine;
 var
   i, j, textW: integer;
-  k1: TExtendedPoint;
+  k1: TDoublePoint;
   len: real;
   text: string;
   polygon: TPolygon32;
   VBitmapSize: TPoint;
-  VPointsOnBitmap: TExtendedPointArray;
+  VPointsOnBitmap: TDoublePointArray;
   VPointsCount: Integer;
-  VLonLat: TExtendedPoint;
+  VLonLat: TDoublePoint;
 begin
   VPointsCount := Length(FPath);
   if VPointsCount > 0 then begin
@@ -240,12 +240,12 @@ end;
 procedure TMapNalLayer.DoDrawNewPath(AIsPoly: Boolean);
 var
   i: integer;
-  k1: TExtendedPoint;
+  k1: TDoublePoint;
   polygon: TPolygon32;
   VBitmapSize: TPoint;
-  VPointsOnBitmap: TExtendedPointArray;
+  VPointsOnBitmap: TDoublePointArray;
   VPointsCount: Integer;
-  VLonLat: TExtendedPoint;
+  VLonLat: TDoublePoint;
 begin
   VPointsCount := Length(FPath);
   if VPointsCount > 0 then begin
@@ -297,12 +297,12 @@ end;
 procedure TMapNalLayer.DoDrawSelectionPoly;
 var
   i: integer;
-  k1: TExtendedPoint;
+  k1: TDoublePoint;
   Polygon: TPolygon32;
   VBitmapSize: TPoint;
-  VPointsOnBitmap: TExtendedPointArray;
+  VPointsOnBitmap: TDoublePointArray;
   VPointsCount: Integer;
-  VLonLat: TExtendedPoint;
+  VLonLat: TDoublePoint;
 begin
   VPointsCount := Length(FPath);
   if VPointsCount > 0 then begin
@@ -354,7 +354,7 @@ var
   VSelectedPixels: TRect;
   VZoomDelta: Byte;
   VColor: TColor32;
-  VSelectedRelative: TExtendedRect;
+  VSelectedRelative: TDoubleRect;
   VSelectedTiles: TRect;
   VMaxZoomDelta: Integer;
 begin
@@ -418,7 +418,7 @@ begin
   end;
 end;
 
-procedure TMapNalLayer.DrawLineCalc(APathLonLat: TExtendedPointArray; ALenShow: Boolean; AActiveIndex: Integer);
+procedure TMapNalLayer.DrawLineCalc(APathLonLat: TDoublePointArray; ALenShow: Boolean; AActiveIndex: Integer);
 begin
 
   FDrawType := mndtCalcLen;
@@ -429,7 +429,7 @@ begin
   Redraw;
 end;
 
-procedure TMapNalLayer.DrawNewPath(APathLonLat: TExtendedPointArray;
+procedure TMapNalLayer.DrawNewPath(APathLonLat: TDoublePointArray;
   AIsPoly: boolean; AActiveIndex: Integer);
 begin
   if AIsPoly then begin
@@ -453,12 +453,12 @@ begin
 end;
 
 procedure TMapNalLayer.DrawPolyPoint(const ABitmapSize: TPoint;
-  const APosOnBitmap: TExtendedPoint; const ASize: Integer; const AFillColor,
+  const APosOnBitmap: TDoublePoint; const ASize: Integer; const AFillColor,
   ARectColor: TColor32);
 var
-  VHalfSize: Extended;
+  VHalfSize: Double;
   VRect: TRect;
-  VRectFloat: TExtendedRect;
+  VRectFloat: TDoubleRect;
 begin
   VHalfSize := ASize / 2;
   VRectFloat.Left := APosOnBitmap.X - VHalfSize;
@@ -486,14 +486,14 @@ begin
   end;
 end;
 
-procedure TMapNalLayer.DrawReg(ASelectedLonLatPoly: TExtendedPointArray);
+procedure TMapNalLayer.DrawReg(ASelectedLonLatPoly: TDoublePointArray);
 begin
   FDrawType := mndtSelectPoly;
   FPath := Copy(ASelectedLonLatPoly);
   Redraw;
 end;
 
-procedure TMapNalLayer.DrawSelectionRect(ASelectedLonLat: TExtendedRect);
+procedure TMapNalLayer.DrawSelectionRect(ASelectedLonLat: TDoubleRect);
 begin
   FDrawType := mndtSelectRect;
   FPath := nil;

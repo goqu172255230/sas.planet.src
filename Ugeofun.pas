@@ -12,12 +12,8 @@ uses
 
 type
  TDMS = record
-  D,M,S: extended;
+  D,M,S: Double;
   N:boolean;
- end;
-
- TRealPoint = record
-   X, Y: Real;
  end;
 
  TResObjType = (ROTpoint,ROTline,ROTPoly);
@@ -25,35 +21,43 @@ type
   TResObj = record
    type_:TResObjType;
    find:boolean;
-   S:Extended;
+   S:Double;
    numid:String;
    name:String;
    descr:String;
   end;
 
   function GetProj(AConverter: ICoordConverter): string;
-  function DMS2G(D,M,S:extended;N:boolean):extended;
-  function D2DMS(G:extended):TDMS;
-  function PolygonFromRect(ARect: TExtendedRect): TExtendedPointArray;
-  function ExtPoint(X, Y: extended): TExtendedPoint;
+  function DMS2G(D,M,S:Double;N:boolean): Double;
+  function D2DMS(G:Double):TDMS;
+  function PolygonFromRect(ARect: TDoubleRect): TDoublePointArray;
+  function DoublePoint(APoint: TPoint): TDoublePoint; overload;
+  function DoublePoint(X, Y: Double): TDoublePoint; overload;
+  function DoubleRect(ARect: TRect): TDoubleRect; overload;
+  function DoubleRect(ATopLeft, ABottomRight: TDoublePoint): TDoubleRect; overload;
+  function DoubleRect(ALeft, ATop, ARight, ABottom: Double): TDoubleRect; overload;
+
   function compare2P(p1,p2:TPoint):boolean;
   function PtInRgn(Polyg:TPointArray; P:TPoint):boolean;
   function PtInPolygon(const Pt: TPoint; const Points:TPointArray): Boolean;
-  function PointInRect(const APoint: TExtendedPoint; const ARect: TExtendedRect): Boolean;
-  function compare2EP(p1,p2:TExtendedPoint):boolean;
+  function PointInRect(const APoint: TDoublePoint; const ARect: TDoubleRect): Boolean;
+  function IsDoubleRectEmpty(const Rect: TDoubleRect): Boolean;
+  function IntersecTDoubleRect(out Rect: TDoubleRect; const R1, R2: TDoubleRect): Boolean;
+
+  function compare2EP(p1,p2:TDoublePoint):boolean;
   function PolygonSquare(Poly:TPointArray): Double;
   function CursorOnLinie(X, Y, x1, y1, x2, y2, d: Integer): Boolean;
-  procedure CalculateWFileParams(LL1,LL2:TExtendedPoint;ImageWidth,ImageHeight:integer;AConverter: ICoordConverter;
-            var CellIncrementX,CellIncrementY,OriginX,OriginY:extended);
+  procedure CalculateWFileParams(LL1,LL2:TDoublePoint;ImageWidth,ImageHeight:integer;AConverter: ICoordConverter;
+            var CellIncrementX,CellIncrementY,OriginX,OriginY:Double);
   Procedure GetMinMax(var min,max:TPoint; Polyg:TPointArray;round_:boolean); overload;
   Procedure GetMinMax(var ARect:TRect; Polyg:TPointArray;round_:boolean); overload;
-  Procedure GetMinMax(var ARect:TExtendedRect; Polyg:TExtendedPointArray); overload;
+  Procedure GetMinMax(var ARect:TDoubleRect; Polyg:TDoublePointArray); overload;
   function GetDwnlNum(var min,max:TPoint; Polyg:TPointArray; getNum:boolean):Int64; overload;
   function GetDwnlNum(var ARect: TRect; Polyg:TPointArray; getNum:boolean):Int64; overload;
   function RgnAndRect(Polyg:TPointArray; ARect: TRect):boolean;
   function RgnAndRgn(Polyg:TPointArray;x,y:integer;prefalse:boolean):boolean;
-  function GetGhBordersStepByScale(AScale: Integer): TExtendedPoint;
-  procedure PrepareGR32Polygon(APointsOnBitmap: TExtendedPointArray; polygon: TPolygon32);
+  function GetGhBordersStepByScale(AScale: Integer): TDoublePoint;
+  procedure PrepareGR32Polygon(APointsOnBitmap: TDoublePointArray; polygon: TPolygon32);
 
 implementation
 
@@ -318,14 +322,14 @@ begin
 end;
 
 procedure CalculateWFileParams(
-  LL1, LL2: TExtendedPoint;
+  LL1, LL2: TDoublePoint;
   ImageWidth, ImageHeight: integer;
   AConverter: ICoordConverter;
-  var CellIncrementX, CellIncrementY, OriginX, OriginY: extended
+  var CellIncrementX, CellIncrementY, OriginX, OriginY: Double
 );
 var
-  VM1: TExtendedPoint;
-  VM2: TExtendedPoint;
+  VM1: TDoublePoint;
+  VM2: TDoublePoint;
 begin
   case AConverter.GetCellSizeUnits of
     CELL_UNITS_METERS: begin
@@ -423,29 +427,23 @@ begin
                               else result:=false;
 end;
 
-function compare2EP(p1,p2:TExtendedPoint):boolean;
+function compare2EP(p1,p2:TDoublePoint):boolean;
 begin
  if (p1.x=p2.X)and(p1.y=p2.y) then result:=true
                               else result:=false;
 end;
 
-function ExtPoint(X, Y: extended): TExtendedPoint;
-begin
-  Result.X:=X;
-  Result.Y:=Y;
-end;
-
-function PolygonFromRect(ARect: TExtendedRect): TExtendedPointArray;
+function PolygonFromRect(ARect: TDoubleRect): TDoublePointArray;
 begin
   SetLength(Result, 5);
   Result[0] := ARect.TopLeft;
-  Result[1] := ExtPoint(ARect.Right, ARect.Top);
+  Result[1] := DoublePoint(ARect.Right, ARect.Top);
   Result[2] := ARect.BottomRight;
-  Result[3] := ExtPoint(ARect.Left, ARect.Bottom);
+  Result[3] := DoublePoint(ARect.Left, ARect.Bottom);
   Result[4] := ARect.TopLeft;
 end;
 
-Procedure GetMinMax(var ARect:TExtendedRect; Polyg:TExtendedPointArray); overload;
+Procedure GetMinMax(var ARect:TDoubleRect; Polyg:TDoublePointArray); overload;
 var
   i: Integer;
 begin
@@ -467,18 +465,18 @@ begin
       end;
     end;
   end else begin
-    ARect.TopLeft := ExtPoint(0, 0);
-    ARect.BottomRight := ExtPoint(0, 0);
+    ARect.TopLeft := DoublePoint(0, 0);
+    ARect.BottomRight := DoublePoint(0, 0);
   end;
 end;
 
-function DMS2G(D,M,S:extended;N:boolean):extended;
+function DMS2G(D,M,S:Double;N:boolean):Double;
 begin
   result:=D+M/60+S/3600;
   if N then result:=-result;
 end;
 
-function D2DMS(G:extended):TDMS;
+function D2DMS(G:Double):TDMS;
 begin
   result.N:=G<0;
   G:=abs(G);
@@ -487,7 +485,7 @@ begin
   result.S:=Frac(Frac(G)*60)*60;
 end;
 
-function GetGhBordersStepByScale(AScale: Integer): TExtendedPoint;
+function GetGhBordersStepByScale(AScale: Integer): TDoublePoint;
 begin
   case AScale of
     1000000: begin Result.X:=6; Result.Y:=4; end;
@@ -501,20 +499,70 @@ begin
   end;
 end;
 
-function PointInRect(const APoint: TExtendedPoint; const ARect: TExtendedRect): Boolean;
+function PointInRect(const APoint: TDoublePoint; const ARect: TDoubleRect): Boolean;
 begin
   result:=(APoint.X<=ARect.Right)and(APoint.X>=ARect.Left)and
           (APoint.Y<=ARect.Top)and(APoint.Y>=ARect.Bottom);
 end;
 
-procedure PrepareGR32Polygon(APointsOnBitmap: TExtendedPointArray; polygon: TPolygon32);
+function DoublePoint(APoint: TPoint): TDoublePoint; overload;
+begin
+  Result.X := APoint.X;
+  Result.Y := APoint.Y;
+end;
+
+function DoublePoint(X, Y: Double): TDoublePoint; overload;
+begin
+  Result.X := X;
+  Result.Y := Y;
+end;
+
+function DoubleRect(ARect: TRect): TDoubleRect; overload;
+begin
+  Result.Left := ARect.Left;
+  Result.Top := ARect.Top;
+  Result.Right := ARect.Right;
+  Result.Bottom := ARect.Bottom;
+end;
+
+function DoubleRect(ATopLeft, ABottomRight: TDoublePoint): TDoubleRect; overload;
+begin
+  Result.TopLeft := ATopLeft;
+  Result.BottomRight := ABottomRight;
+end;
+
+function DoubleRect(ALeft, ATop, ARight, ABottom: Double): TDoubleRect; overload;
+begin
+  Result.Left := ALeft;
+  Result.Top := ATop;
+  Result.Right := ARight;
+  Result.Bottom := ABottom;
+end;
+
+function IsDoubleRectEmpty(const Rect: TDoubleRect): Boolean;
+begin
+  Result := (Rect.Right <= Rect.Left) or (Rect.Bottom <= Rect.Top);
+end;
+
+function IntersecTDoubleRect(out Rect: TDoubleRect; const R1, R2: TDoubleRect): Boolean;
+begin
+  Rect := R1;
+  if R2.Left > R1.Left then Rect.Left := R2.Left;
+  if R2.Top > R1.Top then Rect.Top := R2.Top;
+  if R2.Right < R1.Right then Rect.Right := R2.Right;
+  if R2.Bottom < R1.Bottom then Rect.Bottom := R2.Bottom;
+  Result := not IsDoubleRectEmpty(Rect);
+  if not Result then FillChar(Rect, SizeOf(Rect), 0);
+end;
+
+procedure PrepareGR32Polygon(APointsOnBitmap: TDoublePointArray; polygon: TPolygon32);
 
 var
   i, adp, j, lenpath: integer;
-  k1: TextendedPoint;
-  k2: TextendedPoint;
-  k4: TextendedPoint;
-  k3: TextendedPoint;
+  k1: TDoublePoint;
+  k2: TDoublePoint;
+  k4: TDoublePoint;
+  k3: TDoublePoint;
 begin
    lenpath:=length(APointsOnBitmap);
    k1 := APointsOnBitmap[0];
@@ -532,9 +580,9 @@ begin
           adp := (Trunc(abs(k2.y - k1.y) / 32766) + 1)*3;
         end;
         if adp > 1 then begin
-          k3 := extPoint(((k2.X - k1.x) / adp), ((k2.y - k1.y) / adp));
+          k3 := DoublePoint(((k2.X - k1.x) / adp), ((k2.y - k1.y) / adp));
           for j := 1 to adp - 1 do begin
-            k4 := extPoint((k1.x + k3.x * j), (k1.Y + k3.y * j));
+            k4 := DoublePoint((k1.x + k3.x * j), (k1.Y + k3.y * j));
             if (k4.X<32766)and(k4.X>-32766)and(k4.Y<32766)and(k4.Y>-32766) then begin
               polygon.Add(FixedPoint(k4.X, k4.Y));
             end;
@@ -634,3 +682,6 @@ End Function
 
 }
 end.
+
+
+

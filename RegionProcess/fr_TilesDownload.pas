@@ -42,9 +42,9 @@ type
     procedure chkReplaceOlderClick(Sender: TObject);
     procedure cbbZoomChange(Sender: TObject);
   private
-    FPolygLL: TExtendedPointArray;
+    FPolygLL: TDoublePointArray;
   public
-    procedure Init(AZoom: Byte; APolygLL: TExtendedPointArray);
+    procedure Init(AZoom: Byte; APolygLL: TDoublePointArray);
   end;
 
 implementation
@@ -91,7 +91,7 @@ begin
   dtpReplaceOlderDate.Enabled := chkReplaceOlder.Enabled and chkReplaceOlder.Checked;
 end;
 
-procedure TfrTilesDownload.Init(AZoom: Byte; APolygLL: TExtendedPointArray);
+procedure TfrTilesDownload.Init(AZoom: Byte; APolygLL: TDoublePointArray);
 var
   i: integer;
   VMapType: TMapType;
@@ -107,7 +107,7 @@ begin
 
   VActiveMap := GState.ViewState.GetCurrentMap;
   cbbMap.items.Clear;
-  For i:=0 to length(GState.MapType)-1 do begin
+  For i:=0 to GState.MapType.Count - 1 do begin
     VMapType := GState.MapType[i];
     if VMapType.UseDwn then begin
       VAddedIndex := cbbMap.Items.AddObject(VMapType.name,VMapType);

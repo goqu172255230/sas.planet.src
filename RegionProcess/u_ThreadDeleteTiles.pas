@@ -24,7 +24,7 @@ type
     procedure ProgressFormUpdateOnProgress;
   public
     constructor Create(
-      APolyLL: TExtendedPointArray;
+      APolyLL: TDoublePointArray;
       Azoom: byte;
       Atypemap: TMapType;
       ADelByte: boolean;
@@ -35,11 +35,11 @@ type
 implementation
 
 uses
-  u_TileIteratorAbstract,
+  i_ITileIterator,
   u_TileIteratorStuped;
 
 constructor TThreadDeleteTiles.Create(
-  APolyLL: TExtendedPointArray;
+  APolyLL: TDoublePointArray;
   Azoom: byte;
   Atypemap: TMapType;
   ADelByte: boolean;
@@ -57,7 +57,7 @@ end;
 procedure TThreadDeleteTiles.ProcessRegion;
 var
   VTile: TPoint;
-  VTileIterator: TTileIteratorAbstract;
+  VTileIterator: ITileIterator;
 begin
   inherited;
   VTileIterator := TTileIteratorStuped.Create(FZoom, FPolygLL, FMapType.GeoConvert);
@@ -80,7 +80,7 @@ begin
       inc(FTilesProcessed);
     end;
   finally
-    FreeAndNil(VTileIterator);
+    VTileIterator := nil;
   end;
 end;
 

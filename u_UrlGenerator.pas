@@ -44,14 +44,14 @@ type
     FpGetX: PPSVariantS32;
     FpGetY: PPSVariantS32;
     FpGetZ: PPSVariantS32;
-    FpGetLlon: PPSVariantExtended;
-    FpGetTLat: PPSVariantExtended;
-    FpGetBLat: PPSVariantExtended;
-    FpGetRLon: PPSVariantExtended;
-    FpGetLMetr: PPSVariantExtended;
-    FpGetRMetr: PPSVariantExtended;
-    FpGetTMetr: PPSVariantExtended;
-    FpGetBMetr: PPSVariantExtended;
+    FpGetLlon: PPSVariantDouble;
+    FpGetTLat: PPSVariantDouble;
+    FpGetBLat: PPSVariantDouble;
+    FpGetRLon: PPSVariantDouble;
+    FpGetLMetr: PPSVariantDouble;
+    FpGetRMetr: PPSVariantDouble;
+    FpGetTMetr: PPSVariantDouble;
+    FpGetBMetr: PPSVariantDouble;
     FpConverter: PPSVariantInterface;
     procedure SetVar(AXY: TPoint; AZoom: Byte);
   public
@@ -81,8 +81,8 @@ var
   VParams: IConfigDataProvider;
 begin
   VParams := AConfig.GetSubItem('params.txt').GetSubItem('PARAMS');
-  FURLBase := VParams.ReadString('DefURLBase', 'http://maps.google.com/');
-  FDefUrlBase := URLBase;
+  FURLBase := VParams.ReadString('URLBase', '');
+  FDefUrlBase := VParams.ReadString('MAIN:URLBase', '');;
 end;
 
 function TUrlGeneratorBasic.GenLink(Ax, Ay: Integer; Azoom: byte): string;
@@ -114,8 +114,8 @@ begin
       aType := t;
     end;
 
-    T := Sender.FindType('extended');
-    RecT := TPSRecordType(Sender.AddType('TExtendedPoint', btRecord));
+    T := Sender.FindType('Double');
+    RecT := TPSRecordType(Sender.AddType('TDoublePoint', btRecord));
     with RecT.AddRecVal do begin
       FieldOrgName := 'x';
       aType := t;
@@ -127,9 +127,9 @@ begin
     end;
 
     with Sender.AddInterface(Sender.FindInterface('IUnknown'), ICoordConverter, 'ICoordConverter') do begin
-      RegisterMethod('function Pos2LonLat(XY : TPoint; Azoom : byte) : TExtendedPoint', cdStdCall);
-      RegisterMethod('function LonLat2Pos(Ll : TExtendedPoint; Azoom : byte) : Tpoint', cdStdCall);
-      RegisterMethod('function LonLat2Metr(Ll : TExtendedPoint) : TExtendedPoint', cdStdCall);
+      RegisterMethod('function Pos2LonLat(XY : TPoint; Azoom : byte) : TDoublePoint', cdStdCall);
+      RegisterMethod('function LonLat2Pos(Ll : TDoublePoint; Azoom : byte) : Tpoint', cdStdCall);
+      RegisterMethod('function LonLat2Metr(Ll : TDoublePoint) : TDoublePoint', cdStdCall);
 
       RegisterMethod('function TilesAtZoom(AZoom: byte): Longint', cdStdCall);
       RegisterMethod('function PixelsAtZoom(AZoom: byte): Longint', cdStdCall);
@@ -151,7 +151,7 @@ begin
     Sender.AddUsedVariable('dTpix', t);
     Sender.AddUsedVariable('dBpix', t);
     Sender.AddUsedVariable('dRpix', t);
-    T := Sender.FindType('extended');
+    T := Sender.FindType('Double');
     Sender.AddUsedVariable('GetLlon', t);
     Sender.AddUsedVariable('GetTLat', t);
     Sender.AddUsedVariable('GetBLat', t);
@@ -162,7 +162,7 @@ begin
     Sender.AddUsedVariable('GetBMetr', t);
     Sender.AddDelphiFunction('function Random(x:integer):integer');
     Sender.AddDelphiFunction('function GetUnixTime:int64');
-    Sender.AddDelphiFunction('function RoundEx(chislo: Extended; Precision: Integer): string');
+    Sender.AddDelphiFunction('function RoundEx(chislo: Double; Precision: Integer): string');
     Sender.AddDelphiFunction('function IntPower(const Base: Extended; const Exponent: Integer): Extended register');
     Sender.AddDelphiFunction('function IntToHex(Value: Integer; Digits: Integer): string');
     Result := True;
@@ -225,14 +225,14 @@ begin
   FpGetX := PPSVariantS32(FExec.GetVar2('GetX'));
   FpGetY := PPSVariantS32(FExec.GetVar2('GetY'));
   FpGetZ := PPSVariantS32(FExec.GetVar2('GetZ'));
-  FpGetLlon := PPSVariantExtended(FExec.GetVar2('GetLlon'));
-  FpGetTLat := PPSVariantExtended(FExec.GetVar2('GetTLat'));
-  FpGetBLat := PPSVariantExtended(FExec.GetVar2('GetBLat'));
-  FpGetRLon := PPSVariantExtended(FExec.GetVar2('GetRLon'));
-  FpGetLmetr := PPSVariantExtended(FExec.GetVar2('GetLmetr'));
-  FpGetTmetr := PPSVariantExtended(FExec.GetVar2('GetTmetr'));
-  FpGetBmetr := PPSVariantExtended(FExec.GetVar2('GetBmetr'));
-  FpGetRmetr := PPSVariantExtended(FExec.GetVar2('GetRmetr'));
+  FpGetLlon := PPSVariantDouble(FExec.GetVar2('GetLlon'));
+  FpGetTLat := PPSVariantDouble(FExec.GetVar2('GetTLat'));
+  FpGetBLat := PPSVariantDouble(FExec.GetVar2('GetBLat'));
+  FpGetRLon := PPSVariantDouble(FExec.GetVar2('GetRLon'));
+  FpGetLmetr := PPSVariantDouble(FExec.GetVar2('GetLmetr'));
+  FpGetTmetr := PPSVariantDouble(FExec.GetVar2('GetTmetr'));
+  FpGetBmetr := PPSVariantDouble(FExec.GetVar2('GetBmetr'));
+  FpGetRmetr := PPSVariantDouble(FExec.GetVar2('GetRmetr'));
   FpConverter := PPSVariantInterface(FExec.GetVar2('Converter'));
   InitializeCriticalSection(FCS);
 end;
@@ -248,7 +248,7 @@ end;
 procedure TUrlGenerator.SetVar(AXY: TPoint; AZoom: Byte);
 var
   XY: TPoint;
-  Ll: TExtendedPoint;
+  Ll: TDoublePoint;
 begin
   FpGetX.Data := AXY.X;
   FpGetY.Data := AXY.Y;
@@ -292,3 +292,4 @@ begin
 end;
 
 end.
+

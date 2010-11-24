@@ -16,11 +16,11 @@ type
   public
     destructor Destroy; override;
     function GetCaption: string; override;
-    procedure InitFrame(Azoom: byte; APolygon: TExtendedPointArray); override;
+    procedure InitFrame(Azoom: byte; APolygon: TDoublePointArray); override;
     procedure Show; override;
     procedure Hide; override;
     procedure RefreshTranslation; override;
-    procedure StartProcess(APolygon: TExtendedPointArray); override;
+    procedure StartProcess(APolygon: TDoublePointArray); override;
   end;
 
 
@@ -50,7 +50,7 @@ begin
   Result := SAS_STR_OperationMapCombineCaption;
 end;
 
-procedure TProviderMapCombine.InitFrame(Azoom: byte; APolygon: TExtendedPointArray);
+procedure TProviderMapCombine.InitFrame(Azoom: byte; APolygon: TDoublePointArray);
 begin
   if FFrame = nil then begin
     FFrame := TfrMapCombine.Create(nil);
@@ -88,7 +88,7 @@ begin
   end;
 end;
 
-procedure TProviderMapCombine.StartProcess(APolygon: TExtendedPointArray);
+procedure TProviderMapCombine.StartProcess(APolygon: TDoublePointArray);
 var
   Amt,Hmt:TMapType;
   i:integer;

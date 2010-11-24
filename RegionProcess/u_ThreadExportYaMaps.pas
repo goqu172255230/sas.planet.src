@@ -26,7 +26,7 @@ type
   public
     constructor Create(
       APath: string;
-      APolygon: TExtendedPointArray;
+      APolygon: TDoublePointArray;
       Azoomarr: array of boolean;
       Atypemaparr: array of TMapType;
       Areplace: boolean;
@@ -40,7 +40,7 @@ implementation
 uses
   i_ICoordConverter,
   u_CoordConverterMercatorOnEllipsoid,
-  u_TileIteratorAbstract,
+  i_ITileIterator,
   u_TileIteratorStuped,
   i_BitmapTileSaveLoad,
   u_BitmapTileJpegSaverIJL,
@@ -48,7 +48,7 @@ uses
 
 constructor TThreadExportYaMaps.Create(
   APath: string;
-  APolygon: TExtendedPointArray;
+  APolygon: TDoublePointArray;
   Azoomarr: array of boolean;
   Atypemaparr: array of TMapType;
   Areplace: boolean;
@@ -81,8 +81,8 @@ var
   VMapType: TMapType;
   VSaver: IBitmapTileSaver;
   Vmt: Byte;
-  VTileIterators: array [0..2] of array of TTileIteratorAbstract;
-  VTileIterator: TTileIteratorAbstract;
+  VTileIterators: array [0..2] of array of ITileIterator;
+  VTileIterator: ITileIterator;
 begin
   inherited;
   if (FMapTypeArr[0] = nil) and (FMapTypeArr[1] = nil) and (FMapTypeArr[2] = nil) then begin
@@ -172,9 +172,7 @@ begin
       finally
         for i := 0 to Length(FZooms)-1 do begin
           for j := 0 to 2 do begin
-            if VTileIterators[j][i]<>nil then begin
-              VTileIterators[j][i].Free;
-            end;
+            VTileIterators[j][i] := nil;
           end;
         end;
         VTileIterators[0]:=nil;

@@ -22,7 +22,6 @@ object Fmain: TFmain
     Width = 850
     Height = 562
     TabOrder = 5
-    Silent = False
     DisableCtrlShortcuts = 'N'
     DownloadOptions = [DownloadImages, DownloadVideos]
     UserInterfaceOptions = [EnablesFormsAutoComplete, EnableThemes]
@@ -2252,6 +2251,8 @@ object Fmain: TFmain
             Stretch = True
             TabOrder = 3
             OnVisibleChanged = TBXSensorsBarVisibleChanged
+            ExplicitWidth = 32
+            ExplicitHeight = 32
             DesignSize = (
               150
               32)
@@ -2586,6 +2587,8 @@ object Fmain: TFmain
             Stretch = True
             TabOrder = 8
             OnVisibleChanged = TBXSensorsBarVisibleChanged
+            ExplicitWidth = 32
+            ExplicitHeight = 32
             DesignSize = (
               150
               32)
@@ -2630,6 +2633,8 @@ object Fmain: TFmain
             Stretch = True
             TabOrder = 9
             OnVisibleChanged = TBXSensorsBarVisibleChanged
+            ExplicitWidth = 32
+            ExplicitHeight = 32
             DesignSize = (
               150
               32)

@@ -5,50 +5,44 @@ interface
 uses
   Types,
   t_GeoTypes,
-  i_ICoordConverter;
+  i_ICoordConverter,
+  i_ITileIterator;
 
 type
-  TTileIteratorAbstract = class
+  TTileIteratorAbstract = class(TInterfacedObject, ITileIterator)
   protected
-    FTilesTotal: Int64;
-    FTilesRect: TRect;
+    function GetTilesTotal: Int64; virtual; abstract;
+    function GetTilesRect: TRect; virtual; abstract;
   public
     function Next(out ATile: TPoint): Boolean; virtual; abstract;
-    property TilesTotal: Int64 read FTilesTotal;
-    property TilesRect: TRect read FTilesRect;
+    procedure Reset; virtual; abstract;
+    property TilesTotal: Int64 read GetTilesTotal;
+    property TilesRect: TRect read GetTilesRect;
   end;
 
   TTileIteratorByPolygonAbstract = class(TTileIteratorAbstract)
   protected
-    FPolygLL: TExtendedPointArray;
+    FPolygLL: TDoublePointArray;
     FZoom: byte;
     FGeoConvert: ICoordConverter;
     FCurrent: TPoint;
   public
-    constructor Create(AZoom: byte; APolygLL: TExtendedPointArray; AGeoConvert: ICoordConverter); overload; virtual;
-    constructor Create(AZoom: byte; ARectLL: TExtendedRect; AGeoConvert: ICoordConverter); overload; virtual;
+    constructor Create(AZoom: byte; APolygLL: TDoublePointArray; AGeoConvert: ICoordConverter); virtual;
     destructor Destroy; override;
   end;
 
 implementation
 
-uses
-  Ugeofun;
+
 
 { TTileIteratorByPolygonAbstract }
 
 constructor TTileIteratorByPolygonAbstract.Create(AZoom: byte;
-  APolygLL: TExtendedPointArray; AGeoConvert: ICoordConverter);
+  APolygLL: TDoublePointArray; AGeoConvert: ICoordConverter);
 begin
   FZoom := AZoom;
   FPolygLL := Copy(APolygLL);
   FGeoConvert := AGeoConvert;
-end;
-
-constructor TTileIteratorByPolygonAbstract.Create(AZoom: byte;
-  ARectLL: TExtendedRect; AGeoConvert: ICoordConverter);
-begin
-  Create(AZoom, PolygonFromRect(ARectLL), AGeoConvert);
 end;
 
 destructor TTileIteratorByPolygonAbstract.Destroy;
@@ -59,3 +53,5 @@ begin
 end;
 
 end.
+
+

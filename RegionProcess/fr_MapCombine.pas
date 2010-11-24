@@ -59,11 +59,11 @@ type
     procedure cbbZoomChange(Sender: TObject);
     procedure btnSelectTargetFileClick(Sender: TObject);
   private
-    FPolygLL: TExtendedPointArray;
+    FPolygLL: TDoublePointArray;
   public
     constructor Create(AOwner: TComponent); override;
     procedure RefreshTranslation; override;
-    procedure Init(AZoom: Byte; APolygLL: TExtendedPointArray);
+    procedure Init(AZoom: Byte; APolygLL: TDoublePointArray);
   end;
 
 implementation
@@ -134,7 +134,7 @@ begin
   cbbOutputFormat.ItemIndex := 0;
 end;
 
-procedure TfrMapCombine.Init(AZoom: Byte; APolygLL: TExtendedPointArray);
+procedure TfrMapCombine.Init(AZoom: Byte; APolygLL: TDoublePointArray);
 var
   i: Integer;
   VMapType: TMapType;
@@ -153,7 +153,7 @@ begin
   cbbMap.Items.Clear;
   cbbHybr.Items.Clear;
   cbbHybr.Items.Add(SAS_STR_No);
-  For i:=0 to length(GState.MapType)-1 do begin
+  For i:=0 to GState.MapType.Count-1 do begin
     VMapType := GState.MapType[i];
     if VMapType.UseStick and VMapType.IsBitmapTiles then begin
       if not VMapType.asLayer then begin

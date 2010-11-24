@@ -82,9 +82,9 @@ type
     function GetActualZoom: Byte;
 
     function BitmapPixel2MapPixel(Pnt: TPoint): TPoint; overload; override;
-    function BitmapPixel2MapPixel(Pnt: TExtendedPoint): TExtendedPoint; overload; override;
+    function BitmapPixel2MapPixel(Pnt: TDoublePoint): TDoublePoint; overload; override;
     function MapPixel2BitmapPixel(Pnt: TPoint): TPoint; overload; override;
-    function MapPixel2BitmapPixel(Pnt: TExtendedPoint): TExtendedPoint; overload; override;
+    function MapPixel2BitmapPixel(Pnt: TDoublePoint): TDoublePoint; overload; override;
 
     procedure LoadBitmaps;
     procedure BuildPopUpMenu;
@@ -92,6 +92,8 @@ type
     procedure CreateLayers;
     procedure DoResize; override;
     procedure DoResizeBitmap; override;
+    procedure DoShow; override;
+    procedure DoHide; override;
     procedure AdjustFont(Item: TTBCustomItem;
       Viewer: TTBItemViewer; Font: TFont; StateFlags: Integer);
     procedure SameAsMainClick(Sender: TObject);
@@ -102,8 +104,6 @@ type
   public
     constructor Create(AParentMap: TImage32; AViewPortState: TMapViewPortState);
     destructor Destroy; override;
-    procedure Show; override;
-    procedure Hide; override;
     procedure LoadConfig(AConfigProvider: IConfigDataProvider); override;
     procedure SaveConfig(AConfigProvider: IConfigDataWriteProvider); override;
     property BottomMargin: Integer read FBottomMargin write FBottomMargin;
@@ -422,10 +422,10 @@ begin
 end;
 
 function TMiniMapLayer.BitmapPixel2MapPixel(
-  Pnt: TExtendedPoint): TExtendedPoint;
+  Pnt: TDoublePoint): TDoublePoint;
 var
   VScreenCenterInBitmap: TPoint;
-  VMapCenter: TExtendedPoint;
+  VMapCenter: TDoublePoint;
 begin
   VScreenCenterInBitmap := GetScreenCenterInBitmapPixels;
   VMapCenter := FGeoConvert.Relative2PixelPosFloat(FGeoConvert.PixelPos2Relative(ScreenCenterPos, FZoom), GetActualZoom);
@@ -445,10 +445,10 @@ begin
 end;
 
 function TMiniMapLayer.MapPixel2BitmapPixel(
-  Pnt: TExtendedPoint): TExtendedPoint;
+  Pnt: TDoublePoint): TDoublePoint;
 var
   VScreenCenterInBitmap: TPoint;
-  VMapCenter: TExtendedPoint;
+  VMapCenter: TDoublePoint;
 begin
   VScreenCenterInBitmap := GetScreenCenterInBitmapPixels;
   VMapCenter := FGeoConvert.Relative2PixelPosFloat(FGeoConvert.PixelPos2Relative(ScreenCenterPos, FZoom), GetActualZoom);
@@ -508,7 +508,7 @@ var
   VZoom: Byte;
   VMiniMapRect: TRect;
   VBitmapRect: TRect;
-  VRelRect: TExtendedRect;
+  VRelRect: TDoubleRect;
   VPolygon: TPolygon32;
   VBitmapSize: TPoint;
 begin
@@ -522,7 +522,7 @@ begin
       VBitmapOnMapPixelRect.Bottom := VBitmapOnMapPixelRect.Top + VViewSize.Y;
       VZoomSource := FZoom;
       VZoom := GetActualZoom;
-      FGeoConvert.CheckPixelRect(VBitmapOnMapPixelRect, VZoomSource, False);
+      FGeoConvert.CheckPixelRect(VBitmapOnMapPixelRect, VZoomSource);
       VRelRect := FGeoConvert.PixelRect2RelativeRect(VBitmapOnMapPixelRect, VZoomSource);
       VMiniMapRect := FGeoConvert.RelativeRect2PixelRect(VRelRect, VZoom);
       VBitmapRect.TopLeft := MapPixel2BitmapPixel(VMiniMapRect.TopLeft);
@@ -577,7 +577,7 @@ var
   {
     Географические координаты растра
   }
-  VSourceLonLatRect: TExtendedRect;
+  VSourceLonLatRect: TDoubleRect;
 
   {
     Прямоугольник пикселов текущего зума, покрывающий растр, в кооординатах
@@ -636,20 +636,20 @@ begin
     VGeoConvert := FGeoConvert;
     VBitmapOnMapPixelRect.TopLeft := BitmapPixel2MapPixel(Point(0, 0));
     VBitmapOnMapPixelRect.BottomRight := BitmapPixel2MapPixel(GetBitmapSizeInPixel);
-    VGeoConvert.CheckPixelRect(VBitmapOnMapPixelRect, VZoom, False);
+    VGeoConvert.CheckPixelRect(VBitmapOnMapPixelRect, VZoom);
 
     VSourceLonLatRect := VGeoConvert.PixelRect2LonLatRect(VBitmapOnMapPixelRect, VZoom);
     VPixelSourceRect := VSourceGeoConvert.LonLatRect2PixelRect(VSourceLonLatRect, VZoom);
     VTileSourceRect := VSourceGeoConvert.PixelRect2TileRect(VPixelSourceRect, VZoom);
 
-    for i := VTileSourceRect.Left to VTileSourceRect.Right do begin
+    for i := VTileSourceRect.Left to VTileSourceRect.Right - 1 do begin
       VTile.X := i;
-      for j := VTileSourceRect.Top to VTileSourceRect.Bottom do begin
+      for j := VTileSourceRect.Top to VTileSourceRect.Bottom - 1 do begin
         VTile.Y := j;
         VCurrTilePixelRectSource := VSourceGeoConvert.TilePos2PixelRect(VTile, VZoom);
         VTilePixelsToDraw.TopLeft := Point(0, 0);
-        VTilePixelsToDraw.Right := VCurrTilePixelRectSource.Right - VCurrTilePixelRectSource.Left + 1;
-        VTilePixelsToDraw.Bottom := VCurrTilePixelRectSource.Bottom - VCurrTilePixelRectSource.Top + 1;
+        VTilePixelsToDraw.Right := VCurrTilePixelRectSource.Right - VCurrTilePixelRectSource.Left;
+        VTilePixelsToDraw.Bottom := VCurrTilePixelRectSource.Bottom - VCurrTilePixelRectSource.Top;
 
         if VCurrTilePixelRectSource.Left < VPixelSourceRect.Left then begin
           VTilePixelsToDraw.Left := VPixelSourceRect.Left - VCurrTilePixelRectSource.Left;
@@ -676,8 +676,6 @@ begin
 
         VCurrTilePixelRectAtBitmap.TopLeft := MapPixel2BitmapPixel(VCurrTilePixelRect.TopLeft);
         VCurrTilePixelRectAtBitmap.BottomRight := MapPixel2BitmapPixel(VCurrTilePixelRect.BottomRight);
-        Inc(VCurrTilePixelRectAtBitmap.Bottom);
-        Inc(VCurrTilePixelRectAtBitmap.Right);
         if VSourceMapType.LoadTileOrPreZ(VBmp, VTile, VZoom, true, False, VUsePre) then begin
           Gamma(VBmp);
         end;
@@ -732,7 +730,7 @@ begin
   Result := Point(VVisibleSize.X, VVisibleSize.Y - FBottomMargin);
 end;
 
-procedure TMiniMapLayer.Hide;
+procedure TMiniMapLayer.DoHide;
 begin
   inherited;
   FViewRectDrawLayer.Visible := false;
@@ -922,7 +920,7 @@ begin
   end;
 end;
 
-procedure TMiniMapLayer.Show;
+procedure TMiniMapLayer.DoShow;
 begin
   inherited;
   FViewRectDrawLayer.Visible := True;
@@ -1059,3 +1057,5 @@ begin
 end;
 
 end.
+
+

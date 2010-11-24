@@ -34,7 +34,7 @@ type
     constructor Create(
       Azoom: byte;
       AInZooms: TArrayOfByte;
-      APolygLL: TExtendedPointArray;
+      APolygLL: TDoublePointArray;
       Atypemap: TMapType;
       AReplace: boolean;
       Asavefull: boolean;
@@ -47,11 +47,12 @@ implementation
 
 uses
   i_ICoordConverter,
-  u_TileIteratorAbstract,
+  i_ITileIterator,
   u_TileIteratorStuped,
+  u_TileIteratorByRect,
   u_GlobalState;
 
-constructor TThreadGenPrevZoom.Create(Azoom: byte; AInZooms: TArrayOfByte; APolygLL: TExtendedPointArray; Atypemap: TMapType; AReplace: boolean; Asavefull: boolean; AGenFormPrev: boolean; AResampler: TTileResamplingType);
+constructor TThreadGenPrevZoom.Create(Azoom: byte; AInZooms: TArrayOfByte; APolygLL: TDoublePointArray; Atypemap: TMapType; AReplace: boolean; Asavefull: boolean; AGenFormPrev: boolean; AResampler: TTileResamplingType);
 begin
   inherited Create(APolygLL);
   FIsReplace := AReplace;
@@ -69,21 +70,22 @@ procedure TThreadGenPrevZoom.ProcessRegion;
 var
   bmp_ex: TCustomBitmap32;
   bmp: TCustomBitmap32;
-  i, VSubTileCount, p_i, p_j: integer;
+  i, VSubTileCount: integer;
   VSubTilesSavedCount: integer;
   VZoomPrev: Byte;
   VZoom: Byte;
   VTile: TPoint;
   VSubTile: TPoint;
   VGeoConvert: ICoordConverter;
-  VTileIterators: array of TTileIteratorAbstract;
-  VTileIterator: TTileIteratorAbstract;
+  VTileIterators: array of ITileIterator;
+  VTileIterator: ITileIterator;
   VZoomDelta: Integer;
   VRectOfSubTiles: TRect;
   VCurrentTilePixelRect: TRect;
-  VRelativeRect: TExtendedRect;
+  VRelativeRect: TDoubleRect;
   VSubTileBounds: TRect;
   VSubTileInTargetBounds: TRect;
+  VSubTileIterator: ITileIterator;
 begin
   inherited;
   FTilesToProcess := 0;
@@ -132,34 +134,31 @@ begin
             FMapType.LoadTile(bmp_Ex, VTile, VZoom, false);
           end else begin
             bmp_ex.SetSize(
-              VCurrentTilePixelRect.Right - VCurrentTilePixelRect.Left + 1,
-              VCurrentTilePixelRect.Bottom - VCurrentTilePixelRect.Top + 1
+              VCurrentTilePixelRect.Right - VCurrentTilePixelRect.Left,
+              VCurrentTilePixelRect.Bottom - VCurrentTilePixelRect.Top
             );
             bmp_ex.Clear(Color32(GState.BGround));
           end;
           VRelativeRect := VGeoConvert.TilePos2RelativeRect(VTile, VZoom);
           VRectOfSubTiles := VGeoConvert.RelativeRect2TileRect(VRelativeRect, VZoomPrev);
-          VSubTileCount :=
-            (VRectOfSubTiles.Right - VRectOfSubTiles.Left + 1)
-            *(VRectOfSubTiles.Bottom - VRectOfSubTiles.Top + 1);
-          VSubTilesSavedCount := 0;
-          for p_i := VRectOfSubTiles.Left to VRectOfSubTiles.Right do begin
-            VSubTile.X := p_i;
-            for p_j := VRectOfSubTiles.Top to VRectOfSubTiles.Bottom do begin
-              VSubTile.Y := p_j;
+          VSubTileIterator := TTileIteratorByRect.Create(VRectOfSubTiles);
+          try
+            VSubTileCount := VSubTileIterator.TilesTotal;
+            VSubTilesSavedCount := 0;
+            while VSubTileIterator.Next(VSubTile) do begin
               if FMapType.TileExists(VSubTile, VZoomPrev) then begin
                 if (FMapType.LoadTile(bmp, VSubTile, VZoomPrev, false)) then begin
                   VSubTileBounds := VGeoConvert.TilePos2PixelRect(VSubTile, VZoomPrev);
-                  VSubTileBounds.Right := VSubTileBounds.Right - VSubTileBounds.Left + 1;
-                  VSubTileBounds.Bottom := VSubTileBounds.Bottom - VSubTileBounds.Top + 1;
+                  VSubTileBounds.Right := VSubTileBounds.Right - VSubTileBounds.Left;
+                  VSubTileBounds.Bottom := VSubTileBounds.Bottom - VSubTileBounds.Top;
                   VSubTileBounds.Left := 0;
                   VSubTileBounds.Top := 0;
                   VRelativeRect := VGeoConvert.TilePos2RelativeRect(VSubTile, VZoomPrev);
                   VSubTileInTargetBounds := VGeoConvert.RelativeRect2PixelRect(VRelativeRect, VZoom);
                   VSubTileInTargetBounds.Left := VSubTileInTargetBounds.Left - VCurrentTilePixelRect.Left;
                   VSubTileInTargetBounds.Top := VSubTileInTargetBounds.Top - VCurrentTilePixelRect.Top;
-                  VSubTileInTargetBounds.Right := VSubTileInTargetBounds.Right - VCurrentTilePixelRect.Left + 1;
-                  VSubTileInTargetBounds.Bottom := VSubTileInTargetBounds.Bottom - VCurrentTilePixelRect.Top + 1;
+                  VSubTileInTargetBounds.Right := VSubTileInTargetBounds.Right - VCurrentTilePixelRect.Left;
+                  VSubTileInTargetBounds.Bottom := VSubTileInTargetBounds.Bottom - VCurrentTilePixelRect.Top;
                   bmp_ex.Draw(VSubTileInTargetBounds, VSubTileBounds, bmp);
                   inc(VSubTilesSavedCount);
                 end else begin
@@ -171,6 +170,8 @@ begin
                 ProgressFormUpdateOnProgress;
               end;
             end;
+          finally
+            VSubTileIterator := nil;
           end;
           if ((not FIsSaveFullOnly) or (VSubTilesSavedCount = VSubTileCount)) and (VSubTilesSavedCount > 0) then begin
             FMapType.SaveTileSimple(VTile, VZoom, bmp_ex);
@@ -185,7 +186,7 @@ begin
     GState.MainFileCache.Clear;
   finally
     for i := 0 to Length(VTileIterators) - 1 do begin
-      VTileIterators[i].Free;
+      VTileIterators[i] := nil;
     end;
     VTileIterators := nil;
   end;

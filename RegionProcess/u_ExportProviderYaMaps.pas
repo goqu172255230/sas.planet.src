@@ -15,11 +15,11 @@ type
   public
     destructor Destroy; override;
     function GetCaption: string; override;
-    procedure InitFrame(Azoom: byte; APolygon: TExtendedPointArray); override;
+    procedure InitFrame(Azoom: byte; APolygon: TDoublePointArray); override;
     procedure Show; override;
     procedure Hide; override;
     procedure RefreshTranslation; override;
-    procedure StartProcess(APolygon: TExtendedPointArray); override;
+    procedure StartProcess(APolygon: TDoublePointArray); override;
   end;
 
 
@@ -45,7 +45,7 @@ begin
   Result := SAS_STR_ExportYaMapsCaption;
 end;
 
-procedure TExportProviderYaMaps.InitFrame(Azoom: byte; APolygon: TExtendedPointArray);
+procedure TExportProviderYaMaps.InitFrame(Azoom: byte; APolygon: TDoublePointArray);
 begin
   if FFrame = nil then begin
     FFrame := TfrExportYaMaps.Create(nil);
@@ -83,7 +83,7 @@ begin
   end;
 end;
 
-procedure TExportProviderYaMaps.StartProcess(APolygon: TExtendedPointArray);
+procedure TExportProviderYaMaps.StartProcess(APolygon: TDoublePointArray);
 var
   i:integer;
   path:string;

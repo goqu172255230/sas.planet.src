@@ -20,7 +20,7 @@ type
     procedure ProgressFormUpdateOnProgress; virtual;
   public
     constructor Create(
-      APolygon: TExtendedPointArray;
+      APolygon: TDoublePointArray;
       AZoom: Byte;
       AMapType: TMapType;
       AFileName: string
@@ -32,12 +32,12 @@ uses
   Classes,
   i_ICoordConverter,
   UResStrings,
-  u_TileIteratorAbstract,
+  i_ITileIterator,
   u_TileIteratorStuped;
 
 { TThreadExportToAUX }
 
-constructor TThreadExportToAUX.Create(APolygon: TExtendedPointArray;
+constructor TThreadExportToAUX.Create(APolygon: TDoublePointArray;
   AZoom: Byte; AMapType: TMapType; AFileName: string);
 begin
   inherited Create(APolygon);
@@ -48,7 +48,7 @@ end;
 
 procedure TThreadExportToAUX.ProcessRegion;
 var
-  VTileIterator: TTileIteratorAbstract;
+  VTileIterator: ITileIterator;
   VGeoConvert: ICoordConverter;
   VTile: TPoint;
   VFileStream: TFileStream;
@@ -93,7 +93,7 @@ begin
       VFileStream.Free;
     end;
   finally
-    FreeAndNil(VTileIterator);
+    VTileIterator := nil;
   end;
   ProgressFormUpdateOnProgress;
 end;

@@ -46,21 +46,21 @@ type
   TMapMarksBitmapLayerProviderStupedThreaded = class
   private
     FBitmapClip: IPolyClip;
-    FPathPointsOnBitmap: TExtendedPointArray;
-    FPathPointsOnBitmapPrepared: TExtendedPointArray;
+    FPathPointsOnBitmap: TDoublePointArray;
+    FPathPointsOnBitmapPrepared: TDoublePointArray;
     FPathFixedPoints: TArrayOfFixedPoint;
     FDeltaSizeInPixel: TPoint;
     FTargetBmp: TCustomBitmap32;
     FGeoConvert: ICoordConverter;
     FTargetRect: TRect;
     FZoom: Byte;
-    FLLRect: TExtendedRect;
+    FLLRect: TDoubleRect;
     FTempBmp: TCustomBitmap32;
     FBitmapWithText: TBitmap32;
     function MapPixel2BitmapPixel(Pnt: TPoint): TPoint; overload; virtual;
-    function MapPixel2BitmapPixel(Pnt: TExtendedPoint): TExtendedPoint; overload; virtual;
-    procedure drawPath(APointsLonLat: TExtendedPointArray; color1, color2: TColor32; linew: integer; poly: boolean);
-    procedure DrawPoint(ALL: TExtendedPoint; AName: string; APicName: string; AMarkSize, AFontSize: integer; AColor1, AColor2: TColor32);
+    function MapPixel2BitmapPixel(Pnt: TDoublePoint): TDoublePoint; overload; virtual;
+    procedure drawPath(APointsLonLat: TDoublePointArray; color1, color2: TColor32; linew: integer; poly: boolean);
+    procedure DrawPoint(ALL: TDoublePoint; AName: string; APicName: string; AMarkSize, AFontSize: integer; AColor1, AColor2: TColor32);
   public
     constructor Create(
       ATargetBmp: TCustomBitmap32;
@@ -87,7 +87,7 @@ begin
   VRectWithDelta.Top := FTargetRect.Top - FDeltaSizeInPixel.Y;
   VRectWithDelta.Right := FTargetRect.Right + FDeltaSizeInPixel.X;
   VRectWithDelta.Bottom := FTargetRect.Bottom + FDeltaSizeInPixel.Y;
-  FGeoConvert.CheckPixelRect(VRectWithDelta, FZoom, False);
+  FGeoConvert.CheckPixelRect(VRectWithDelta, FZoom);
   FLLRect := FGeoConvert.PixelRect2LonLatRect(VRectWithDelta, FZoom);
 
   FTempBmp := TCustomBitmap32.Create;
@@ -98,9 +98,9 @@ begin
   FBitmapWithText.Font.Name := 'Tahoma';
   FBitmapWithText.Font.Style := [];
   FBitmapWithText.DrawMode := dmBlend;
-  FBitmapWithText.CombineMode:=cmMerge;
+  FBitmapWithText.CombineMode := cmMerge;
   FBitmapWithText.Font.Size := CMaxFontSize;
-
+  FBitmapWithText.Resampler := TLinearResampler.Create;
   FBitmapClip := TPolyClipByRect.Create(MakeRect(-10, -10, FTargetBmp.Width + 10, FTargetBmp.Height + 10));
 end;
 
@@ -112,7 +112,7 @@ begin
 end;
 
 function TMapMarksBitmapLayerProviderStupedThreaded.MapPixel2BitmapPixel(
-  Pnt: TExtendedPoint): TExtendedPoint;
+  Pnt: TDoublePoint): TDoublePoint;
 begin
   Result.X := Pnt.X - FTargetRect.Left;
   Result.Y := Pnt.Y - FTargetRect.Top;
@@ -126,14 +126,14 @@ begin
 end;
 
 procedure TMapMarksBitmapLayerProviderStupedThreaded.drawPath(
-  APointsLonLat: TExtendedPointArray; color1, color2: TColor32; linew: integer;
+  APointsLonLat: TDoublePointArray; color1, color2: TColor32; linew: integer;
   poly: boolean);
 var
   polygon: TPolygon32;
   i: Integer;
   VPointsCount: Integer;
   VPointsProcessedCount: Integer;
-  VLonLat: TExtendedPoint;
+  VLonLat: TDoublePoint;
 begin
   VPointsCount := Length(APointsLonLat);
   if VPointsCount > 0 then begin
@@ -183,7 +183,7 @@ begin
 end;
 
 procedure TMapMarksBitmapLayerProviderStupedThreaded.DrawPoint(
-  ALL: TExtendedPoint; AName, APicName: string; AMarkSize, AFontSize: integer;
+  ALL: TDoublePoint; AName, APicName: string; AMarkSize, AFontSize: integer;
   AColor1, AColor2: TColor32);
 var
   xy: Tpoint;
@@ -228,8 +228,8 @@ end;
 
 procedure TMapMarksBitmapLayerProviderStupedThreaded.SyncGetBitmap;
 var
-  TestArrLenLonLatRect: TExtendedRect;
-  TestArrLenPixelRect: TExtendedRect;
+  TestArrLenLonLatRect: TDoubleRect;
+  TestArrLenPixelRect: TDoubleRect;
   VScale1: Integer;
   VPointCount: Integer;
   VMarksIterator: TMarksIteratorBase;

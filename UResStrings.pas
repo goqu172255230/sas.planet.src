@@ -64,8 +64,8 @@ ResourceString
   SAS_ERR_MapGUIDDuplicate = 'В файлах %0:s и %1:s одинаковые GUID';
   SAS_ERR_MainMapNotExists = 'Среди ZMP должна быть хотя бы одна карта';
   SAS_ERR_CategoryNameDoubling = 'Такое имя категории уже существует';
-  SAS_ERR_UrlScriptError = 'Ошибка скрипта карты %0:s:'#13#10'%1:s';
-  SAS_ERR_UrlScriptUnexpectedError = 'Ошибка скрипта карты %0:s:'#13#10'Неожиданная ошибка';
+  SAS_ERR_UrlScriptError = 'Ошибка скрипта карты %0:s (%2:s):'#13#10'%1:s';
+  SAS_ERR_UrlScriptUnexpectedError = 'Ошибка скрипта карты %0:s (%2:s):'#13#10'Неожиданная ошибка';
   SAS_ERR_UrlScriptCompileError = 'Ошибка в скрипте при компиляции'#13#10'%0:s';
   SAS_ERR_UrlScriptByteCodeLoad = 'Ошибка при загрузке байткода';
   SAS_ERR_MapProjectionUnexpectedType = 'Ошибочный тип проэкции карты %0:s';

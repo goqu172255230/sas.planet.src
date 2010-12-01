@@ -21,7 +21,7 @@ type
     function GetBitmapSizeInPixel: TPoint; override;
     function GetFreezePointInVisualPixel: TPoint; override;
     function GetFreezePointInBitmapPixel: TPoint; override;
-    function GetTimeInLonLat(ALonLat: TExtendedPoint): TDateTime;
+    function GetTimeInLonLat(ALonLat: TDoublePoint): TDateTime;
     procedure DoRedraw; override;
   public
     constructor Create(AParentMap: TImage32; AViewPortState: TMapViewPortState);
@@ -80,7 +80,7 @@ begin
   Result := Point(0, VVisibleSize.Y);
 end;
 
-function TLayerStatBar.GetTimeInLonLat(ALonLat: TExtendedPoint): TDateTime;
+function TLayerStatBar.GetTimeInLonLat(ALonLat: TDoublePoint): TDateTime;
 var
   prH, prM: integer;
   tz: real;
@@ -117,7 +117,7 @@ end;
 
 procedure TLayerStatBar.DoRedraw;
 var
-  ll: TextendedPoint;
+  ll: TDoublePoint;
   subs2: string;
   posnext: integer;
   TameTZ: TDateTime;
@@ -129,7 +129,7 @@ var
   VTile: TPoint;
   VMap: TMapType;
   VConverter: ICoordConverter;
-  VPixelsAtZoom: Extended;
+  VPixelsAtZoom: Double;
   VCurrentTick: DWORD;
 begin
   inherited;
@@ -141,7 +141,7 @@ begin
       ll := GState.ViewState.VisiblePixel2LonLat(Fmain.MouseCursorPos);
       VPoint := GState.ViewState.VisiblePixel2MapPixel(Fmain.MouseCursorPos);
       VZoomCurr := GState.ViewState.GetCurrentZoom;
-      VSize := GState.ViewState.GetVisibleSizeInPixel;
+      VSize := GState.ViewState.GetViewSizeInVisiblePixel;
       VConverter := GState.ViewState.GetCurrentCoordConverter;
     finally
       GState.ViewState.UnLockRead;

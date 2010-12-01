@@ -9,7 +9,6 @@ uses
   IniFiles,
   SyncObjs,
   GR32,
-  t_GeoTypes,
   t_CommonTypes,
   i_ILanguageManager,
   i_IMemObjCache,
@@ -17,15 +16,19 @@ uses
   i_IConfigDataProvider,
   i_ITileFileNameGeneratorsList,
   i_IBitmapTypeExtManager,
+  i_IContentTypeManager,
   i_IKmlInfoSimpleLoader,
   i_IBitmapLayerProvider,
   i_MapTypeIconsList,
+  i_ICoordConverterFactory,
   u_GarbageCollectorThread,
   u_GeoToStr,
   u_MapViewPortState,
+  u_LastSelectionInfo,
   u_MarksReadWriteSimple,
   Uimgfun,
   UMapType,
+  u_MapTypesMainList,
   u_MemFileCache,
   u_GPSState,
   u_GlobalCahceConfig;
@@ -42,6 +45,7 @@ type
     FTileNameGenerator: ITileFileNameGeneratorsList;
     FGCThread: TGarbageCollectorThread;
     FBitmapTypeManager: IBitmapTypeExtManager;
+    FContentTypeManager: IContentTypeManager;
     FMapCalibrationList: IInterfaceList;
     FKmlLoader: IKmlInfoSimpleLoader;
     FKmzLoader: IKmlInfoSimpleLoader;
@@ -52,7 +56,10 @@ type
     FMapTypeIcons24List: IMapTypeIconsList;
     FLanguageManager: ILanguageManager;
     FMainConfigProvider: IConfigDataWriteProvider;
+    FLastSelectionInfo: TLastSelectionInfo;
     FMarksDB: TMarksDB;
+    FCoordConverterFactory: ICoordConverterFactory;
+    FMainMapsList: TMapTypesMainList;
     function GetMarkIconsPath: string;
     function GetMarksFileName: string;
     function GetMarksBackUpFileName: string;
@@ -64,13 +71,9 @@ type
     function GetMainConfigFileName: string;
     procedure LoadMarkIcons;
     procedure LoadMainParams;
-    procedure FreeAllMaps;
     procedure FreeMarkIcons;
     procedure SetScreenSize(const Value: TPoint);
     procedure SetCacheElemensMaxCnt(const Value: integer);
-    procedure SaveLastSelectionPolygon;
-    procedure LoadLastSelectionPolygon;
-    procedure LoadMaps;
     procedure LoadCacheConfig;
     procedure LoadMapIconsList;
   public
@@ -177,12 +180,7 @@ type
     //Начать сохраненную сессию загрузки с последнего удачно загруженного тайла
     SessionLastSuccess: boolean;
 
-    MapType: array of TMapType;
-
-    // Полигон последнего выделения при операциях с областью.
-    LastSelectionPolygon: TExtendedPointArray;
-    // Масштаб, на котором было последнее выделение
-    poly_zoom_save: byte;
+    property MapType: TMapTypesMainList read FMainMapsList;
 
     property CacheConfig: TGlobalCahceConfig read FCacheConfig;
     // Количество элементов в кэше в памяти
@@ -214,6 +212,8 @@ type
     property MainConfigFileName: string read GetMainConfigFileName;
     // Менеджер типов растровых тайлов. Теоретически, каждая карта может иметь свой собственный.
     property BitmapTypeManager: IBitmapTypeExtManager read FBitmapTypeManager;
+    property ContentTypeManager: IContentTypeManager read FContentTypeManager;
+    property CoordConverterFactory: ICoordConverterFactory read FCoordConverterFactory;
     property MapCalibrationList: IInterfaceList read FMapCalibrationList;
     property KmlLoader: IKmlInfoSimpleLoader read FKmlLoader;
     property KmzLoader: IKmlInfoSimpleLoader read FKmzLoader;
@@ -225,13 +225,12 @@ type
     property ViewState: TMapViewPortState read FViewState;
     property LanguageManager: ILanguageManager read FLanguageManager;
     property MainConfigProvider: IConfigDataWriteProvider read FMainConfigProvider;
+    property LastSelectionInfo: TLastSelectionInfo read FLastSelectionInfo;
     property MarksDB: TMarksDB read FMarksDB;
 
     constructor Create;
     destructor Destroy; override;
     procedure LoadConfig;
-    function GetMapFromID(id: TGUID): TMapType;
-    procedure SaveMaps;
     procedure SaveMainParams;
     procedure IncrementDownloaded(ADwnSize: Currency; ADwnCnt: Cardinal);
     procedure StartThreads;
@@ -248,28 +247,23 @@ implementation
 
 uses
   SysUtils,
-  Dialogs,
-  gnugettext,
   i_MapTypes,
   i_BitmapTileSaveLoad,
-  u_ConfigDataProviderByKaZip,
-  u_ConfigDataProviderByFolder,
   u_ConfigDataProviderByIniFile,
   u_ConfigDataWriteProviderByIniFile,
   u_MapTypeBasic,
   u_MapTypeListGeneratorFromFullListBasic,
-  i_IFileNameIterator,
-  u_ZmpFileNamesIteratorFactory,
   i_IListOfObjectsWithTTL,
   u_ListOfObjectsWithTTL,
   u_BitmapTypeExtManagerSimple,
+  u_ContentTypeManagerSimple,
   u_MapCalibrationListBasic,
   u_KmlInfoSimpleParser,
   u_KmzInfoSimpleParser,
   u_MapMarksBitmapLayerProviderStuped,
   u_MapTypeIconsList,
+  u_CoordConverterFactorySimple,
   u_LanguageManager,
-  UResStrings,
   u_TileFileNameGeneratorsSimpleList;
 
 { TGlobalState }
@@ -282,6 +276,7 @@ begin
   FCacheConfig := TGlobalCahceConfig.Create;
   All_Dwn_Kb := 0;
   All_Dwn_Tiles := 0;
+  FMainMapsList := TMapTypesMainList.Create;
   InetConnect := TInetConnect.Create;
   ProgramPath := ExtractFilePath(ParamStr(0));
   MainIni := TMeminifile.Create(MainConfigFileName);
@@ -289,10 +284,12 @@ begin
   FMainConfigProvider := TConfigDataWriteProviderByIniFile.Create(MainIni);
   FLanguageManager := TLanguageManager.Create(MainIni);
 
+  FCoordConverterFactory := TCoordConverterFactorySimple.Create;
   FMemFileCache := TMemFileCache.Create;
   MainFileCache := FMemFileCache;
   FTileNameGenerator := TTileFileNameGeneratorsSimpleList.Create;
   FBitmapTypeManager := TBitmapTypeExtManagerSimple.Create;
+  FContentTypeManager := TContentTypeManagerSimple.Create;
   FMapCalibrationList := TMapCalibrationListBasic.Create;
   FKmlLoader := TKmlInfoSimpleParser.Create;
   FKmzLoader := TKmzInfoSimpleParser.Create;
@@ -301,6 +298,7 @@ begin
   FMarksDB := TMarksDB.Create;
   FMarksBitmapProvider := TMapMarksBitmapLayerProviderStuped.Create;
   GPSpar := TGPSpar.Create;
+  FLastSelectionInfo := TLastSelectionInfo.Create;
 end;
 
 destructor TGlobalState.Destroy;
@@ -321,6 +319,7 @@ begin
   MainFileCache := nil;
   FTileNameGenerator := nil;
   FBitmapTypeManager := nil;
+  FContentTypeManager := nil;
   FMapCalibrationList := nil;
   FKmlLoader := nil;
   FKmzLoader := nil;
@@ -328,9 +327,11 @@ begin
   FreeAndNil(FMarksDB);
   FMapTypeIcons18List := nil;
   FMapTypeIcons24List := nil;
+  FreeAndNil(FLastSelectionInfo);
   FreeAndNil(GPSpar);
   FreeAndNil(FViewState);
-  FreeAllMaps;
+  FreeAndNil(FMainMapsList);
+  FCoordConverterFactory := nil;
   FreeAndNil(FCacheConfig);
   inherited;
 end;
@@ -364,21 +365,6 @@ end;
 function TGlobalState.GetMarksCategoryFileName: string;
 begin
   Result := ProgramPath + 'Categorymarks.sml';
-end;
-
-function TGlobalState.GetMapFromID(id: TGUID): TMapType;
-var
-  i: integer;
-  VMapType: TMapType;
-begin
-  Result := nil;
-  for i := 0 to length(MapType) - 1 do begin
-    VMapType := MapType[i];
-    if IsEqualGUID(VMapType.GUID, id) then begin
-      result := VMapType;
-      exit;
-    end;
-  end;
 end;
 
 function TGlobalState.GetMapsPath: string;
@@ -436,16 +422,6 @@ begin
   end;
 end;
 
-procedure TGlobalState.FreeAllMaps;
-var
-  i: integer;
-begin
-  for i := 0 to Length(MapType) - 1 do begin
-    FreeAndNil(MapType[i]);
-  end;
-  MapType := nil;
-end;
-
 procedure TGlobalState.FreeMarkIcons;
 var
   i: integer;
@@ -487,26 +463,11 @@ procedure TGlobalState.LoadConfig;
 begin
   LoadMainParams;
   LoadMarkIcons;
-  LoadMaps;
+  FMainMapsList.LoadMaps;
   LoadCacheConfig;
   LoadMapIconsList;
   GPSpar.LoadConfig(MainConfigProvider);
-end;
-
-procedure TGlobalState.LoadLastSelectionPolygon;
-var
-  i: Integer;
-begin
-  i:=1;
-  while str2r(MainIni.ReadString('HIGHLIGHTING','pointx_'+inttostr(i),'2147483647'))<>2147483647 do begin
-    setlength(LastSelectionPolygon,i);
-    LastSelectionPolygon[i-1].x:=str2r(MainIni.ReadString('HIGHLIGHTING','pointx_'+inttostr(i),'2147483647'));
-    LastSelectionPolygon[i-1].y:=str2r(MainIni.ReadString('HIGHLIGHTING','pointy_'+inttostr(i),'2147483647'));
-    inc(i);
-  end;
-  if length(LastSelectionPolygon)>0 then begin
-    poly_zoom_save:=MainIni.Readinteger('HIGHLIGHTING','zoom',1);
-  end;
+  FLastSelectionInfo.LoadConfig(MainConfigProvider.GetSubItem('LastSelection'));
 end;
 
 procedure TGlobalState.LoadBitmapFromJpegRes(const Name: String; Abmp: TCustomBitmap32);
@@ -600,7 +561,6 @@ begin
   GSMpar.BaudRate:=MainIni.ReadInteger('GSM','BaudRate',4800);
   GSMpar.auto:=MainIni.ReadBool('GSM','Auto',true);
   GSMpar.WaitingAnswer:=MainIni.ReadInteger('GSM','WaitingAnswer',200);
-  LoadLastSelectionPolygon;
 end;
 
 procedure TGlobalState.LoadMapIconsList;
@@ -616,99 +576,10 @@ begin
   VList24 := TMapTypeIconsList.Create(24, 24);
   FMapTypeIcons24List := VList24;
 
-  for i := 0 to length(MapType) - 1 do begin
+  for i := 0 to MapType.Count - 1 do begin
     VMapType := MapType[i];
     VList18.Add(VMapType.GUID, VMapType.bmp18);
     VList24.Add(VMapType.GUID, VMapType.bmp24);
-  end;
-end;
-
-procedure TGlobalState.LoadMaps;
-var
-  Ini: TMeminifile;
-  i, j, k: integer;
-  MTb: TMapType;
-  VMapType: TMapType;
-  VMapTypeLoaded: TMapType;
-  VMapOnlyCount: integer;
-  VMapConfig: IConfigDataProvider;
-  VLocalMapsConfig: IConfigDataProvider;
-  VFileName: WideString;
-  VFullFileName: string;
-  VMapTypeCount: integer;
-  VFilesIteratorFactory: IFileNameIteratorFactory;
-  VFilesIterator: IFileNameIterator;
-begin
-  SetLength(MapType, 0);
-  CreateDir(MapsPath);
-  Ini := TMeminiFile.Create(MapsPath + 'Maps.ini');
-  VLocalMapsConfig := TConfigDataProviderByIniFile.Create(Ini);
-  VMapOnlyCount := 0;
-  VMapTypeCount := 0;
-  VFilesIteratorFactory := TZmpFileNamesIteratorFactory.Create;
-  VFilesIterator := VFilesIteratorFactory.CreateIterator(MapsPath, '');
-  while VFilesIterator.Next(VFileName) do begin
-    VFullFileName := VFilesIterator.GetRootFolderName + VFileName;
-    try
-      VMapType := TMapType.Create;
-      if FileExists(VFullFileName) then begin
-        VMapConfig := TConfigDataProviderByKaZip.Create(VFullFileName);
-      end else begin
-        VMapConfig := TConfigDataProviderByFolder.Create(VFullFileName);
-      end;
-      try
-        VMapType.LoadMapType(VMapConfig, VLocalMapsConfig, VMapTypeCount);
-      except
-        on E: EBadGUID do begin
-          raise Exception.CreateResFmt(@SAS_ERR_MapGUIDError, [VFileName, E.Message]);
-        end;
-      end;
-      VMapTypeLoaded := GetMapFromID(VMapType.GUID);
-      if VMapTypeLoaded <> nil then begin
-        raise Exception.CreateFmt(SAS_ERR_MapGUIDDuplicate, [VMapTypeLoaded.ZmpFileName, VFullFileName]);
-      end;
-    except
-      if ExceptObject <> nil then begin
-        ShowMessage((ExceptObject as Exception).Message);
-      end;
-      FreeAndNil(VMapType);
-    end;
-    if VMapType <> nil then begin
-      SetLength(MapType, VMapTypeCount + 1);
-      MapType[VMapTypeCount] := VMapType;
-      if not VMapType.asLayer then begin
-        Inc(VMapOnlyCount);
-      end;
-      inc(VMapTypeCount);
-    end;
-  end;
-
-  if Length(MapType) = 0 then begin
-    raise Exception.Create(SAS_ERR_NoMaps);
-  end;
-  if VMapOnlyCount = 0 then begin
-    raise Exception.Create(SAS_ERR_MainMapNotExists);
-  end;
-
-  k := length(MapType) shr 1;
-  while k > 0 do begin
-    for i := 0 to length(MapType) - k - 1 do begin
-      j := i;
-      while (j >= 0) and (MapType[j].id > MapType[j + k].id) do begin
-        MTb := MapType[j];
-        MapType[j] := MapType[j + k];
-        MapType[j + k] := MTb;
-        if j > k then begin
-          Dec(j, k);
-        end else begin
-          j := 0;
-        end;
-      end;
-    end;
-    k := k shr 1;
-  end;
-  for i := 0 to length(MapType) - 1 do begin
-    MapType[i].id := i + 1;
   end;
 end;
 
@@ -717,30 +588,12 @@ begin
   FScreenSize := Value;
 end;
 
-procedure TGlobalState.SaveLastSelectionPolygon;
-var
-  i: Integer;
-begin
-  i:=1;
-  while MainIni.ReadString('HIGHLIGHTING','pointx_'+inttostr(i),'2147483647')<>'2147483647' do begin
-    MainIni.DeleteKey('HIGHLIGHTING','pointx_'+inttostr(i));
-    MainIni.DeleteKey('HIGHLIGHTING','pointy_'+inttostr(i));
-    inc(i);
-  end;
-  if length(LastSelectionPolygon)>0 then begin
-    MainIni.WriteInteger('HIGHLIGHTING','zoom',poly_zoom_save);
-    for i := 0 to length(LastSelectionPolygon) - 1 do begin
-      MainIni.WriteFloat('HIGHLIGHTING','pointx_'+inttostr(i+1),LastSelectionPolygon[i].x);
-      MainIni.WriteFloat('HIGHLIGHTING','pointy_'+inttostr(i+1),LastSelectionPolygon[i].y);
-    end;
-  end;
-end;
-
 procedure TGlobalState.SaveMainParams;
 var
   VZoom: Byte;
   VScreenCenterPos: TPoint;
 begin
+  FMainMapsList.SaveMaps;
   ViewState.LockRead;
   try
     VZoom := ViewState.GetCurrentZoom;
@@ -809,70 +662,7 @@ begin
 
   MainIni.Writebool('NPARAM','stat',WebReportToAuthor);
   GPSpar.SaveConfig(MainConfigProvider);
-  SaveLastSelectionPolygon;
-end;
-
-procedure TGlobalState.SaveMaps;
-var
-  Ini: TMeminifile;
-  i: integer;
-  VGUIDString: string;
-  VMapType: TMapType;
-begin
-  Ini := TMeminiFile.Create(MapsPath + 'Maps.ini');
-  try
-    for i := 0 to length(MapType) - 1 do begin
-      VMapType := MapType[i];
-      VGUIDString := VMapType.GUIDString;
-      ini.WriteInteger(VGUIDString, 'pnum', VMapType.id);
-
-
-      if VMapType.UrlGenerator.URLBase <> VMapType.UrlGenerator.DefURLBase then begin
-        ini.WriteString(VGUIDString, 'URLBase', VMapType.UrlGenerator.URLBase);
-      end else begin
-        Ini.DeleteKey(VGUIDString, 'URLBase');
-      end;
-
-      if VMapType.HotKey <> VMapType.DefHotKey then begin
-        ini.WriteInteger(VGUIDString, 'HotKey', VMapType.HotKey);
-      end else begin
-        Ini.DeleteKey(VGUIDString, 'HotKey');
-      end;
-
-      if VMapType.TileStorage.CacheConfig.cachetype <> VMapType.TileStorage.CacheConfig.defcachetype then begin
-        ini.WriteInteger(VGUIDString, 'CacheType', VMapType.TileStorage.CacheConfig.CacheType);
-      end else begin
-        Ini.DeleteKey(VGUIDString, 'CacheType');
-      end;
-
-      if VMapType.separator <> VMapType.Defseparator then begin
-        ini.WriteBool(VGUIDString, 'separator', VMapType.separator);
-      end else begin
-        Ini.DeleteKey(VGUIDString, 'separator');
-      end;
-
-      if VMapType.TileStorage.CacheConfig.NameInCache <> VMapType.TileStorage.CacheConfig.DefNameInCache then begin
-        ini.WriteString(VGUIDString, 'NameInCache', VMapType.TileStorage.CacheConfig.NameInCache);
-      end else begin
-        Ini.DeleteKey(VGUIDString, 'NameInCache');
-      end;
-
-      if VMapType.DownloaderFactory.WaitInterval <> VMapType.DefSleep then begin
-        ini.WriteInteger(VGUIDString, 'Sleep', VMapType.DownloaderFactory.WaitInterval);
-      end else begin
-        Ini.DeleteKey(VGUIDString, 'Sleep');
-      end;
-
-      if VMapType.ParentSubMenu <> VMapType.DefParentSubMenu then begin
-        ini.WriteString(VGUIDString, 'ParentSubMenu', VMapType.ParentSubMenu);
-      end else begin
-        Ini.DeleteKey(VGUIDString, 'ParentSubMenu');
-      end;
-    end;
-    Ini.UpdateFile;
-  finally
-    ini.Free;
-  end;
+  FLastSelectionInfo.SaveConfig(MainConfigProvider.GetOrCreateSubItem('LastSelection'));
 end;
 
 procedure TGlobalState.SetCacheElemensMaxCnt(const Value: integer);

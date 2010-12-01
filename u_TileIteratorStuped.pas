@@ -14,10 +14,17 @@ type
     p_x, p_y: Integer;
     FPolyg: TPointArray;
     FPixelRect: TRect;
+
+    FTilesTotal: Int64;
+    FTilesRect: TRect;
+  protected
+    function GetTilesTotal: Int64; override;
+    function GetTilesRect: TRect; override;
   public
-    constructor Create(AZoom: byte; APolygLL: TExtendedPointArray; AGeoConvert: ICoordConverter); override;
+    constructor Create(AZoom: byte; APolygLL: TDoublePointArray; AGeoConvert: ICoordConverter); override;
     destructor Destroy; override;
     function Next(out ATile: TPoint): Boolean; override;
+    procedure Reset; override;
   end;
 
 implementation
@@ -28,20 +35,29 @@ uses
 { TTileIteratorStuped }
 
 constructor TTileIteratorStuped.Create(AZoom: byte;
-  APolygLL: TExtendedPointArray; AGeoConvert: ICoordConverter);
+  APolygLL: TDoublePointArray; AGeoConvert: ICoordConverter);
 begin
   inherited;
   FPolyg := FGeoConvert.LonLatArray2PixelArray(FPolygLL, FZoom);
   FTilesTotal := GetDwnlNum(FPixelRect, FPolyg, true);
   FTilesRect := FGeoConvert.PixelRect2TileRect(FPixelRect, FZoom);
-  p_x := FPixelRect.Left;
-  p_y := FPixelRect.Top;
+  Reset;
 end;
 
 destructor TTileIteratorStuped.Destroy;
 begin
   FPolyg := nil;
   inherited;
+end;
+
+function TTileIteratorStuped.GetTilesRect: TRect;
+begin
+  Result := FTilesRect;
+end;
+
+function TTileIteratorStuped.GetTilesTotal: Int64;
+begin
+  Result := FTilesTotal;
 end;
 
 function TTileIteratorStuped.Next(out ATile: TPoint): Boolean;
@@ -68,6 +84,13 @@ begin
     end;
   end;
   ATile := FCurrent;
+end;
+
+procedure TTileIteratorStuped.Reset;
+begin
+  inherited;
+  p_x := FPixelRect.Left;
+  p_y := FPixelRect.Top;
 end;
 
 end.

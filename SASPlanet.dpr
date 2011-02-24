@@ -207,12 +207,19 @@ uses
   u_UsedMarksConfigStatic in 'u_UsedMarksConfigStatic.pas',
   i_MarksSimple in 'i_MarksSimple.pas',
   u_MarksSubset in 'u_MarksSubset.pas',
-  u_MarksSimpleNew in 'u_MarksSimpleNew.pas',
   u_MarksOnlyDb in 'u_MarksOnlyDb.pas',
   u_MarkTemplates in 'u_MarkTemplates.pas',
+  i_IMarksFactoryConfig in 'i_IMarksFactoryConfig.pas',
+  u_MarksFactoryConfig in 'u_MarksFactoryConfig.pas',
+  u_MarkPolyTemplateConfig in 'u_MarkPolyTemplateConfig.pas',
+  u_MarkPointTemplateConfig in 'u_MarkPointTemplateConfig.pas',
+  u_MarkLineTemplateConfig in 'u_MarkLineTemplateConfig.pas',
   u_MarkFactory in 'u_MarkFactory.pas',
   u_MarkCategoryDB in 'u_MarkCategoryDB.pas',
   u_MarksSimple in 'u_MarksSimple.pas',
+  u_MarkPoint in 'u_MarkPoint.pas',
+  u_MarkPoly in 'u_MarkPoly.pas',
+  u_MarkLine in 'u_MarkLine.pas',
   u_MarksReadWriteSimple in 'u_MarksReadWriteSimple.pas',
   u_MarksDbGUIHelper in 'u_MarksDbGUIHelper.pas',
   i_IBitmapLayerProvider in 'i_IBitmapLayerProvider.pas',
@@ -383,6 +390,8 @@ uses
   u_MainWindowToolbarsLock in 'u_MainWindowToolbarsLock.pas',
   i_ILineOnMapEdit in 'i_ILineOnMapEdit.pas',
   u_LineOnMapEdit in 'u_LineOnMapEdit.pas',
+  i_IGlobalViewMainConfig in 'i_IGlobalViewMainConfig.pas',
+  u_GlobalViewMainConfig in 'u_GlobalViewMainConfig.pas',
   i_IGPSRecorder in 'i_IGPSRecorder.pas',
   u_GPSRecorderStuped in 'u_GPSRecorderStuped.pas',
   i_GPS in 'i_GPS.pas',
@@ -425,6 +434,7 @@ uses
   fr_LonLat in 'fr_LonLat.pas' {frLonLat: TFrame},
   Unit1 in 'Unit1.pas' {Fmain},
   frm_GoTo in 'frm_GoTo.pas' {frmGoTo},
+  frm_DebugInfo in 'frm_DebugInfo.pas' {frmDebugInfo},
   UAbout in 'UAbout.pas' {Fabout},
   Usettings in 'Usettings.pas' {FSettings},
   USaveas in 'USaveas.pas' {Fsaveas},
@@ -487,6 +497,9 @@ begin
   Application.CreateForm(TFEditMap, FEditMap);
   Application.CreateForm(TFShortcutChange, FShortcutChange);
   Application.CreateForm(TfrmInvisibleBrowser, frmInvisibleBrowser);
+  if GState.ShowDebugInfo then begin
+    Application.CreateForm(TfrmDebugInfo, frmDebugInfo);
+  end;
   frmInvisibleBrowser.NavigateAndWait('about:blank');
     Fbrowser.Navigate('about:blank');
     Application.Run;

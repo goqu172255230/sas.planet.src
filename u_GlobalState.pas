@@ -36,6 +36,9 @@ uses
   u_MapTypesMainList,
   u_MemFileCache,
   i_IGPSConfig,
+  i_IMarksFactoryConfig,
+  i_IGlobalViewMainConfig,
+  i_IImportFile,
   u_GPSState,
   u_GlobalCahceConfig;
 
@@ -44,7 +47,6 @@ type
   private
     // Ini-файл с основными настройками
     MainIni: TMeminifile;
-    FScreenSize: TPoint;
     FTileNameGenerator: ITileFileNameGeneratorsList;
     FGCThread: TGarbageCollectorThread;
     FBitmapTypeManager: IBitmapTypeExtManager;
@@ -75,13 +77,17 @@ type
     FMainMemCache: IMemObjCache;
     FMainMemCacheConfig: IMainMemCacheConfig;
     FMarkPictureList: IMarkPictureList;
+    FMarksFactoryConfig: IMarksFactoryConfig;
+    FGPSpar: TGPSpar;
+    FImportFileByExt: IImportFile;
+    FViewConfig: IGlobalViewMainConfig;
+
     function GetMarkIconsPath: string;
     function GetMapsPath: string;
     function GetTrackLogPath: string;
     function GetHelpFileName: string;
     function GetMainConfigFileName: string;
     procedure LoadMainParams;
-    procedure SetScreenSize(const Value: TPoint);
     procedure LoadMapIconsList;
   public
     // Отображать окошко с логотипом при запуске
@@ -98,25 +104,12 @@ type
     // Переходить к следующему тайлу если произошла ошибка закачки
     GoNextTileIfDownloadError: Boolean;
 
-    GPSpar: TGPSpar;
-
-    //Использовать тайлы предыдущих уровней для отображения
-    UsePrevZoom: Boolean;
-    //Использовать тайлы предыдущих уровней для отображения (для слоев)
-    UsePrevZoomLayer: Boolean;
-
-    //Цвет фона
-    BGround: TColor;
-
     //Начать сохраненную сессию загрузки с последнего удачно загруженного тайла
     SessionLastSuccess: boolean;
 
     property MapType: TMapTypesMainList read FMainMapsList;
 
     property CacheConfig: TGlobalCahceConfig read FCacheConfig;
-
-    // Размеры экрана, что бы не дергать каждый раз объект TScreen
-    property ScreenSize: TPoint read FScreenSize write SetScreenSize;
 
     // Список генераторов имен файлов с тайлами
     property TileNameGenerator: ITileFileNameGeneratorsList read FTileNameGenerator;
@@ -151,6 +144,11 @@ type
     property MainMemCache: IMemObjCache read FMainMemCache;
     property MainMemCacheConfig: IMainMemCacheConfig read FMainMemCacheConfig;
     property GPSConfig: IGPSConfig read FGPSConfig;
+    property MarksFactoryConfig: IMarksFactoryConfig read FMarksFactoryConfig;
+    property GPSpar: TGPSpar read FGPSpar;
+    property ImportFileByExt: IImportFile read FImportFileByExt;
+    property ViewConfig: IGlobalViewMainConfig read FViewConfig;
+
 
     constructor Create;
     destructor Destroy; override;
@@ -187,6 +185,7 @@ uses
   u_InetConfig,
   u_GSMGeoCodeConfig,
   u_GPSConfig,
+  u_MarksFactoryConfig,
   u_GeoCoderListSimple,
   u_BitmapPostProcessingConfig,
   u_ValueToStringConverterConfig,
@@ -194,6 +193,8 @@ uses
   u_MarkPictureListSimple,
   u_ImageResamplerConfig,
   u_ImageResamplerFactoryListStaticSimple,
+  u_ImportByFileExt,
+  u_GlobalViewMainConfig,
   u_MainFormConfig,
   u_TileFileNameGeneratorsSimpleList;
 
@@ -229,6 +230,7 @@ begin
   FGSMpar := TGSMGeoCodeConfig.Create;
   FCoordConverterFactory := TCoordConverterFactorySimple.Create;
   FMainMemCacheConfig := TMainMemCacheConfig.Create;
+  FViewConfig := TGlobalViewMainConfig.Create;
 
   FMainMemCache := TMemFileCache.Create(FMainMemCacheConfig);
   FTileNameGenerator := TTileFileNameGeneratorsSimpleList.Create;
@@ -237,15 +239,17 @@ begin
   FMapCalibrationList := TMapCalibrationListBasic.Create;
   FKmlLoader := TKmlInfoSimpleParser.Create;
   FKmzLoader := TKmzInfoSimpleParser.Create;
+  FImportFileByExt := TImportByFileExt.Create(FKmlLoader, FKmzLoader);
   VList := TListOfObjectsWithTTL.Create;
   FGCThread := TGarbageCollectorThread.Create(VList, 1000);
   FBitmapPostProcessingConfig := TBitmapPostProcessingConfig.Create;
   FValueToStringConverterConfig := TValueToStringConverterConfig.Create(FLanguageManager);
-  GPSpar := TGPSpar.Create(GetTrackLogPath, FGPSConfig);
+  FGPSpar := TGPSpar.Create(GetTrackLogPath, FGPSConfig);
   FLastSelectionInfo := TLastSelectionInfo.Create;
   FGeoCoderList := TGeoCoderListSimple.Create(FProxySettings);
   FMarkPictureList := TMarkPictureListSimple.Create(GetMarkIconsPath, FBitmapTypeManager);
-  FMarksDB := TMarksDB.Create(FProgramPath, FMarkPictureList);
+  FMarksFactoryConfig := TMarksFactoryConfig.Create(FMarkPictureList);
+  FMarksDB := TMarksDB.Create(FProgramPath, FMarksFactoryConfig);
 end;
 
 destructor TGlobalState.Destroy;
@@ -271,17 +275,19 @@ begin
   FMapTypeIcons24List := nil;
   FLastSelectionInfo := nil;
   FGPSConfig := nil;
-  FreeAndNil(GPSpar);
+  FreeAndNil(FGPSpar);
   FreeAndNil(FMainMapsList);
   FCoordConverterFactory := nil;
   FProxySettings := nil;
   FGSMpar := nil;
   FInetConfig := nil;
+  FViewConfig := nil;
   FImageResamplerConfig := nil;
   FMainFormConfig := nil;
   FBitmapPostProcessingConfig := nil;
   FValueToStringConverterConfig := nil;
   FMainMemCacheConfig := nil;
+  FMarksFactoryConfig := nil;
   FMarkPictureList := nil;
   FreeAndNil(FCacheConfig);
   inherited;
@@ -352,6 +358,7 @@ begin
   );
   FCacheConfig.LoadConfig(FMainConfigProvider);
   LoadMapIconsList;
+  FViewConfig.ReadConfig(MainConfigProvider.GetSubItem('View'));
   FGPSConfig.ReadConfig(MainConfigProvider.GetSubItem('GPS'));
   GPSpar.LoadConfig(MainConfigProvider);
   FInetConfig.ReadConfig(MainConfigProvider.GetSubItem('Internet'));
@@ -363,6 +370,7 @@ begin
   FImageResamplerConfig.ReadConfig(MainConfigProvider.GetSubItem('View'));
   FMainMemCacheConfig.ReadConfig(MainConfigProvider.GetSubItem('View'));
   FMarkPictureList.ReadConfig(MainConfigProvider);
+  FMarksFactoryConfig.ReadConfig(MainConfigProvider);
   FMarksDb.ReadConfig(MainConfigProvider);
 end;
 
@@ -391,11 +399,6 @@ begin
   TwoDownloadAttempt:=MainIni.ReadBool('INTERNET','DblDwnl',true);
   GoNextTileIfDownloadError:=MainIni.ReadBool('INTERNET','GoNextTile',false);
   SessionLastSuccess:=MainIni.ReadBool('INTERNET','SessionLastSuccess',false);
-
-  UsePrevZoom := MainIni.Readbool('VIEW','back_load',true);
-  UsePrevZoomLayer := MainIni.Readbool('VIEW','back_load_layer',true);
-
-  BGround:=MainIni.ReadInteger('VIEW','Background',clSilver);
 end;
 
 procedure TGlobalState.LoadMapIconsList;
@@ -418,11 +421,6 @@ begin
   end;
 end;
 
-procedure TGlobalState.SetScreenSize(const Value: TPoint);
-begin
-  FScreenSize := Value;
-end;
-
 procedure TGlobalState.SaveMainParams;
 var
   Ini: TMeminifile;
@@ -431,10 +429,6 @@ begin
   Ini := TMeminiFile.Create(MapsPath + 'Maps.ini');
   VLocalMapsConfig := TConfigDataWriteProviderByIniFile.Create(Ini);
   FMainMapsList.SaveMaps(VLocalMapsConfig);
-  MainIni.Writebool('VIEW','back_load',UsePrevZoom);
-  MainIni.Writebool('VIEW','back_load_layer',UsePrevZoomLayer);
-  MainIni.WriteInteger('VIEW','Background',BGround);
-
   MainIni.WriteBool('INTERNET','SaveTileNotExists',SaveTileNotExists);
   MainIni.WriteBool('INTERNET','DblDwnl',TwoDownloadAttempt);
   MainIni.Writebool('INTERNET','GoNextTile',GoNextTileIfDownloadError);
@@ -445,6 +439,7 @@ begin
   GPSpar.SaveConfig(MainConfigProvider);
   FInetConfig.WriteConfig(MainConfigProvider.GetOrCreateSubItem('Internet'));
   FGSMpar.WriteConfig(MainConfigProvider.GetOrCreateSubItem('GSM'));
+  FViewConfig.WriteConfig(MainConfigProvider.GetOrCreateSubItem('View'));
   FLastSelectionInfo.WriteConfig(MainConfigProvider.GetOrCreateSubItem('LastSelection'));
   FLanguageManager.WriteConfig(FMainConfigProvider.GetOrCreateSubItem('VIEW'));
   FBitmapPostProcessingConfig.WriteConfig(MainConfigProvider.GetOrCreateSubItem('COLOR_LEVELS'));
@@ -454,6 +449,7 @@ begin
   FImageResamplerConfig.WriteConfig(MainConfigProvider.GetOrCreateSubItem('View'));
   FMainMemCacheConfig.WriteConfig(MainConfigProvider.GetOrCreateSubItem('View'));
   FMarkPictureList.WriteConfig(MainConfigProvider);
+  FMarksFactoryConfig.WriteConfig(MainConfigProvider);
   FMarksDb.WriteConfig(MainConfigProvider);
 end;
 

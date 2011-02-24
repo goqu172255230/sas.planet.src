@@ -9,6 +9,7 @@ uses
   t_GeoTypes,
   dm_MarksDb,
   i_IMarkPicture,
+  i_IMarksFactoryConfig,
   i_MarksSimple,
   u_MarkFactory,
   u_MarksSimple;
@@ -18,7 +19,6 @@ type
   private
     FSync: IReadWriteSync;
     FBasePath: string;
-    FMarkPictureList: IMarkPictureList;
     FDMMarksDb: TDMMarksDb;
     FFactory: TMarkFactory;
     function ReadCurrentMark: IMarkFull;
@@ -37,7 +37,7 @@ type
     function SaveMarks2File: boolean;
     procedure LoadMarksFromFile;
   public
-    constructor Create(ABasePath: string; AMarkPictureList: IMarkPictureList; ADMMarksDb: TDMMarksDb);
+    constructor Create(ABasePath: string; ADMMarksDb: TDMMarksDb; AFactoryConfig: IMarksFactoryConfig);
     destructor Destroy; override;
     
     function GetMarkByID(id: integer): IMarkFull;
@@ -48,7 +48,6 @@ type
     procedure SetMarkVisibleByID(AMark: IMarkId; AVisible: Boolean);
     function GetMarkVisible(AMark: IMarkId): Boolean; overload;
     function GetMarkVisible(AMark: IMarkFull): Boolean; overload;
-    property MarkPictureList: IMarkPictureList read FMarkPictureList;
     property Factory: TMarkFactory read FFactory;
     function GetAllMarskIdList: IInterfaceList;
     function GetMarskIdListByCategory(AId: Integer): IInterfaceList;
@@ -63,8 +62,8 @@ implementation
 uses
   DB,
   GR32,
-  u_MarksSubset,
-  u_MarksSimpleNew;
+  Ugeofun,
+  u_MarksSubset;
 
 type
   TExtendedPoint = record
@@ -119,14 +118,16 @@ begin
   end;
 end;
 
-constructor TMarksOnlyDb.Create(ABasePath: string;
-  AMarkPictureList: IMarkPictureList; ADMMarksDb: TDMMarksDb);
+constructor TMarksOnlyDb.Create(
+  ABasePath: string;
+  ADMMarksDb: TDMMarksDb;
+  AFactoryConfig: IMarksFactoryConfig
+);
 begin
   FBasePath := ABasePath;
-  FMarkPictureList := AMarkPictureList;
   FDMMarksDb := ADMMarksDb;
   FSync := TSimpleRWSync.Create;
-  FFactory := TMarkFactory.Create(FMarkPictureList);
+  FFactory := TMarkFactory.Create(AFactoryConfig);
 end;
 
 destructor TMarksOnlyDb.Destroy;
@@ -175,8 +176,6 @@ end;
 function TMarksOnlyDb.ReadCurrentMark: IMarkFull;
 var
   VPicName: string;
-  VPicIndex: Integer;
-  VPic: IMarkPicture;
   VId: Integer;
   VName: string;
   VVisible: Boolean;
@@ -188,6 +187,7 @@ var
   VColor2: TColor32;
   VScale1: Integer;
   VScale2: Integer;
+  VPointCount: Integer;
 begin
   VId := FDMMarksDb.CDSmarks.fieldbyname('id').AsInteger;
   VName := FDMMarksDb.CDSmarks.FieldByName('name').AsString;
@@ -200,17 +200,25 @@ begin
   VLLRect.Right := FDMMarksDb.CDSmarks.FieldByName('LonR').AsFloat;
   VLLRect.Bottom := FDMMarksDb.CDSmarks.FieldByName('LatB').AsFloat;
   VPicName := FDMMarksDb.CDSmarks.FieldByName('PicName').AsString;
-  VPicIndex := FMarkPictureList.GetIndexByName(VPicName);
-  if VPicIndex < 0 then begin
-    VPic := nil;
-  end else begin
-    VPic := FMarkPictureList.Get(VPicIndex);
-  end;
   VColor1 := TColor32(FDMMarksDb.CDSmarks.FieldByName('Color1').AsInteger);
   VColor2 := TColor32(FDMMarksDb.CDSmarks.FieldByName('Color2').AsInteger);
   VScale1 := FDMMarksDb.CDSmarks.FieldByName('Scale1').AsInteger;
   VScale2 := FDMMarksDb.CDSmarks.FieldByName('Scale2').AsInteger;
-  Result := TMarkFull.Create(VName, VId, VVisible, VPicName, VPic, VCategoryId, VDesc, VLLRect, VPoints, VColor1, VColor2, VScale1, VScale2);
+
+  Result := nil;
+  
+  VPointCount := Length(VPoints);
+  if VPointCount > 0 then begin
+    if VPointCount = 1 then begin
+      Result := FFactory.CreatePoint(VId, VName, VVisible, VPicName, VCategoryId, VDesc, VPoints[0], VColor1, VColor2, VScale1, VScale2)
+    end else begin
+      if compare2EP(VPoints[0], VPoints[VPointCount - 1]) then begin
+        Result := FFactory.CreatePoly(VId, VName, VVisible, VCategoryId, VDesc, VPoints, VColor1, VColor2, VScale1);
+      end else begin
+        Result := FFactory.CreateLine(VId, VName, VVisible, VCategoryId, VDesc, VPoints, VColor1, VScale1);
+      end;
+    end;
+  end;
 end;
 
 procedure TMarksOnlyDb.WriteCurrentMarkId(AMark: IMarkId);
@@ -489,7 +497,9 @@ begin
       FDMMarksDb.CDSmarks.First;
       while not (FDMMarksDb.CDSmarks.Eof) do begin
         VMark := ReadCurrentMark;
-        VList.Add(VMark);
+        if VMark <> nil then begin
+          VList.Add(VMark);
+        end;
         FDMMarksDb.CDSmarks.Next;
       end;
     finally

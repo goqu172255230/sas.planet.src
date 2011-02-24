@@ -386,8 +386,6 @@ type
     TBXSeparatorItem19: TTBXSeparatorItem;
     TBXItem8: TTBXItem;
     TBXItem9: TTBXItem;
-    TBControlItem3: TTBControlItem;
-    Label1: TLabel;
     TBXsensorOdometr2Bar: TTBXToolWindow;
     SpeedButton1: TSpeedButton;
     TBXSensorOdometr2: TTBXLabel;
@@ -398,6 +396,7 @@ type
     tbitmGPSToPointCenter: TTBXItem;
     tmrMapUpdate: TTimer;
     tbtmHelpBugTrack: TTBItem;
+    tbitmShowDebugInfo: TTBXItem;
     NMarkExport: TMenuItem;
     procedure FormActivate(Sender: TObject);
     procedure NzoomInClick(Sender: TObject);
@@ -528,6 +527,7 @@ type
     procedure tmrMapUpdateTimer(Sender: TObject);
     procedure tbtmHelpBugTrackClick(Sender: TObject);
     procedure FormResize(Sender: TObject);
+    procedure tbitmShowDebugInfoClick(Sender: TObject);
     procedure NMarkExportClick(Sender: TObject);
   private
     FLinksList: IJclListenerNotifierLinksList;
@@ -676,6 +676,7 @@ uses
   u_MapViewGotoOnFMain,
   frm_SearchResults,
   frm_InvisibleBrowser,
+  frm_DebugInfo,
   i_IImportConfig,
   u_ThreadDownloadTiles,
   u_PathDetalizeProviderMailRu,
@@ -749,7 +750,7 @@ begin
   TBConfigProviderLoadPositions(Self, VProvider);
   OnToolbarsLockChange(nil);
   TBEditPath.Visible:=false;
-  FMarkDBGUI := TMarksDbGUIHelper.Create(GState.MarksDB, GState.ValueToStringConverterConfig);
+  FMarkDBGUI := TMarksDbGUIHelper.Create(GState.MarksDB, GState.ValueToStringConverterConfig, GState.MarksFactoryConfig.PointTemplateConfig.MarkPictureList);
 end;
 
 procedure TFmain.FormActivate(Sender: TObject);
@@ -763,7 +764,6 @@ var
   VScale: Integer;
   VZoom: Byte;
 begin
-  GState.ScreenSize := Point(Screen.Width, Screen.Height);
   if not ProgramStart then exit;
   BuildImageListMapZapSelect;
   FConfig.ViewPortState.ChangeViewSize(Point(map.Width, map.Height));
@@ -788,8 +788,7 @@ begin
     FShortCutManager := TShortcutManager.Create(TBXMainMenu.Items, GetIgnoredMenuItemsList);
     FShortCutManager.Load(GState.MainConfigProvider.GetSubItem('HOTKEY'));
 
-    Label1.Visible := GState.ShowDebugInfo;
-
+    tbitmShowDebugInfo.Visible := GState.ShowDebugInfo;
 
     FMainLayer := TMapMainLayer.Create(map, FConfig.ViewPortState, FConfig.MainMapsConfig);
     FLayersList.Add(FMainLayer);
@@ -849,9 +848,6 @@ begin
     NGShScale1000000.Checked := VScale = 1000000;
     NGShScale0.Checked := VScale = 0;
 
-    Nbackload.Checked:=GState.UsePrevZoom;
-    NbackloadLayer.Checked:=GState.UsePrevZoomLayer;
-
     NMainToolBarShow.Checked:=TBMainToolBar.Visible;
     NZoomToolBarShow.Checked:=ZoomToolBar.Visible;
     NsrcToolBarShow.Checked:=SrcToolbar.Visible;
@@ -859,7 +855,6 @@ begin
     NMarksBarShow.Checked:=TBMarksToolBar.Visible;
 
 
-    map.Color:=GState.BGround;
     FLinksList.Add(
       TNotifyEventListener.Create(Self.ProcessPosChangeMessage),
       FConfig.ViewPortState.GetChangeNotifier
@@ -935,11 +930,15 @@ begin
       VMainFormMainConfigChangeListener,
       FConfig.GPSBehaviour.GetChangeNotifier
     );
-
     FLinksList.Add(
       VMainFormMainConfigChangeListener,
       FConfig.MainGeoCoderConfig.GetChangeNotifier
     );
+    FLinksList.Add(
+      VMainFormMainConfigChangeListener,
+      GState.ViewConfig.GetChangeNotifier
+    );
+
 
     FLinksList.Add(
       TNotifyEventListener.Create(Self.OnFillingMapChange),
@@ -1080,7 +1079,7 @@ begin
   VConverter := FConfig.ViewPortState.GetVisualCoordConverter;
   VZoomCurr := VConverter.GetZoom;
   VCenterMapPoint := VConverter.GetCenterMapPixelFloat;
-  VGPSLonLat := GState.GPSpar.GPSRecorder.GetLastPoint;
+  VGPSLonLat := GState.GPSpar.GPSRecorder.GetLastPosition;
   VGPSMapPoint := VConverter.GetGeoConverter.LonLat2PixelPosFloat(VGPSLonLat, VConverter.GetZoom);
   FCenterToGPSDelta.X := VGPSMapPoint.X - VCenterMapPoint.X;
   FCenterToGPSDelta.Y := VGPSMapPoint.Y - VCenterMapPoint.Y;
@@ -1299,6 +1298,10 @@ var
   VToolbarItem: TTBCustomItem;
   VItem: IGeoCoderListEntity;
 begin
+  Nbackload.Checked := GState.ViewConfig.UsePrevZoomAtMap;
+  NbackloadLayer.Checked := GState.ViewConfig.UsePrevZoomAtLayer;
+  map.Color := GState.ViewConfig.BackGroundColor;
+
   NGoToCur.Checked := FConfig.MainConfig.GetZoomingAtMousePos;
   Ninvertcolor.Checked:=GState.BitmapPostProcessingConfig.InvertColor;
   TBGPSToPoint.Checked:=FConfig.GPSBehaviour.MapMove;
@@ -1562,16 +1565,26 @@ var
 begin
  try
    VValueConverter := GState.ValueToStringConverterConfig.GetStaticConverter;
-   //скорость
-   TBXSensorSpeed.Caption:=RoundEx(GState.GPSpar.speed,2);
-   //средн€€ скорость
-   TBXSensorSpeedAvg.Caption:=RoundEx(GState.GPSpar.sspeed,2);
-   //максимальна€ скорость
-   TBXSensorSpeedMax.Caption:=RoundEx(GState.GPSpar.maxspeed,2);
-   //высота
-   TBXSensorAltitude.Caption:=RoundEx(GState.GPSpar.altitude,2);
-   //пройденный путь
-   TBXOdometrNow.Caption:=VValueConverter.DistConvert(GState.GPSpar.len);
+   GState.GPSpar.GPSRecorder.LockRead;
+   try
+     //скорость
+     TBXSensorSpeed.Caption:=RoundEx(GState.GPSpar.GPSRecorder.GetLastSpeed,2);
+     //средн€€ скорость
+     TBXSensorSpeedAvg.Caption:=RoundEx(GState.GPSpar.GPSRecorder.GetAvgSpeed,2);
+     //максимальна€ скорость
+     TBXSensorSpeedMax.Caption:=RoundEx(GState.GPSpar.GPSRecorder.GetMaxSpeed,2);
+     //высота
+     TBXSensorAltitude.Caption:=RoundEx(GState.GPSpar.GPSRecorder.GetLastAltitude,2);
+     //пройденный путь
+     TBXOdometrNow.Caption:=VValueConverter.DistConvert(GState.GPSpar.GPSRecorder.GetDist);
+     //одометр
+     TBXSensorOdometr.Caption:=VValueConverter.DistConvert(GState.GPSpar.GPSRecorder.GetOdometer1);
+     TBXSensorOdometr2.Caption:=VValueConverter.DistConvert(GState.GPSpar.GPSRecorder.GetOdometer2);
+     //јзимут
+     TBXSensorAzimut.Caption:=RoundEx(GState.GPSpar.GPSRecorder.GetLastHeading,2)+'∞';
+   finally
+     GState.GPSpar.GPSRecorder.UnlockRead;
+   end;
    //рассто€ние до метки
    if (FConfig.NavToPoint.IsActive) then begin
      VLocalConverter := FConfig.ViewPortState.GetVisualCoordConverter;
@@ -1582,9 +1595,6 @@ begin
    end else begin
      TBXSensorLenToMark.Caption:='-';
    end;
-   //одометр
-   TBXSensorOdometr.Caption:=VValueConverter.DistConvert(GState.GPSpar.Odometr);
-   TBXSensorOdometr2.Caption:=VValueConverter.DistConvert(GState.GPSpar.Odometr2);
    //батаре€
    GetSystemPowerStatus(sps);
    if sps.ACLineStatus=0 then begin
@@ -1598,9 +1608,6 @@ begin
    else begin
      TBXSensorBattary.Caption:=SAS_STR_BattaryStateOnLine;
    end;
-   //јзимут
-   TBXSensorAzimut.Caption:=RoundEx(GState.GPSpar.azimut,2)+'∞';
-   //—ила сигнала, кол-во спутников
  except
  end;
 end;
@@ -1649,6 +1656,7 @@ var
   VMapMove: Boolean;
   VMapMoveCentred: Boolean;
   VMinDelta: Double;
+  VProcessGPSIfActive: Boolean;
   VDelta: Double;
   VNeedTrackRedraw: Boolean;
 begin
@@ -1658,49 +1666,52 @@ begin
     if FSettings.Visible then FSettings.SatellitePaint;
     if TBXSignalStrengthBar.Visible then UpdateGPSSatellites;
     if (VPosition.IsFix=0) then exit;
-    if not((FMapMoving)or(FMapZoomAnimtion))and(Screen.ActiveForm=Self) then begin
-      VNeedTrackRedraw := True;
+    if not((FMapMoving)or(FMapZoomAnimtion)) then begin
       FConfig.GPSBehaviour.LockRead;
       try
         VMapMove := FConfig.GPSBehaviour.MapMove;
         VMapMoveCentred := FConfig.GPSBehaviour.MapMoveCentered;
         VMinDelta := FConfig.GPSBehaviour.MinMoveDelta;
+        VProcessGPSIfActive := FConfig.GPSBehaviour.ProcessGPSIfActive;
       finally
         FConfig.GPSBehaviour.UnlockRead;
       end;
-      if (VMapMove) then begin
-        VGPSNewPos := GState.GPSpar.GPSRecorder.GetLastPoint;
-        if VMapMoveCentred then begin
-          VConverter := FConfig.ViewPortState.GetVisualCoordConverter;
-          VCenterMapPoint := VConverter.GetCenterMapPixelFloat;
-          VGPSMapPoint := VConverter.GetGeoConverter.LonLat2PixelPosFloat(VGPSNewPos, VConverter.GetZoom);
-          VPointDelta.X := VCenterMapPoint.X - VGPSMapPoint.X;
-          VPointDelta.Y := VCenterMapPoint.Y - VGPSMapPoint.Y;
-          VDelta := Sqrt(Sqr(VPointDelta.X) + Sqr(VPointDelta.Y));
-          if VDelta > VMinDelta then begin
-            FConfig.ViewPortState.ChangeLonLat(VGPSNewPos);
-            VNeedTrackRedraw := False;
-          end;
-        end else begin
+      if (not VProcessGPSIfActive) or (Screen.ActiveForm=Self) then begin
+        VNeedTrackRedraw := True;
+        if (VMapMove) then begin
+          VGPSNewPos := GState.GPSpar.GPSRecorder.GetLastPosition;
+          if VMapMoveCentred then begin
             VConverter := FConfig.ViewPortState.GetVisualCoordConverter;
+            VCenterMapPoint := VConverter.GetCenterMapPixelFloat;
             VGPSMapPoint := VConverter.GetGeoConverter.LonLat2PixelPosFloat(VGPSNewPos, VConverter.GetZoom);
-            if PixelPointInRect(VGPSMapPoint, VConverter.GetRectInMapPixelFloat) then  begin
-              VCenterMapPoint := VConverter.GetCenterMapPixelFloat;
-              VCenterToGPSDelta.X := VGPSMapPoint.X - VCenterMapPoint.X;
-              VCenterToGPSDelta.Y := VGPSMapPoint.Y - VCenterMapPoint.Y;
-              VPointDelta := FCenterToGPSDelta;
-              VPointDelta.X := VCenterToGPSDelta.X - VPointDelta.X;
-              VPointDelta.Y := VCenterToGPSDelta.Y - VPointDelta.Y;
-              VDelta := Sqrt(Sqr(VPointDelta.X) + Sqr(VPointDelta.Y));
-              if VDelta > VMinDelta then begin
-                FConfig.ViewPortState.ChangeMapPixelByDelta(VPointDelta);
-                VNeedTrackRedraw := False;
-              end;
+            VPointDelta.X := VCenterMapPoint.X - VGPSMapPoint.X;
+            VPointDelta.Y := VCenterMapPoint.Y - VGPSMapPoint.Y;
+            VDelta := Sqrt(Sqr(VPointDelta.X) + Sqr(VPointDelta.Y));
+            if VDelta > VMinDelta then begin
+              FConfig.ViewPortState.ChangeLonLat(VGPSNewPos);
+              VNeedTrackRedraw := False;
             end;
+          end else begin
+              VConverter := FConfig.ViewPortState.GetVisualCoordConverter;
+              VGPSMapPoint := VConverter.GetGeoConverter.LonLat2PixelPosFloat(VGPSNewPos, VConverter.GetZoom);
+              if PixelPointInRect(VGPSMapPoint, VConverter.GetRectInMapPixelFloat) then  begin
+                VCenterMapPoint := VConverter.GetCenterMapPixelFloat;
+                VCenterToGPSDelta.X := VGPSMapPoint.X - VCenterMapPoint.X;
+                VCenterToGPSDelta.Y := VGPSMapPoint.Y - VCenterMapPoint.Y;
+                VPointDelta := FCenterToGPSDelta;
+                VPointDelta.X := VCenterToGPSDelta.X - VPointDelta.X;
+                VPointDelta.Y := VCenterToGPSDelta.Y - VPointDelta.Y;
+                VDelta := Sqrt(Sqr(VPointDelta.X) + Sqr(VPointDelta.Y));
+                if VDelta > VMinDelta then begin
+                  FConfig.ViewPortState.ChangeMapPixelByDelta(VPointDelta);
+                  VNeedTrackRedraw := False;
+                end;
+              end;
+          end;
         end;
-      end;
-      if VNeedTrackRedraw then begin
-        FLayerMapGPS.Redraw;
+        if VNeedTrackRedraw then begin
+          FLayerMapGPS.Redraw;
+        end;
       end;
     end;
   end;
@@ -1746,7 +1757,7 @@ begin
   end;
   QueryPerformanceCounter(ts3);
   QueryPerformanceFrequency(fr);
-  Label1.caption :=FloatToStr((ts3-ts2)/(fr/1000));
+//  Label1.caption :=FloatToStr((ts3-ts2)/(fr/1000));
 end;
 
 procedure TFmain.CreateMapUI;
@@ -2074,14 +2085,12 @@ end;
 
 procedure TFmain.NbackloadClick(Sender: TObject);
 begin
- GState.UsePrevZoom := Nbackload.Checked;
- FMainLayer.Redraw;
+  GState.ViewConfig.UsePrevZoomAtMap := Nbackload.Checked;
 end;
 
 procedure TFmain.NbackloadLayerClick(Sender: TObject);
 begin
- GState.UsePrevZoomLayer := NbackloadLayer.Checked;
- FMainLayer.Redraw;
+  GState.ViewConfig.UsePrevZoomAtLayer := NbackloadLayer.Checked;
 end;
 
 procedure TFmain.NaddPointClick(Sender: TObject);
@@ -3416,8 +3425,13 @@ end;
 
 procedure TFmain.TBItemDelTrackClick(Sender: TObject);
 begin
-  GState.GPSpar.GPSRecorder.ClearTrack;
-  GState.GPSpar.maxspeed:=0;
+  GState.GPSpar.GPSRecorder.LockWrite;
+  try
+    GState.GPSpar.GPSRecorder.ClearTrack;
+    GState.GPSpar.GPSRecorder.ResetMaxSpeed;
+  finally
+    GState.GPSpar.GPSRecorder.UnlockWrite;
+  end;
 end;
 
 procedure TFmain.NGShScale01Click(Sender: TObject);
@@ -3669,11 +3683,11 @@ procedure TFmain.SBClearSensorClick(Sender: TObject);
 begin
  if (MessageBox(handle,pchar(SAS_MSG_youasurerefrsensor+'?'),pchar(SAS_MSG_coution),36)=IDYES) then begin
    case TSpeedButton(sender).Tag of
-    1: GState.GPSpar.sspeed:=0;
-    2: GState.GPSpar.len:=0;
-    3: GState.GPSpar.Odometr:=0;
-    4: GState.GPSpar.maxspeed:=0;
-    5: GState.GPSpar.Odometr2:=0;
+    1: GState.GPSpar.GPSRecorder.ResetAvgSpeed;
+    2: GState.GPSpar.GPSRecorder.ResetDist;
+    3: GState.GPSpar.GPSRecorder.ResetOdometer1;
+    4: GState.GPSpar.GPSRecorder.ResetMaxSpeed;
+    5: GState.GPSpar.GPSRecorder.ResetOdometer2;
    end;
    UpdateGPSsensors;
  end;
@@ -3714,6 +3728,13 @@ begin
  end;
 end;
 
+procedure TFmain.tbitmShowDebugInfoClick(Sender: TObject);
+begin
+  if frmDebugInfo <> nil then begin
+    frmDebugInfo.ShowStatistic(FLayersList);
+  end;
+end;
+
 procedure TFmain.TBXItem6Click(Sender: TObject);
 var
   VLog: TLogForTaskThread;
@@ -3730,19 +3751,14 @@ begin
         VLog := TLogForTaskThread.Create(5000, 0);
         VSimpleLog := VLog;
         VThreadLog := VLog;
-        VThread := TThreadDownloadTiles.Create(VSimpleLog, OpenSessionDialog.FileName, GState.SessionLastSuccess, FConfig.ViewPortState.GetCurrentZoom);
+        VThread := TThreadDownloadTiles.Create(VSimpleLog, VFileName, GState.SessionLastSuccess, FConfig.ViewPortState.GetCurrentZoom);
         TFProgress.Create(Application, VThread, VThreadLog, Self.OnMapUpdate);
-      end else if ExtractFileExt(OpenSessionDialog.FileName)='.hlg' then begin
-        Fsaveas.LoadSelFromFile(OpenSessionDialog.FileName);
+      end else if ExtractFileExt(VFileName)='.hlg' then begin
+        Fsaveas.LoadSelFromFile(VFileName);
       end else begin
-        if (ExtractFileExt(OpenSessionDialog.FileName)='.kml')or
-           (ExtractFileExt(OpenSessionDialog.FileName)='.kmz')or
-           (ExtractFileExt(OpenSessionDialog.FileName)='.plt')
-        then begin
-          VImportConfig := FImport.GetImportConfig(FMarkDBGUI);
-          if VImportConfig <> nil then begin
-            //Todo ƒоделать
-          end;
+        VImportConfig := FImport.GetImportConfig(FMarkDBGUI);
+        if VImportConfig <> nil then begin
+          GState.ImportFileByExt.ProcessImport(VFileName, VImportConfig);
         end;
       end;
     end;

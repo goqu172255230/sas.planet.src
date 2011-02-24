@@ -7,22 +7,21 @@ uses
   GR32,
   t_GeoTypes,
   i_IMarkPicture,
+  i_IMarksFactoryConfig,
   i_MarksSimple;
 
 type
 
   TMarkFactory =  class
   private
+    FConfig: IMarksFactoryConfig;
     FNewPointCounter: Integer;
     FNewLineCounter: Integer;
     FNewPolyCounter: Integer;
+
     FMarkPictureList: IMarkPictureList;
-    FTemplateNewPoint: IMarkTemplatePoint;
-    FTemplateNewLine: IMarkTemplateLine;
-    FTemplateNewPoly: IMarkTemplatePoly;
     function GetLLRectFromPoints(APoints: TDoublePointArray): TDoubleRect;
     function GetLLRectFromPoint(APoint: TDoublePoint): TDoubleRect;
-    function GetArrayFromPoint(APoint: TDoublePoint): TDoublePointArray;
     procedure ClosePolyPoints(var APoints: TDoublePointArray);
   public
     function CreateNewPoint(
@@ -44,38 +43,19 @@ type
       ATemplate: IMarkTemplatePoly = nil
     ): IMarkFull;
 
-    function CreatePointTemplate(
+    function CreatePoint(
+      AID: Integer;
+      AName: string;
+      AVisible: Boolean;
       APicName: string;
-      APic: IMarkPicture;
       ACategoryId: Integer;
+      ADesc: string;
+      APoint: TDoublePoint;
       AColor1: TColor32;
       AColor2: TColor32;
       AScale1: Integer;
       AScale2: Integer
-    ): IMarkTemplatePoint; overload;
-    function CreatePointTemplate(
-      ASource: IMarkFull
-    ): IMarkTemplatePoint; overload;
-
-    function CreateLineTemplate(
-      ACategoryId: Integer;
-      AColor1: TColor32;
-      AScale1: Integer
-    ): IMarkTemplateLine; overload;
-    function CreateLineTemplate(
-      ASource: IMarkFull
-    ): IMarkTemplateLine; overload;
-
-    function CreatePolyTemplate(
-      ACategoryId: Integer;
-      AColor1: TColor32;
-      AColor2: TColor32;
-      AScale1: Integer
-    ): IMarkTemplatePoly; overload;
-    function CreatePolyTemplate(
-      ASource: IMarkFull
-    ): IMarkTemplatePoly; overload;
-
+    ): IMarkFull; overload;
     function CreatePoint(
       AName: string;
       AVisible: Boolean;
@@ -89,7 +69,17 @@ type
       AScale1: Integer;
       AScale2: Integer;
       ASource: IMarkFull
-    ): IMarkFull;
+    ): IMarkFull; overload;
+    function CreateLine(
+      AID: Integer;
+      AName: string;
+      AVisible: Boolean;
+      ACategoryId: Integer;
+      ADesc: string;
+      APoints: TDoublePointArray;
+      AColor1: TColor32;
+      AScale1: Integer
+    ): IMarkFull; overload;
     function CreateLine(
       AName: string;
       AVisible: Boolean;
@@ -99,7 +89,18 @@ type
       AColor1: TColor32;
       AScale1: Integer;
       ASource: IMarkFull
-    ): IMarkFull;
+    ): IMarkFull; overload;
+    function CreatePoly(
+      AID: Integer;
+      AName: string;
+      AVisible: Boolean;
+      ACategoryId: Integer;
+      ADesc: string;
+      APoints: TDoublePointArray;
+      AColor1: TColor32;
+      AColor2: TColor32;
+      AScale1: Integer
+    ): IMarkFull; overload;
     function CreatePoly(
       AName: string;
       AVisible: Boolean;
@@ -110,7 +111,7 @@ type
       AColor2: TColor32;
       AScale1: Integer;
       ASource: IMarkFull
-    ): IMarkFull;
+    ): IMarkFull; overload;
 
     function CreateModifedLine(
       APoints: TDoublePointArray;
@@ -121,14 +122,9 @@ type
       APoints: TDoublePointArray;
       ASource: IMarkFull
     ): IMarkFull;
-
-
-    property TemplateNewPoint: IMarkTemplatePoint read FTemplateNewPoint write FTemplateNewPoint;
-    property TemplateNewLine: IMarkTemplateLine read FTemplateNewLine write FTemplateNewLine;
-    property TemplateNewPoly: IMarkTemplatePoly read FTemplateNewPoly write FTemplateNewPoly;
-
+    property Config: IMarksFactoryConfig read FConfig;
   public
-    constructor Create(AMarkPictureList: IMarkPictureList);
+    constructor Create(AConfig: IMarksFactoryConfig);
   end;
 
 implementation
@@ -139,118 +135,20 @@ uses
   UResStrings,
   Ugeofun,
   u_MarkTemplates,
-  u_MarksSimpleNew;
+  u_MarkPoint,
+  u_MarkLine,
+  u_MarkPoly;
 
 { TMarkFactory }
 
-constructor TMarkFactory.Create(AMarkPictureList: IMarkPictureList);
-var
-  VPicName: string;
-  VPic: IMarkPicture;
+constructor TMarkFactory.Create(AConfig: IMarksFactoryConfig);
 begin
-  FMarkPictureList := AMarkPictureList;
+  FConfig := AConfig;
 
+  FMarkPictureList := FConfig.PointTemplateConfig.MarkPictureList;
   FNewPointCounter := 0;
   FNewLineCounter := 0;
   FNewPolyCounter := 0;
-
-
-  if FMarkPictureList.Count > 0 then begin
-    VPicName := FMarkPictureList.GetName(0);
-    VPic := FMarkPictureList.Get(0);
-  end else begin
-    VPicName := '';
-    VPic := nil;
-  end;
-  FTemplateNewPoint := CreatePointTemplate(
-    VPicName,
-    VPic,
-    -1,
-    SetAlpha(Color32(clYellow), 166),
-    SetAlpha(Color32(clBlack), 166),
-    11,
-    32
-  );
-  FTemplateNewLine := CreateLineTemplate(
-    -1,
-    SetAlpha(Color32(clRed), 166),
-    2
-  );
-  FTemplateNewPoly := CreatePolyTemplate(
-    -1,
-    SetAlpha(Color32(clBlack), 166),
-    SetAlpha(Color32(clWhite), 51),
-    2
-  );
-end;
-
-function TMarkFactory.CreateLineTemplate(ASource: IMarkFull): IMarkTemplateLine;
-begin
-  Result := CreateLineTemplate(
-    ASource.CategoryId,
-    ASource.Color1,
-    ASource.Scale1
-  );
-end;
-
-function TMarkFactory.CreateLineTemplate(
-  ACategoryId: Integer; AColor1: TColor32; AScale1: Integer): IMarkTemplateLine;
-begin
-  Result := TMarkTemplateLine.Create(
-    ACategoryId,
-    AColor1,
-    AScale1
-  );
-end;
-
-function TMarkFactory.CreatePointTemplate(ASource: IMarkFull): IMarkTemplatePoint;
-begin
-  Result := CreatePointTemplate(
-    ASource.PicName,
-    ASource.Pic,
-    ASource.CategoryId,
-    ASource.Color1,
-    ASource.Color2,
-    ASource.Scale1,
-    ASource.Scale2
-  );
-end;
-
-function TMarkFactory.CreatePointTemplate(APicName: string;
-  APic: IMarkPicture; ACategoryId: Integer; AColor1, AColor2: TColor32; AScale1,
-  AScale2: Integer): IMarkTemplatePoint;
-begin
-  Result := TMarkTemplatePoint.Create(
-    ACategoryId,
-    AColor1,
-    AColor2,
-    AScale1,
-    AScale2,
-    APicName,
-    APic
-  );
-end;
-
-function TMarkFactory.CreatePolyTemplate(ASource: IMarkFull): IMarkTemplatePoly;
-begin
-  Result := CreatePolyTemplate(
-    ASource.CategoryId,
-    ASource.Color1,
-    ASource.Color2,
-    ASource.Scale1
-  );
-end;
-
-function TMarkFactory.CreatePolyTemplate(
-  ACategoryId: Integer; AColor1, AColor2: TColor32;
-  AScale1: Integer): IMarkTemplatePoly;
-begin
-  Result := TMarkTemplatePoly.Create(
-    ACategoryId,
-    AColor1,
-    AColor2,
-    AScale1
-  );
 end;
 
 function TMarkFactory.CreateNewLine(APoints: TDoublePointArray; AName,
@@ -262,7 +160,7 @@ var
 begin
   VTemplate := ATemplate;
   if VTemplate = nil then begin
-    VTemplate := FTemplateNewLine;
+    VTemplate := FConfig.LineTemplateConfig.DefaultTemplate;
   end;
 
   VName := AName;
@@ -291,7 +189,7 @@ var
 begin
   VTemplate := ATemplate;
   if VTemplate = nil then begin
-    VTemplate := FTemplateNewPoint;
+    VTemplate := FConfig.PointTemplateConfig.DefaultTemplate;
   end;
 
   VName := AName;
@@ -323,7 +221,7 @@ var
 begin
   VTemplate := ATemplate;
   if VTemplate = nil then begin
-    VTemplate := FTemplateNewPoly;
+    VTemplate := FConfig.PolyTemplateConfig.TemplateDefault;
   end;
 
   VName := AName;
@@ -406,28 +304,39 @@ function TMarkFactory.CreateLine(
 ): IMarkFull;
 var
   VID: Integer;
-  VPoints: TDoublePointArray;
 begin
   if ASource <> nil then begin
     VID := ASource.Id;
   end else begin
     VID := -1;
   end;
-  VPoints := Copy(APoints);
-  Result := TMarkFull.Create(
+  Result := TMarkLine.Create(
     AName,
     VId,
     AVisible,
-    '',
-    nil,
     ACategoryId,
     ADesc,
     GetLLRectFromPoints(APoints),
-    VPoints,
+    APoints,
     AColor1,
-    0,
-    AScale1,
-    0
+    AScale1
+  );
+end;
+
+function TMarkFactory.CreateLine(AID: Integer; AName: string; AVisible: Boolean;
+  ACategoryId: Integer; ADesc: string; APoints: TDoublePointArray;
+  AColor1: TColor32; AScale1: Integer): IMarkFull;
+begin
+  Result := TMarkLine.Create(
+    AName,
+    AId,
+    AVisible,
+    ACategoryId,
+    ADesc,
+    GetLLRectFromPoints(APoints),
+    APoints,
+    AColor1,
+    AScale1
   );
 end;
 
@@ -453,7 +362,7 @@ begin
   end else begin
     VID := -1;
   end;
-  Result := TMarkFull.Create(
+  Result := TMarkPoint.Create(
     AName,
     VID,
     AVisible,
@@ -462,11 +371,67 @@ begin
     ACategoryId,
     ADesc,
     GetLLRectFromPoint(APoint),
-    GetArrayFromPoint(APoint),
+    APoint,
     AColor1,
     AColor2,
     AScale1,
     AScale2
+  );
+end;
+
+function TMarkFactory.CreatePoint(
+  AID: Integer;
+  AName: string;
+  AVisible: Boolean;
+  APicName: string;
+  ACategoryId: Integer;
+  ADesc: string;
+  APoint: TDoublePoint;
+  AColor1, AColor2: TColor32;
+  AScale1, AScale2: Integer
+): IMarkFull;
+var
+  VPicIndex: Integer;
+  VPic: IMarkPicture;
+begin
+  VPicIndex := FMarkPictureList.GetIndexByName(APicName);
+  if VPicIndex < 0 then begin
+    VPic := nil;
+  end else begin
+    VPic := FMarkPictureList.Get(VPicIndex);
+  end;
+  Result := TMarkPoint.Create(
+    AName,
+    AID,
+    AVisible,
+    APicName,
+    VPic,
+    ACategoryId,
+    ADesc,
+    GetLLRectFromPoint(APoint),
+    APoint,
+    AColor1,
+    AColor2,
+    AScale1,
+    AScale2
+  );
+end;
+
+function TMarkFactory.CreatePoly(AID: Integer; AName: string; AVisible: Boolean;
+  ACategoryId: Integer; ADesc: string; APoints: TDoublePointArray; AColor1,
+  AColor2: TColor32; AScale1: Integer): IMarkFull;
+begin
+  Result := TMarkPoly.Create(
+    AName,
+    AID,
+    AVisible,
+    ACategoryId,
+    ADesc,
+    GetLLRectFromPoints(APoints),
+    APoints,
+    AColor1,
+    AColor2,
+    AScale1
   );
 end;
 
@@ -492,28 +457,18 @@ begin
   end;
   VPoints := Copy(APoints);
   ClosePolyPoints(VPoints);
-  Result := TMarkFull.Create(
+  Result := TMarkPoly.Create(
     AName,
     VID,
     AVisible,
-    '',
-    nil,
     ACategoryId,
     ADesc,
     GetLLRectFromPoints(APoints),
     VPoints,
     AColor1,
     AColor2,
-    AScale1,
-    0
+    AScale1
   );
-end;
-
-function TMarkFactory.GetArrayFromPoint(
-  APoint: TDoublePoint): TDoublePointArray;
-begin
-  SetLength(Result, 1);
-  Result[0] := APoint;
 end;
 
 function TMarkFactory.GetLLRectFromPoint(APoint: TDoublePoint): TDoubleRect;

@@ -3,7 +3,6 @@ unit i_IActiveMapsConfig;
 interface
 
 uses
-  i_JclNotify,
   i_MapTypes,
   i_IConfigDataElement;
 
@@ -46,6 +45,7 @@ type
 
   IMainMapsConfig = interface(IActivMapWithLayers)
     ['{8A8A42A5-9252-4E85-812C-6A5EEEF98443}']
+    function GetSelectedMapType: IMapType;
     function GetBitmapLayersSet: IActiveMapsSet;
     function GetKmlLayersSet: IActiveMapsSet;
   end;

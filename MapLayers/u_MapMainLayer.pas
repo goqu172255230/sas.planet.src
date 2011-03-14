@@ -182,6 +182,7 @@ begin
   VGeoConvert.CheckPixelRectFloat(VBitmapOnMapPixelRect, VZoom);
 
   VSourceLonLatRect := VGeoConvert.PixelRectFloat2LonLatRect(VBitmapOnMapPixelRect, VZoom);
+  VSourceGeoConvert.CheckLonLatRect(VSourceLonLatRect);
   VPixelSourceRect := VSourceGeoConvert.LonLatRect2PixelRect(VSourceLonLatRect, VZoom);
   VTileSourceRect := VSourceGeoConvert.PixelRect2TileRect(VPixelSourceRect, VZoom);
 
@@ -260,7 +261,7 @@ end;
 
 procedure TMapMainLayer.OnMainMapChange(Sender: TObject);
 begin
-  FMainMap := FMapsConfig.GetActiveMap.GetMapsList.GetMapTypeByGUID(FMapsConfig.GetActiveMap.GetSelectedGUID);
+  FMainMap := FMapsConfig.GetSelectedMapType;
   Redraw;
 end;
 

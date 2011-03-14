@@ -11,6 +11,7 @@ uses
   SyncObjs,
   GR32,
   t_GeoTypes,
+  i_ContentTypeInfo,
   i_IConfigDataProvider,
   i_ITileObjCache,
   i_ICoordConverter,
@@ -62,12 +63,12 @@ type
     FCSSaveTile: TCriticalSection;
     FCSSaveTNF: TCriticalSection;
     FCoordConverter : ICoordConverter;
-    FConverterForUrlGenerator: ICoordConverterSimple;
+    FMainCoordConverter : ICoordConverter;
     FPoolOfDownloaders: IPoolOfObjectsSimple;
     FTileDownlodSessionFactory: ITileDownlodSessionFactory;
     FLoadPrevMaxZoomDelta: Integer;
+    FContentType: IContentTypeInfoBasic;
 
-    function GetCoordConverter: ICoordConverter;
     function GetUseDwn: Boolean;
     function GetZmpFileName: string;
     function GetIsCanShowOnSmMap: boolean;
@@ -138,7 +139,8 @@ type
     function GetShortFolderName: string;
     function DownloadTile(AThread: TThread; ATile: TPoint; AZoom: byte; ACheckTileSize: Boolean; AOldTileSize: Integer; out AUrl: string; out AContentType: string; fileBuf: TMemoryStream): TDownloadTileResult; overload;
 
-    property GeoConvert: ICoordConverter read GetCoordConverter;
+    property GeoConvert: ICoordConverter read FCoordConverter;
+    property MainGeoConvert: ICoordConverter read FMainCoordConverter;
     property GUID: TGUID read FGuid;
     property GUIDString: string read GetGUIDString;
 
@@ -192,13 +194,8 @@ uses
   u_TileCacheSimpleGlobal,
   u_KmlInfoSimpleParser,
   u_KmzInfoSimpleParser,
-  u_GECache,
-  u_TileStorageGEStuped,
-  u_TileStorageFileSystem,
-  u_CoordConverterBasic,
-  u_CoordConverterMercatorOnSphere,
-  u_CoordConverterMercatorOnEllipsoid,
-  u_CoordConverterSimpleLonLat;
+  u_TileStorageGE,
+  u_TileStorageFileSystem;
 
 procedure TMapType.LoadMapIcons(AConfig: IConfigDataProvider);
 var
@@ -242,7 +239,7 @@ procedure TMapType.LoadUrlScript(AConfig: IConfigDataProvider);
 begin
   if FUseDwn then begin
     try
-      FUrlGenerator := TUrlGenerator.Create(AConfig, FConverterForUrlGenerator);
+      FUrlGenerator := TUrlGenerator.Create(AConfig);
       //GetLink(0,0,0);
     except
       on E: Exception do begin
@@ -272,50 +269,39 @@ end;
 procedure TMapType.LoadStorageParams(AConfig: IConfigDataProvider);
 var
   VParams: IConfigDataProvider;
+  VContentTypeBitmap: IContentTypeInfoBitmap;
+  VContentTypeKml: IContentTypeInfoKml;
 begin
   VParams := AConfig.GetSubItem('params.txt').GetSubItem('PARAMS');
   if VParams.ReadInteger('CacheType', 0) = 5  then begin
-    FStorage := TTileStorageGEStuped.Create(AConfig);
+    FStorage := TTileStorageGE.Create(AConfig);
   end else begin
     FStorage := TTileStorageFileSystem.Create(AConfig);
   end;
-
-  FCache := TTileCacheSimpleGlobal.Create(Self, GState.MainMemCache);
-  FBitmapLoaderFromStorage := GState.BitmapTypeManager.GetBitmapLoaderForExt(TileStorage.TileFileExt);
-  if FBitmapLoaderFromStorage <> nil then begin
+  FContentType := FStorage.GetMainContentType;
+  if Supports(FContentType, IContentTypeInfoBitmap, VContentTypeBitmap) then begin
+    FBitmapLoaderFromStorage := VContentTypeBitmap.GetLoader;
     if FStorage.GetUseSave then begin
-      FBitmapSaverToStorage := GState.BitmapTypeManager.GetBitmapSaverForExt(TileStorage.TileFileExt);
+      FBitmapSaverToStorage := VContentTypeBitmap.GetSaver;
     end;
-  end else begin
-    if TileStorage.TileFileExt = '.kmz' then begin
-      FKmlLoaderFromStorage := TKmzInfoSimpleParser.Create;
-    end else if TileStorage.TileFileExt = '.kml' then begin
-      FKmlLoaderFromStorage := TKmlInfoSimpleParser.Create;
-    end;
+  end else if Supports(FContentType, IContentTypeInfoKml, VContentTypeKml) then begin
+    FKmlLoaderFromStorage := VContentTypeKml.GetLoader;
   end;
+  FCache := TTileCacheSimpleGlobal.Create(Self, GState.MainMemCache);
 end;
 
 procedure TMapType.LoadProjectionInfo(AConfig: IConfigDataProvider);
 var
-  projection: byte;
-  VConverter: TCoordConverterBasic;
+  VParamsTXT: IConfigDataProvider;
   VParams: IConfigDataProvider;
-  VRadiusA: Double;
-  VRadiusB: Double;
 begin
-  VParams := AConfig.GetSubItem('params.txt').GetSubItem('PARAMS');
-
-  projection:= VParams.ReadInteger('projection',1);
-  VRadiusA := VParams.ReadFloat('sradiusa',6378137);
-  VRadiusB := VParams.ReadFloat('sradiusb',VRadiusA);
-  case projection of
-    1: VConverter := TCoordConverterMercatorOnSphere.Create(VRadiusA);
-    2: VConverter := TCoordConverterMercatorOnEllipsoid.Create(VRadiusA, VRadiusB);
-    3: VConverter := TCoordConverterSimpleLonLat.Create(VRadiusA, VRadiusB);
-    else raise Exception.CreateFmt(SAS_ERR_MapProjectionUnexpectedType, [IntToStr(projection)]);
+  FCoordConverter := FStorage.GetCoordConverter;
+  VParamsTXT := AConfig.GetSubItem('params.txt');
+  VParams := VParamsTXT.GetSubItem('ViewInfo');
+  if VParams = nil then begin
+    VParams := VParamsTXT.GetSubItem('PARAMS');
   end;
-  FCoordConverter := VConverter;
-  FConverterForUrlGenerator := VConverter;
+  FMainCoordConverter := GState.CoordConverterFactory.GetCoordConverterByConfig(VParams);
 end;
 
 procedure TMapType.LoadMimeTypeSubstList(AConfig: IConfigDataProvider);
@@ -423,8 +409,8 @@ begin
   end;
 
   LoadMapInfo(AConfig);
-  LoadProjectionInfo(AConfig);
   LoadStorageParams(AConfig);
+  LoadProjectionInfo(AConfig);
   LoadMapIcons(AConfig);
   LoadWebSourceParams(AConfig);
   FUsestick:=VParams.ReadBool('Usestick',true);
@@ -668,14 +654,6 @@ begin
   Result := ExtractFileName(ExtractFileDir(IncludeTrailingPathDelimiter(FStorage.CacheConfig.NameInCache)));
 end;
 
-
-function TMapType.GetCoordConverter: ICoordConverter;
-begin
- if Self=nil
-  then Result:= nil
-  else Result:= FCoordConverter;
-end;
-
 constructor TMapType.Create(AGUID: TGUID; AConfig: IConfigDataProvider; Apnum: Integer);
 begin
   FGuid := AGUID;
@@ -865,11 +843,7 @@ function TMapType.LoadTile(btm: TCustomBitmap32; AXY: TPoint; Azoom: byte;
 begin
   try
     if (not caching)or(not FCache.TryLoadTileFromCache(btm, AXY, Azoom)) then begin
-      if FStorage.CacheConfig.EffectiveCacheType = 5 then begin
-        result:=GetGETile(btm, FStorage.CacheConfig.BasePath+'dbCache.dat',AXY.X, AXY.Y, Azoom + 1, FCoordConverter);
-      end else begin
-        result:=LoadBitmapTileFromStorage(AXY, Azoom, btm);
-      end;
+      result:=LoadBitmapTileFromStorage(AXY, Azoom, btm);
       if ((result)and(caching)) then FCache.AddTileToCache(btm, AXY, Azoom);
     end else begin
       result:=true;

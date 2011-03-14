@@ -244,14 +244,11 @@ end;
 procedure TFsaveas.Show_(Azoom:byte;Polygon_: TArrayOfDoublePoint);
 var
   i:integer;
-  VPoint: TPoint;
-  VZoom: Byte;
   VExportProvider: TExportProviderAbstract;
 begin
   FZoom_rect:=Azoom;
   FPolygonLL := copy(polygon_);
   GState.LastSelectionInfo.SetPolygon(FPolygonLL, FZoom_rect);
-  VZoom := FZoom_rect;
   for i := 0 to CBFormat.Items.Count - 1 do begin
     VExportProvider := TExportProviderAbstract(CBFormat.Items.Objects[i]);
     if VExportProvider <> nil then begin

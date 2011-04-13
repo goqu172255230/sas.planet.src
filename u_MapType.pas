@@ -25,6 +25,7 @@ uses
   u_UrlGenerator,
   u_MapTypeCacheConfig,
   u_TileStorageAbstract,
+  u_TileDownloaderPhp,
   u_ResStrings;
 
 type
@@ -68,6 +69,8 @@ type
     FTileDownlodSessionFactory: ITileDownlodSessionFactory;
     FLoadPrevMaxZoomDelta: Integer;
     FContentType: IContentTypeInfoBasic;
+    FPhpTileDownloader: TTileDownloaderPhp;
+
 
     function GetUseDwn: Boolean;
     function GetZmpFileName: string;
@@ -673,12 +676,15 @@ begin
   FCSSaveTile := TCriticalSection.Create;
   FCSSaveTNF := TCriticalSection.Create;
   FMimeTypeSubstList := nil;
+
   LoadMapType(AConfig, Apnum);
   if FasLayer then begin
     FLoadPrevMaxZoomDelta := 4;
   end else begin
     FLoadPrevMaxZoomDelta := 6;
   end;
+
+  FPhpTileDownloader := TTileDownloaderPhp.Create(AConfig, FZMPFileName);
 end;
 
 destructor TMapType.Destroy;
@@ -694,6 +700,7 @@ begin
   FPoolOfDownloaders := nil;
   FCache := nil;
   FreeAndNil(FStorage);
+  FreeAndNil(FPhpTileDownloader);
   inherited;
 end;
 
@@ -708,23 +715,28 @@ var
   VResponseHead: string;
 begin
   if Self.UseDwn then begin
-    VRequestHead := ''; VResponseHead := '';
-    GetRequest(ATile, AZoom, AUrl, VRequestHead);
-    VPoolElement := FPoolOfDownloaders.TryGetPoolElement(60000);
-    if VPoolElement = nil then begin
-      raise Exception.Create('No free connections');
-    end;
-    VDownloader := VPoolElement.GetObject as ITileDownlodSession;
-    if FAntiBan <> nil then begin
-      FAntiBan.PreDownload(VDownloader, ATile, AZoom, AUrl);
-    end;
-    Result := VDownloader.DownloadTile(AUrl, VRequestHead, ACheckTileSize, AOldTileSize, fileBuf, StatusCode, AContentType, VResponseHead);
-    SetResponse(VResponseHead);
-    if FAntiBan <> nil then begin
-      Result := FAntiBan.PostCheckDownload(VDownloader, ATile, AZoom, AUrl, Result, StatusCode, AContentType, fileBuf.Memory, fileBuf.Size);
+    if Assigned(FPhpTileDownloader) and FPhpTileDownloader.Enabled then begin
+      FPhpTileDownloader.UrlBase := FUrlGenerator.URLBase;
+      Result := FPhpTileDownloader.DownloadTile(ACheckTileSize, AOldTileSize, ATile, AZoom, AUrl, AContentType, fileBuf);
+    end else begin
+      VRequestHead := ''; VResponseHead := '';
+      GetRequest(ATile, AZoom, AUrl, VRequestHead);
+      VPoolElement := FPoolOfDownloaders.TryGetPoolElement(60000);
+      if VPoolElement = nil then begin
+        raise Exception.Create('No free connections');
+      end;
+      VDownloader := VPoolElement.GetObject as ITileDownlodSession;
+      if FAntiBan <> nil then begin
+        FAntiBan.PreDownload(VDownloader, ATile, AZoom, AUrl);
+      end;
+      Result := VDownloader.DownloadTile(AUrl, VRequestHead, ACheckTileSize, AOldTileSize, fileBuf, StatusCode, AContentType, VResponseHead);
+      SetResponse(VResponseHead);
+      if FAntiBan <> nil then begin
+        Result := FAntiBan.PostCheckDownload(VDownloader, ATile, AZoom, AUrl, Result, StatusCode, AContentType, fileBuf.Memory, fileBuf.Size);
+      end;
     end;
     if Result = dtrOK then begin
-      SaveTileDownload(ATile, AZoom, fileBuf, AContentType);
+        SaveTileDownload(ATile, AZoom, fileBuf, AContentType);
     end else if Result = dtrTileNotExists then begin
       if GState.SaveTileNotExists then begin
         SaveTileNotExists(ATile, AZoom);

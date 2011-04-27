@@ -359,6 +359,7 @@
     <DCCReference Include="src\i_JclNotify.pas" />
     <DCCReference Include="src\KAZip.pas" />
     <DCCReference Include="src\Langs.pas" />
+    <DCCReference Include="src\MD5.pas" />
     <DCCReference Include="src\RegExpr.pas" />
     <DCCReference Include="src\SwinHttp.pas" />
     <DCCReference Include="src\TarWriter.pas" />
@@ -586,6 +587,7 @@
     <DCCReference Include="u_ShortcutManager.pas" />
     <DCCReference Include="u_StatBarConfig.pas" />
     <DCCReference Include="u_TBXSubmenuItemWithIndicator.pas" />
+    <DCCReference Include="u_ThreadExportYaMapsNew.pas" />
     <DCCReference Include="u_TileCacheSimpleGlobal.pas" />
     <DCCReference Include="u_TileDownloaderBase.pas" />
     <DCCReference Include="u_TileDownloaderBaseFactory.pas" />

@@ -99,6 +99,7 @@ uses
   u_ThreadExportIPhone in 'RegionProcess\u_ThreadExportIPhone.pas',
   u_ThreadExportKML in 'RegionProcess\u_ThreadExportKML.pas',
   u_ThreadExportYaMaps in 'RegionProcess\u_ThreadExportYaMaps.pas',
+  u_ThreadExportYaMapsNew in 'u_ThreadExportYaMapsNew.pas',
   u_ThreadExportToAUX in 'RegionProcess\u_ThreadExportToAUX.pas',
   u_ThreadDeleteTiles in 'RegionProcess\u_ThreadDeleteTiles.pas',
   u_ThreadGenPrevZoom in 'RegionProcess\u_ThreadGenPrevZoom.pas',
@@ -499,7 +500,8 @@ uses
   frm_ImportConfigEdit in 'frm_ImportConfigEdit.pas' {frmImportConfigEdit},
   frm_MarkCategoryEdit in 'frm_MarkCategoryEdit.pas' {frmMarkCategoryEdit},
   frm_DGAvailablePic in 'frm_DGAvailablePic.pas' {frmDGAvailablePic},
-  frm_ShortCutEdit in 'frm_ShortCutEdit.pas' {frmShortCutEdit};
+  frm_ShortCutEdit in 'frm_ShortCutEdit.pas' {frmShortCutEdit},
+  MD5 in 'src\MD5.pas';
 
 {$R *.res} {$R *Pics.res}
 begin
@@ -538,7 +540,7 @@ begin
   Application.CreateForm(TfrmMapTypeEdit, frmMapTypeEdit);
   Application.CreateForm(TfrmShortCutEdit, frmShortCutEdit);
   Application.CreateForm(TfrmInvisibleBrowser, frmInvisibleBrowser);
-    if GState.ShowDebugInfo then begin
+  if GState.ShowDebugInfo then begin
       Application.CreateForm(TfrmDebugInfo, frmDebugInfo);
     end;
     GState.StartExceptionTracking;

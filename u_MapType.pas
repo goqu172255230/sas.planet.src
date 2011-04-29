@@ -11,6 +11,7 @@ uses
   SyncObjs,
   GR32,
   t_GeoTypes,
+  t_CommonTypes,
   i_ContentTypeInfo,
   i_ConfigDataProvider,
   i_TileObjCache,
@@ -40,7 +41,7 @@ type
     FZMPFileName: string;
     FMapInfo: string;
     FDefHotKey: TShortCut;
-    FDefSleep: Integer;
+    FDefSleep: Cardinal;
     FDefseparator: boolean;
     FDefParentSubMenu: string;
     FDefEnabled: boolean;
@@ -133,7 +134,7 @@ type
       AXY: TPoint;
       Azoom: byte;
       ASourceZoom: byte;
-      IsStop: PBoolean;
+      AIsStop: TIsCancelChecker;
       ANoTileColor: TColor32;
       AShowTNE: Boolean;
       ATNEColor: TColor32
@@ -164,7 +165,7 @@ type
     property MapInfo: string read FMapInfo;
     property Name: string read FName;
     property DefHotKey: TShortCut read FDefHotKey;
-    property DefSleep: Integer read FDefSleep;
+    property DefSleep: Cardinal read FDefSleep;
     property Defseparator: boolean read FDefseparator;
     property DefParentSubMenu: string read FDefParentSubMenu;
     property DefEnabled: boolean read FDefEnabled;
@@ -640,7 +641,7 @@ begin
     try
       Result := FStorage.LoadTile(AXY, Azoom, FVersion, VFileStream, VTileInfo);
       if Result then begin
-        FileSetDate(VFileStream.Handle, DateTimeToFileDate(VTileInfo.GetLoadDate));
+        FileSetDate(AFileName, DateTimeToFileDate(VTileInfo.GetLoadDate));
       end;
     finally
       VFileStream.Free;
@@ -652,13 +653,13 @@ function TMapType.LoadFillingMap(
   btm: TCustomBitmap32;
   AXY: TPoint;
   Azoom, ASourceZoom: byte;
-  IsStop: PBoolean;
+  AIsStop: TIsCancelChecker;
   ANoTileColor: TColor32;
   AShowTNE: Boolean;
   ATNEColor: TColor32
 ): boolean;
 begin
-  Result := FStorage.LoadFillingMap(btm, AXY, Azoom, ASourceZoom, FVersion, IsStop, ANoTileColor, AShowTNE, ATNEColor);
+  Result := FStorage.LoadFillingMap(btm, AXY, Azoom, ASourceZoom, FVersion, AIsStop, ANoTileColor, AShowTNE, ATNEColor);
 end;
 
 function TMapType.GetShortFolderName: string;

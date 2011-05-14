@@ -7,16 +7,18 @@ uses
   Classes,
   Types,
   i_TileError,
-  u_TileDownloaderThreadBase,
   u_MapType;
 
 type
-  TTileDownloaderUIOneTile = class(TTileDownloaderThreadBase)
+  TTileDownloaderUIOneTile = class(TThread)
   private
+    //FErrorString: string;
     FMapTileUpdateEvent: TMapTileUpdateEvent;
     FErrorLogger: ITileErrorLogger;
-
-    procedure AfterWriteToFile;
+    FMapType: TMapType;
+    FLoadXY: TPoint;
+    FZoom: Byte;
+    //procedure AfterWriteToFile;
   protected
     procedure Execute; override;
   public
@@ -34,7 +36,6 @@ implementation
 uses
   SysUtils,
   u_GlobalState,
-  i_TileDownlodSession,
   u_TileErrorInfo,
   u_ResStrings;
 
@@ -57,21 +58,24 @@ begin
   FreeOnTerminate := true;
   randomize;
 end;
-
+{
 procedure TTileDownloaderUIOneTile.AfterWriteToFile;
 begin
   if Addr(FMapTileUpdateEvent) <> nil then begin
     FMapTileUpdateEvent(FMapType, FZoom, FLoadXY);
   end;
 end;
+}
 
 procedure TTileDownloaderUIOneTile.Execute;
+{
 var
   ty: string;
   fileBuf: TMemoryStream;
   res: TDownloadTileResult;
-  VErrorString: string;
+}
 begin
+  {
   if FMapType.UseDwn then begin
     FileBuf := TMemoryStream.Create;
     try
@@ -96,14 +100,16 @@ begin
     Synchronize(AfterWriteToFile);
   end else begin
     FErrorLogger.LogError(
-      TTileErrorInfo.Create(
-        FMapType,
-        FZoom,
-        FLoadXY,
-        VErrorString
-      )
-    );
+        TTileErrorInfo.Create(
+          FMapType,
+          FZoom,
+          FLoadXY,
+          VErrorString
+        )
+      );
   end;
+  }
+
 end;
 
 end.

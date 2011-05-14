@@ -239,8 +239,8 @@ begin
     VSubItem.WriteInteger('pnum', VMapType.FSortIndex);
 
 
-    if VMapType.UrlGenerator.URLBase <> VMapType.UrlGenerator.DefURLBase then begin
-      VSubItem.WriteString('URLBase', VMapType.UrlGenerator.URLBase);
+    if VMapType.RequestBuilderScript.UrlBase <> VMapType.RequestBuilderScript.DefUrlBase then begin
+      VSubItem.WriteString('URLBase', VMapType.RequestBuilderScript.UrlBase);
     end else begin
       VSubItem.DeleteValue('URLBase');
     end;
@@ -269,8 +269,8 @@ begin
       VSubItem.DeleteValue('NameInCache');
     end;
 
-    if VMapType.DownloaderFactory.WaitInterval <> VMapType.DefSleep then begin
-      VSubItem.WriteInteger('Sleep', VMapType.DownloaderFactory.WaitInterval);
+    if VMapType.WaitInterval <> VMapType.DefSleep then begin
+      VSubItem.WriteInteger('Sleep', VMapType.WaitInterval);
     end else begin
       VSubItem.DeleteValue('Sleep');
     end;

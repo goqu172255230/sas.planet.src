@@ -81,10 +81,10 @@ implementation
 
 procedure TfrmMapTypeEdit.btnOkClick(Sender: TObject);
 begin
- FmapType.UrlGenerator.URLBase:=EditURL.Text;
+ FmapType.RequestBuilderScript.URLBase:=EditURL.Text;
  FmapType.TileStorage.CacheConfig.NameInCache:=EditNameinCache.Text;
  FmapType.ParentSubMenu:=EditParSubMenu.Text;
- FmapType.DownloaderFactory.WaitInterval:=SESleep.Value;
+ FmapType.WaitInterval:=SESleep.Value;
  FmapType.HotKey:=EditHotKey.HotKey;
  FMapType.Enabled:=CheckEnabled.Checked;
  if CBCacheType.ItemIndex > 0 then begin
@@ -103,10 +103,10 @@ end;
 
 procedure TfrmMapTypeEdit.btnByDefaultClick(Sender: TObject);
 begin
- EditURL.Text:=FmapType.UrlGenerator.DefURLBase;
+ EditURL.Text:=FmapType.RequestBuilderScript.DefURLBase;
  EditNameinCache.Text:=FmapType.TileStorage.CacheConfig.DefNameInCache;
  EditParSubMenu.Text:=FmapType.DefParentSubMenu;
- SESleep.Value:=FmapType.DownloaderFactory.WaitInterval;
+ SESleep.Value:=FmapType.WaitInterval;
  EditHotKey.HotKey:=FmapType.DefHotKey;
  CBCacheType.ItemIndex:=FmapType.TileStorage.CacheConfig.CacheType;
  CheckBox1.Checked:=FmapType.Defseparator;
@@ -115,7 +115,7 @@ end;
 
 procedure TfrmMapTypeEdit.Button6Click(Sender: TObject);
 begin
- EditURL.Text := FMapType.UrlGenerator.DefURLBase;
+ EditURL.Text := FMapType.RequestBuilderScript.DefURLBase;
 end;
 
 procedure TfrmMapTypeEdit.Button4Click(Sender: TObject);
@@ -149,9 +149,9 @@ begin
 
   Caption:=SAS_STR_EditMap+' '+FmapType.name;
   edtZmp.Text := AMapType.ZmpFileName;
-  EditURL.Text:=FMapType.UrlGenerator.URLBase;
+  EditURL.Text:=FMapType.RequestBuilderScript.URLBase;
   EditNameinCache.Text:=FMapType.TileStorage.CacheConfig.NameInCache;
-  SESleep.Value:=FMapType.DownloaderFactory.WaitInterval;
+  SESleep.Value:=FMapType.WaitInterval;
   EditParSubMenu.Text:=FMapType.ParentSubMenu;
   EditHotKey.HotKey:=FMapType.HotKey;
   CBCacheType.ItemIndex:=FMapType.TileStorage.CacheConfig.cachetype;

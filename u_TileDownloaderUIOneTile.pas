@@ -34,6 +34,7 @@ implementation
 uses
   SysUtils,
   u_GlobalState,
+  i_DownloadResult,
   i_TileDownlodSession,
   u_TileErrorInfo,
   u_ResStrings;
@@ -67,42 +68,43 @@ end;
 
 procedure TTileDownloaderUIOneTile.Execute;
 var
-  ty: string;
-  fileBuf: TMemoryStream;
-  res: TDownloadTileResult;
+  VResult: IDownloadResult;
   VErrorString: string;
+  VResultOk: IDownloadResultOk;
+  VResultDownloadError: IDownloadResultError;
 begin
   if FMapType.UseDwn then begin
-    FileBuf := TMemoryStream.Create;
-    try
       try
-        res := FMapType.DownloadTile(Self, FLoadXY, FZoom, false, 0, FLoadUrl, ty, fileBuf);
-        VErrorString := GetErrStr(res);
-        if (res = dtrOK) or (res = dtrSameTileSize) then begin
-          GState.DownloadInfo.Add(1, fileBuf.Size);
+        VResult := FMapType.DownloadTile(FCancelNotifier, FLoadXY, FZoom, false);
+        if not Terminated then begin
+          VErrorString := '';
+          if Supports(VResult, IDownloadResultOk, VResultOk) then begin
+            GState.DownloadInfo.Add(1, VResultOk.Size);
+          end else if Supports(VResult, IDownloadResultError, VResultDownloadError) then begin
+            VErrorString := VResultDownloadError.ErrorText;
+          end;
         end;
       except
         on E: Exception do begin
           VErrorString := E.Message;
         end;
       end;
-    finally
-      FileBuf.Free;
-    end;
   end else begin
     VErrorString := SAS_ERR_NotLoads;
   end;
-  if VErrorString = '' then begin
-    Synchronize(AfterWriteToFile);
-  end else begin
-    FErrorLogger.LogError(
-      TTileErrorInfo.Create(
-        FMapType,
-        FZoom,
-        FLoadXY,
-        VErrorString
-      )
-    );
+  if not Terminated then begin
+    if VErrorString = '' then begin
+      Synchronize(AfterWriteToFile);
+    end else begin
+      FErrorLogger.LogError(
+        TTileErrorInfo.Create(
+          FMapType,
+          FZoom,
+          FLoadXY,
+          VErrorString
+        )
+      );
+    end;
   end;
 end;
 

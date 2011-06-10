@@ -3,15 +3,22 @@ unit i_TileDownlodSession;
 interface
 
 uses
-  Classes,
-  Types;
+  i_JclNotify,
+  i_DownloadResult,
+  i_DownloadResultFactory,
+  i_DownloadChecker;
 
 type
   TDownloadTileResult = (dtrOK, dtrSameTileSize, dtrErrorInternetOpen, dtrErrorInternetOpenURL, dtrProxyAuthError, dtrErrorMIMEType, dtrDownloadError, dtrTileNotExists, dtrBanError, dtrUnknownError);
 
   ITileDownlodSession = interface
     ['{2F41E328-BD28-4893-AAC5-8DC93FCC2BCF}']
-    function DownloadTile(AUrl, ARequestHead: string; ACheckTileSize: Boolean; AExistsFileSize: Cardinal; fileBuf: TMemoryStream; out AStatusCode: Cardinal; out AContentType, AResponseHead: string): TDownloadTileResult;
+    function DownloadTile(
+      ACancelNotifier: IJclNotifier;
+      AResultFactory: IDownloadResultFactory;
+      AUrl, ARequestHead: string;
+      ADownloadChecker: IDownloadChecker
+    ): IDownloadResult;
   end;
 
   ITileDownlodSessionFactory = interface

@@ -28,6 +28,8 @@ type
     FViewPortState: IViewPortState;
     FErrorLogger: ITileErrorLogger;
     FMapTileUpdateEvent: TMapTileUpdateEvent;
+    FCancelNotifier: IJclNotifier;
+
 
     FTileMaxAgeInInternet: TDateTime;
     FTilesOut: Integer;
@@ -65,8 +67,10 @@ implementation
 uses
   SysUtils,
   ActiveX,
+  u_JclNotify,
   t_GeoTypes,
   u_GlobalState,
+  i_DownloadResult,
   u_JclListenerNotifierLinksList,
   u_NotifyEventListener,
   i_TileIterator,
@@ -86,6 +90,7 @@ var
 begin
   inherited Create(True);
   FConfig := AConfig;
+  FCancelNotifier := TJclBaseNotifier.Create;
   FViewPortState := AViewPortState;
   FMapsSet := AMapsSet;
   FMapTileUpdateEvent := AMapTileUpdateEvent;
@@ -115,15 +120,9 @@ begin
 end;
 
 destructor TTileDownloaderUI.Destroy;
-var
-  VWaitResult: DWORD;
 begin
   FLinksList := nil;
-
-  VWaitResult := WaitForSingleObject(Handle, 10000);
-  if VWaitResult = WAIT_TIMEOUT then begin
-    TerminateThread(Handle, 0);
-  end;
+  FCancelNotifier := nil;
   FMapsSet := nil;
   inherited;
 end;
@@ -157,6 +156,7 @@ procedure TTileDownloaderUI.SendTerminateToThreads;
 begin
   inherited;
   FLinksList.DeactivateLinks;
+  FCancelNotifier.Notify(nil);
   Terminate;
 end;
 
@@ -177,9 +177,9 @@ end;
 
 procedure TTileDownloaderUI.Execute;
 var
-  ty: string;
-  fileBuf: TMemoryStream;
-  res: TDownloadTileResult;
+  VResult: IDownloadResult;
+  VResultOk: IDownloadResultOk;
+  VResultDownloadError: IDownloadResultError;
   VNeedDownload: Boolean;
   VIterator: ITileIterator;
   VTile: TPoint;
@@ -196,7 +196,6 @@ var
   VGUID: TGUID;
   i: Cardinal;
   VMap: IMapType;
-  VLoadUrl: string;
   VIteratorsList: IInterfaceList;
   VMapsList: IInterfaceList;
   VAllIteratorsFinished: Boolean;
@@ -299,13 +298,13 @@ begin
                   end;
                 end;
                 if VNeedDownload then begin
-                  FileBuf := TMemoryStream.Create;
-                  try
                     try
-                      res := FMapType.DownloadTile(Self, FLoadXY, VZoom, false, 0, VLoadUrl, ty, fileBuf);
-                      VErrorString := GetErrStr(res);
-                      if (res = dtrOK) or (res = dtrSameTileSize) then begin
-                        GState.DownloadInfo.Add(1, fileBuf.Size);
+                      VResult := FMapType.DownloadTile(FCancelNotifier, FLoadXY, VZoom, false);
+                      VErrorString := '';
+                      if Supports(VResult, IDownloadResultOk, VResultOk) then begin
+                        GState.DownloadInfo.Add(1, VResultOk.Size);
+                      end else if Supports(VResult, IDownloadResultError, VResultDownloadError) then begin
+                        VErrorString := VResultDownloadError.ErrorText;
                       end;
                     except
                       on E: Exception do begin
@@ -329,9 +328,6 @@ begin
                         )
                       );
                     end;
-                  finally
-                    FileBuf.Free;
-                  end;
                 end;
               end;
             end;

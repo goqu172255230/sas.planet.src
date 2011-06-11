@@ -248,8 +248,8 @@ begin
     VSubItem.WriteInteger('pnum', VMapType.FSortIndex);
     VSubItem.WriteString('name', VMapType.Name);
 
-    if VMapType.UrlGenerator.URLBase <> VMapType.UrlGenerator.DefURLBase then begin
-      VSubItem.WriteString('URLBase', VMapType.UrlGenerator.URLBase);
+    if VMapType.RequestBuilderScript.UrlBase <> VMapType.RequestBuilderScript.DefUrlBase then begin
+      VSubItem.WriteString('URLBase', VMapType.RequestBuilderScript.UrlBase);
     end else begin
       VSubItem.DeleteValue('URLBase');
     end;

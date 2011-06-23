@@ -234,8 +234,12 @@ begin
 
     if VMapType.TileRequestBuilderConfig.URLBase <> VMapType.Zmp.TileRequestBuilderConfig.UrlBase then begin
       VSubItem.WriteString('URLBase', VMapType.TileRequestBuilderConfig.URLBase);
+        VSubItem.WriteString('URLBase', VMapType.RequestBuilderScript.UrlBase);
+      end else begin
+        VSubItem.DeleteValue('URLBase');
+      end;
     end else begin
-      VSubItem.DeleteValue('URLBase');
+      Assert(False, 'Can''t save UrlBase for map: ' + VMapType.ZmpFileName);
     end;
 
     if VMapType.HotKey <> VMapType.Zmp.HotKey then begin
@@ -263,9 +267,12 @@ begin
     end;
 
     if VMapType.TileDownloaderConfig.WaitInterval <> VMapType.Zmp.TileDownloaderConfig.WaitInterval then begin
-      VSubItem.WriteInteger('Sleep', VMapType.TileDownloaderConfig.WaitInterval);
+        VSubItem.WriteInteger('Sleep', VMapType.TileDownloaderConfig.WaitInterval);
+      end else begin
+        VSubItem.DeleteValue('Sleep');
+      end;
     end else begin
-      VSubItem.DeleteValue('Sleep');
+      Assert(False, 'Can''t save Sleep param for map: ' + VMapType.ZmpFileName);
     end;
 
     if VMapType.ParentSubMenu <> VMapType.Zmp.ParentSubMenu then begin

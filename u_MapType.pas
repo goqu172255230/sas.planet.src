@@ -7,91 +7,96 @@ uses
   sysutils,
   Classes,
   Dialogs,
+  Graphics,
+  SyncObjs,
   GR32,
-  i_JclNotify,
-  t_GeoTypes,
   t_CommonTypes,
-  i_ContentTypeInfo,
-  i_ConfigDataProvider,
-  i_TileObjCache,
-  i_DownloadResult,
-  i_TileDownloaderConfig,
-  i_LanguageManager,
-  i_CoordConverter,
-  i_DownloadChecker,
-  i_TileDownlodSession,
-  i_TileRequestBuilderConfig,
-  i_IPoolOfObjectsSimple,
+  t_GeoTypes,
   i_BitmapTypeExtManager,
   i_BitmapTileSaveLoad,
+  i_ContentTypeInfo,
+  i_ConfigDataProvider,
+  i_LanguageManager,
+  i_CoordConverter,
   i_KmlInfoSimpleLoader,
-  i_AntiBan,
-  i_ZmpInfo,
+  i_RequestBuilderScript,
+  i_TileObjCache,
+  i_TileDownloaderConfig,
   i_VectorDataItemSimple,
-  u_UrlGenerator,
+  i_TileDownloader,
   u_MapTypeCacheConfig,
-  u_TileStorageAbstract,
-  u_ResStrings;
+  u_ResStrings,
+  u_TileDownloaderFrontEnd,
+  u_TileStorageAbstract;
 
 type
   EBadGUID = class(Exception);
 
- TMapType = class
-   private
-    FZmp: IZmpInfo;
+  TMapType = class
+  private
+    FGuid: TGUID;
     FName: string;
     FasLayer: boolean;
     FVersion: Variant;
     FTileRect: TRect;
+    FZMPFileName: string;
+    FMapInfo: string;
+    FDefHotKey: TShortCut;
+    FDefSleep: Cardinal;
+    FDefseparator: boolean;
+    FDefParentSubMenu: string;
+    FDefEnabled: boolean;
     FUseDwn: boolean;
     FIsCanShowOnSmMap: Boolean;
     FUseStick: boolean;
     FUseGenPrevious: boolean;
-    FAntiBan: IAntiBan;
+    Fbmp18: TBitmap;
+    Fbmp24: TBitmap;
     FMimeTypeSubstList: TStringList;
     FCache: ITileObjCache;
     FStorage: TTileStorageAbstract;
-    FUrlGenerator : TUrlGeneratorBasic;
+    FRequestBuilderScript : IRequestBuilderScript;
     FBitmapLoaderFromStorage: IBitmapTileLoader;
     FBitmapSaverToStorage: IBitmapTileSaver;
     FKmlLoaderFromStorage: IKmlInfoSimpleLoader;
     FCoordConverter : ICoordConverter;
     FMainCoordConverter : ICoordConverter;
-    FPoolOfDownloaders: IPoolOfObjectsSimple;
+    FTileDownloader: TTileDownloaderFrontEnd;
     FLoadPrevMaxZoomDelta: Integer;
     FContentType: IContentTypeInfoBasic;
     FLanguageManager: ILanguageManager;
     FTileDownloaderConfig: ITileDownloaderConfig;
-    FTileRequestBuilderConfig: ITileRequestBuilderConfig;
 
     function GetUseDwn: Boolean;
+    function GetZmpFileName: string;
     function GetIsCanShowOnSmMap: boolean;
     function GetUseStick: boolean;
     function GetIsCropOnDownload: Boolean;
     function GetIsBitmapTiles: Boolean;
     function GetIsKmlTiles: Boolean;
     function GetIsHybridLayer: Boolean;
+    function GetGUIDString: string;
     function GetMIMETypeSubst(AMimeType: string): string;
     procedure LoadMimeTypeSubstList(AConfig : IConfigDataProvider);
-    procedure LoadUrlScript(AConfig : IConfigDataProvider);
-    procedure LoadDownloader(AConfig : IConfigDataProvider);
+    procedure LoadMapIcons(AConfig : IConfigDataProvider);
     procedure LoadProjectionInfo(AConfig : IConfigDataProvider);
     procedure LoadStorageParams(AConfig : IConfigDataProvider);
     procedure LoadWebSourceParams(AConfig : IConfigDataProvider);
     procedure LoadUIParams(AConfig : IConfigDataProvider);
+    procedure LoadMapInfo(AConfig : IConfigDataProvider);
     procedure SaveTileDownload(AXY: TPoint; Azoom: byte; ATileStream: TCustomMemoryStream; ty: string);
     procedure SaveTileNotExists(AXY: TPoint; Azoom: byte);
     procedure CropOnDownload(ABtm: TCustomBitmap32; ATileSize: TPoint);
     procedure SaveBitmapTileToStorage(AXY: TPoint; Azoom: byte; btm: TCustomBitmap32);
     function LoadBitmapTileFromStorage(AXY: TPoint; Azoom: byte; btm: TCustomBitmap32): Boolean;
     function LoadKmlTileFromStorage(AXY: TPoint; Azoom: byte; var AKml: IVectorDataItemList): boolean;
-    procedure LoadMapType(AConfig : IConfigDataProvider);
+    procedure LoadMapType(AConfig : IConfigDataProvider; Apnum : Integer);
 
     procedure SaveTileKmlDownload(AXY: TPoint; Azoom: byte; ATileStream: TCustomMemoryStream; ty: string);
     procedure SaveTileBitmapDownload(AXY: TPoint; Azoom: byte; ATileStream: TCustomMemoryStream; AMimeType: string);
     function GetUseGenPrevious: boolean;
     function LoadTileFromPreZ(spr: TCustomBitmap32; AXY: TPoint; Azoom: byte; caching: boolean; IgnoreError: Boolean): boolean;
-   public
+  public
     FSortIndex: integer;
     HotKey: TShortCut;
     separator: boolean;
@@ -100,7 +105,6 @@ type
     Enabled: boolean;
 
     function GetLink(AXY: TPoint; Azoom: byte): string;
-    procedure GetRequest(AXY: TPoint; Azoom: byte; out AUrl, AHead: string);
     function GetTileFileName(AXY: TPoint; Azoom: byte): string;
     function GetTileShowName(AXY: TPoint; Azoom: byte): string;
     function TileExists(AXY: TPoint; Azoom: byte): Boolean;
@@ -129,15 +133,12 @@ type
       ATNEColor: TColor32
     ): boolean;
     function GetShortFolderName: string;
-    function DownloadTile(
-      ACancelNotifier: IJclNotifier;
-      ATile: TPoint;
-      AZoom: byte;
-      ACheckTileSize: Boolean
-    ): IDownloadResult;
-    property Zmp: IZmpInfo read FZmp;
+    procedure DownloadTile(AEvent: ITileDownloaderEvent);
+    procedure OnTileDownload(AEvent: ITileDownloaderEvent);
     property GeoConvert: ICoordConverter read FCoordConverter;
     property MainGeoConvert: ICoordConverter read FMainCoordConverter;
+    property GUID: TGUID read FGuid;
+    property GUIDString: string read GetGUIDString;
 
     property asLayer: boolean read FasLayer;
     property IsBitmapTiles: Boolean read GetIsBitmapTiles;
@@ -149,24 +150,33 @@ type
     property UseStick: boolean read GetUseStick;
     property IsCropOnDownload: Boolean read GetIsCropOnDownload;
 
+    property ZmpFileName: string read GetZmpFileName;
+    property bmp18: TBitmap read Fbmp18;
+    property bmp24: TBitmap read Fbmp24;
     property TileStorage: TTileStorageAbstract read FStorage;
+    property RequestBuilderScript: IRequestBuilderScript read FRequestBuilderScript;
+    property MapInfo: string read FMapInfo;
     property Name: string read FName;
+    property DefHotKey: TShortCut read FDefHotKey;
+    property DefSleep: Cardinal read FDefSleep;
+    property Defseparator: boolean read FDefseparator;
+    property DefParentSubMenu: string read FDefParentSubMenu;
+    property DefEnabled: boolean read FDefEnabled;
     property TileDownloaderConfig: ITileDownloaderConfig read FTileDownloaderConfig;
-    property TileRequestBuilderConfig: ITileRequestBuilderConfig read FTileRequestBuilderConfig;
     property Cache: ITileObjCache read FCache;
 
     constructor Create(
       ALanguageManager: ILanguageManager;
-      AZmp: IZmpInfo;
-      AConfig: IConfigDataProvider
+      AGUID: TGUID;
+      AConfig: IConfigDataProvider;
+      Apnum: Integer
     );
     destructor Destroy; override;
- end;
+  end;
 
 type
   TMapUpdateEvent = procedure(AMapType: TMapType) of object;
-  TMapTileUpdateEvent = procedure(AMapType: TMapType; AZoom: Byte;
-    ATile: TPoint) of object;
+  TMapTileUpdateEvent = procedure(AMapType: TMapType; AZoom: Byte; ATile: TPoint) of object;
 
 implementation
 
@@ -174,46 +184,57 @@ uses
   Types,
   GR32_Resamplers,
   KAZip,
+  gnugettext,
   u_GlobalState,
-  i_ObjectWithTTL,
-  i_DownloadResultFactory,
-  i_PoolElement,
+  i_DownloadResult,
   i_TileInfoBasic,
-  u_PoolOfObjectsSimple,
-  u_TileDownloaderConfig,
-  u_TileRequestBuilderConfig,
-  u_TileDownloaderBaseFactory,
-  u_DownloadResultFactoryTileDownload,
-  u_AntiBanStuped,
   u_TileCacheSimpleGlobal,
-  u_DownloadCheckerStuped,
   u_TileStorageGE,
   u_TileStorageFileSystem;
 
-procedure TMapType.LoadUrlScript(AConfig: IConfigDataProvider);
+procedure TMapType.LoadMapIcons(AConfig: IConfigDataProvider);
 var
-  VParams: IConfigDataProvider;
+  VStream:TMemoryStream;
 begin
-  VParams := AConfig.GetSubItem('params.txt').GetSubItem('PARAMS');
-  FTileRequestBuilderConfig.ReadConfig(VParams);
-  if FUseDwn then begin
+  Fbmp24:=TBitmap.create;
+  VStream:=TMemoryStream.Create;
+  try
     try
-      FUrlGenerator := TUrlGenerator.Create(FTileRequestBuilderConfig, AConfig);
-      //GetLink(0,0,0);
+      AConfig.ReadBinaryStream('24.bmp', VStream);
+      VStream.Position:=0;
+      Fbmp24.LoadFromStream(VStream);
     except
-      on E: Exception do begin
-        ShowMessageFmt(SAS_ERR_UrlScriptError, [name, E.Message, Zmp.FileName]);
-        FUrlGenerator := nil;
-        FUseDwn := False;
-      end;
-     else
-      ShowMessageFmt(SAS_ERR_UrlScriptUnexpectedError, [name, Zmp.FileName]);
-      FUrlGenerator := nil;
-      FUseDwn := False;
+      Fbmp24.Canvas.FillRect(Fbmp24.Canvas.ClipRect);
+      Fbmp24.Width:=24;
+      Fbmp24.Height:=24;
+      Fbmp24.Canvas.TextOut(7,3,copy(name,1,1));
     end;
+  finally
+    FreeAndNil(VStream);
   end;
-  if FUrlGenerator = nil then begin
-    FUrlGenerator := TUrlGeneratorBasic.Create(FTileRequestBuilderConfig);
+  Fbmp18:=TBitmap.create;
+  VStream:=TMemoryStream.Create;
+  try
+    try
+      AConfig.ReadBinaryStream('18.bmp', VStream);
+      VStream.Position:=0;
+      Fbmp18.LoadFromStream(VStream);
+    except
+      Fbmp18.Canvas.FillRect(Fbmp18.Canvas.ClipRect);
+      Fbmp18.Width:=18;
+      Fbmp18.Height:=18;
+      Fbmp18.Canvas.TextOut(3,2,copy(name,1,1));
+    end;
+  finally
+    FreeAndNil(VStream);
+  end;
+end;
+
+procedure TMapType.LoadMapInfo(AConfig: IConfigDataProvider);
+begin
+  FMapinfo := AConfig.ReadString('info_'+FLanguageManager.GetCurrentLanguageCode+'.txt', '');
+  if FMapInfo = '' then begin
+    FMapinfo := AConfig.ReadString('info.txt', '');
   end;
 end;
 
@@ -284,6 +305,7 @@ begin
   FTileRect.Right:=VParams.ReadInteger('TileRRight',0);
   FTileRect.Bottom:=VParams.ReadInteger('TileRBottom',0);
 
+  FDefSleep:=VParams.ReadInteger('MAIN:Sleep',0);
   FUseDwn:=VParams.ReadBool('UseDwn',true);
 end;
 
@@ -293,47 +315,28 @@ var
 begin
   VParams := AConfig.GetSubItem('params.txt').GetSubItem('PARAMS');
 
-  FName := Zmp.Name;
+  FName:=VParams.ReadString('name',FName);
+  FName:=VParams.ReadString('name_'+FLanguageManager.GetCurrentLanguageCode,FName);
   FIsCanShowOnSmMap := VParams.ReadBool('CanShowOnSmMap', true);
-  HotKey:=VParams.ReadInteger('HotKey',Zmp.HotKey);
-  ParentSubMenu:=VParams.ReadString('ParentSubMenu', Zmp.ParentSubMenu);
-  separator:=VParams.ReadBool('separator', Zmp.Separator);
-  Enabled:=VParams.ReadBool('Enabled', Zmp.Enabled);
-  FSortIndex:=VParams.ReadInteger('pnum', Zmp.SortIndex);
+  HotKey:=VParams.ReadInteger('HotKey',0);
+  FDefHotKey := VParams.ReadInteger('MAIN:HotKey',0);
+  ParentSubMenu:=VParams.ReadString('ParentSubMenu','');
+  ParentSubMenu:=VParams.ReadString('ParentSubMenu_'+FLanguageManager.GetCurrentLanguageCode,ParentSubMenu);
+  FDefParentSubMenu:=VParams.ReadString('MAIN:ParentSubMenu','');
+  FDefParentSubMenu:=VParams.ReadString('MAIN:ParentSubMenu_' + FLanguageManager.GetCurrentLanguageCode, FDefParentSubMenu);
+  separator:=VParams.ReadBool('separator',false);
+  FDefseparator:=VParams.ReadBool('MAIN:separator',false);
+  Enabled:=VParams.ReadBool('Enabled',true);
+  FDefEnabled:=VParams.ReadBool('MAIN:Enabled',true);
+  FSortIndex:=VParams.ReadInteger('pnum',-1);
 end;
 
-procedure TMapType.LoadDownloader(AConfig: IConfigDataProvider);
-var
-  VParams: IConfigDataProvider;
-  VDownloader: TTileDownloaderFactory;
-begin
-  VParams := AConfig.GetSubItem('params.txt').GetSubItem('PARAMS');
-  FTileDownloaderConfig.ReadConfig(VParams);
-  if FUseDwn then begin
-    try
-      VDownloader := TTileDownloaderFactory.Create(FTileDownloaderConfig);
-      FPoolOfDownloaders :=
-        TPoolOfObjectsSimple.Create(
-          FTileDownloaderConfig.MaxConnectToServerCount,
-          VDownloader,
-          60000,
-          60000
-        );
-      GState.GCThread.List.AddObject(FPoolOfDownloaders as IObjectWithTTL);
-      FAntiBan := TAntiBanStuped.Create(AConfig);
-    except
-      if ExceptObject <> nil then begin
-        ShowMessageFmt(SAS_ERR_MapDownloadByError,[ZMP.FileName, (ExceptObject as Exception).Message]);
-      end;
-      FUseDwn := false;
-    end;
-  end;
-end;
-
-procedure TMapType.LoadMapType(AConfig: IConfigDataProvider);
+procedure TMapType.LoadMapType(AConfig: IConfigDataProvider; Apnum: Integer);
 var
   VParams: IConfigDataProvider;
 begin
+  FName:='map#'+inttostr(Apnum);
+  FZMPFileName := AConfig.ReadString(':::FileName', FName);
   VParams := AConfig.GetSubItem('params.txt').GetSubItem('PARAMS');
   FasLayer:= VParams.ReadBool('asLayer', false);
   LoadUIParams(AConfig);
@@ -344,26 +347,20 @@ begin
     showinfo := False;
   end;
 
+  LoadMapInfo(AConfig);
   LoadStorageParams(AConfig);
   LoadProjectionInfo(AConfig);
+  LoadMapIcons(AConfig);
   LoadWebSourceParams(AConfig);
   FUsestick:=VParams.ReadBool('Usestick',true);
   FUseGenPrevious:=VParams.ReadBool('UseGenPrevious',true);
   LoadMimeTypeSubstList(AConfig);
-  LoadUrlScript(AConfig);
-  LoadDownloader(AConfig);
 end;
 
 function TMapType.GetLink(AXY: TPoint; Azoom: byte): string;
 begin
   FCoordConverter.CheckTilePosStrict(AXY, Azoom, True);
-  Result:=FUrlGenerator.GenLink(AXY.X, AXY.Y, Azoom);
-end;
-
-procedure TMapType.GetRequest(AXY: TPoint; Azoom: byte; out AUrl, AHead: string);
-begin
-  FCoordConverter.CheckTilePosStrict(AXY, Azoom, True);
-  FUrlGenerator.GenRequest(AXY.X, AXY.Y, Azoom, AUrl, AHead);
+  Result:=FRequestBuilderScript.GenRequestUrl(AXY, AZoom);
 end;
 
 function TMapType.GetTileFileName(AXY: TPoint; Azoom: byte): string;
@@ -596,103 +593,78 @@ end;
 
 constructor TMapType.Create(
   ALanguageManager: ILanguageManager;
-  AZmp: IZmpInfo;
-  AConfig: IConfigDataProvider
+  AGUID: TGUID;
+  AConfig: IConfigDataProvider;
+  Apnum: Integer
 );
 begin
-  FZmp := AZmp;
+  FGuid := AGUID;
   FLanguageManager := ALanguageManager;
   FMimeTypeSubstList := nil;
-  FTileDownloaderConfig := TTileDownloaderConfig.Create(GState.InetConfig, Zmp.TileDownloaderConfig);
-  FTileRequestBuilderConfig := TTileRequestBuilderConfig.Create(Zmp.TileRequestBuilderConfig);
-  LoadMapType(AConfig);
+  LoadMapType(AConfig, Apnum);
   if FasLayer then begin
     FLoadPrevMaxZoomDelta := 4;
   end else begin
     FLoadPrevMaxZoomDelta := 6;
+  end;
+
+  FRequestBuilderScript := nil;
+  FTileDownloaderConfig := nil;
+  FTileDownloader := TTileDownloaderFrontEnd.Create(AConfig, FZMPFileName);
+  if Assigned(FTileDownloader) then begin
+    FUseDwn := FTileDownloader.UseDwn;
+    FRequestBuilderScript := FTileDownloader.RequestBuilderScript;
+    FTileDownloaderConfig := FTileDownloader.TileDownloaderConfig;
   end;
 end;
 
 destructor TMapType.Destroy;
 begin
   FreeAndNil(FMimeTypeSubstList);
-  FreeAndNil(FUrlGenerator);
+  FreeAndNil(Fbmp18);
+  FreeAndNil(Fbmp24);
   FCoordConverter := nil;
-  FPoolOfDownloaders := nil;
   FCache := nil;
   FreeAndNil(FStorage);
+  FreeAndNil(FTileDownloader);
   inherited;
 end;
 
-function TMapType.DownloadTile(
-  ACancelNotifier: IJclNotifier;
-  ATile: TPoint;
-  AZoom: byte;
-  ACheckTileSize: Boolean
-): IDownloadResult;
+procedure TMapType.OnTileDownload(AEvent: ITileDownloaderEvent);
 var
-  VPoolElement: IPoolElement;
-  VDownloader: ITileDownlodSession;
-  VRequestHead: string;
-  VDownloadChecker: IDownloadChecker;
-  VConfig: ITileDownloaderConfigStatic;
-  VResultFactory: IDownloadResultFactory;
   VResultOk: IDownloadResultOk;
-  VUrl: string;
-  VOldTileSize: Integer;
-  VResultStream: TMemoryStream;
 begin
-  if Self.UseDwn then begin
-    VRequestHead := '';
-    VOldTileSize := FStorage.GetTileInfo(ATile, AZoom, FVersion).GetSize;
-    GetRequest(ATile, AZoom, VUrl, VRequestHead);
-    VResultFactory := TDownloadResultFactoryTileDownload.Create(GState.DownloadResultTextProvider, AZoom, ATile, Self, VUrl, VRequestHead);
-    if VUrl = '' then begin
-      Result := VResultFactory.BuildCanceled;
-    end else begin
-      VPoolElement := FPoolOfDownloaders.TryGetPoolElement(60000);
-      if VPoolElement = nil then begin
-        raise Exception.Create('No free connections');
-      end;
-      VDownloader := VPoolElement.GetObject as ITileDownlodSession;
-      if FAntiBan <> nil then begin
-        FAntiBan.PreDownload(VDownloader, ATile, AZoom, VUrl);
-      end;
-      VConfig := FTileDownloaderConfig.GetStatic;
-      VDownloadChecker := TDownloadCheckerStuped.Create(
-        VResultFactory,
-        VConfig.IgnoreMIMEType,
-        VConfig.ExpectedMIMETypes,
-        VConfig.DefaultMIMEType,
-        ACheckTileSize,
-        VOldTileSize
-      );
-      Result := VDownloader.DownloadTile(ACancelNotifier, VResultFactory, VUrl, VRequestHead, VDownloadChecker);
-      if FAntiBan <> nil then begin
-        Result :=
-          FAntiBan.PostCheckDownload(
-            VResultFactory,
-            VDownloader,
-            Result
-          );
-      end;
-    end;
-    if Supports(Result, IDownloadResultOk, VResultOk) then begin
-      FUrlGenerator.ResponseHead := VResultOk.RawResponseHeader;
-      VResultStream := TMemoryStream.Create;
-      try
-        VResultStream.WriteBuffer(VResultOk.Buffer^, VResultOk.Size);
-        SaveTileDownload(ATile, AZoom, VResultStream, VResultOk.ContentType);
-      finally
-        VResultStream.Free;
-      end;
-    end else if Supports(Result, IDownloadResultDataNotExists) then begin
+  if Assigned(AEvent) then begin
+    if Supports(AEvent.DownloadResult, IDownloadResultOk, VResultOk) then begin
+      SaveTileDownload(AEvent.TileXY, AEvent.TileZoom, AEvent.TileStream, AEvent.TileMIME);
+    end else if Supports(AEvent.DownloadResult, IDownloadResultDataNotExists) then begin
       if GState.SaveTileNotExists then begin
-        SaveTileNotExists(ATile, AZoom);
+        SaveTileNotExists(AEvent.TileXY, AEvent.TileZoom);
       end;
     end;
-  end else begin
-    raise Exception.Create('Для этой карты загрузка запрещена.');
+  end;
+end;
+
+procedure TMapType.DownloadTile(AEvent: ITileDownloaderEvent);
+var
+  VTile: TPoint;
+  VZoom: Byte;
+begin
+  if Assigned(AEvent) then begin
+    if Self.UseDwn then begin
+      VTile := AEvent.TileXY;
+      VZoom := AEvent.TileZoom;
+      FCoordConverter.CheckTilePosStrict(VTile, VZoom, True);
+      AEvent.TileXY := VTile;
+      AEvent.TileZoom := VZoom;
+      if AEvent.CheckTileSize then begin
+        AEvent.OldTileSize := FStorage.GetTileInfo(VTile, VZoom, FVersion).GetSize;
+      end;
+      AEvent.AddToCallBackList(Self.OnTileDownload);
+      FTileDownloader.Download(AEvent);
+    end else begin
+      raise Exception.Create( _('Для этой карты загрузка запрещена.') );
+    end;
   end;
 end;
 
@@ -722,6 +694,11 @@ begin
       Result := FUseGenPrevious;
     end;
   end;
+end;
+
+function TMapType.GetZmpFileName: string;
+begin
+  Result := ExtractFileName(FZMPFileName);
 end;
 
 function TMapType.GetUseStick: boolean;
@@ -790,6 +767,11 @@ end;
 function TMapType.GetIsHybridLayer: Boolean;
 begin
   Result := IsBitmapTiles and asLayer;
+end;
+
+function TMapType.GetGUIDString: string;
+begin
+  Result := GUIDToString(FGuid);
 end;
 
 function TMapType.GetMIMETypeSubst(AMimeType: string): string;

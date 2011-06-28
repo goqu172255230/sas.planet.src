@@ -233,7 +233,7 @@ begin
     VSubItem.WriteString('name', VMapType.Name);
 
     if VMapType.TileRequestBuilderConfig.URLBase <> VMapType.Zmp.TileRequestBuilderConfig.UrlBase then begin
-      VSubItem.WriteString('URLBase', VMapType.TileRequestBuilderConfig.URLBase);
+      VSubItem.WriteString('URLBase', VMapType.TileRequestBuilderConfig.URLBase)
     end else begin
       VSubItem.DeleteValue('URLBase');
     end;
@@ -263,7 +263,7 @@ begin
     end;
 
     if VMapType.TileDownloaderConfig.WaitInterval <> VMapType.Zmp.TileDownloaderConfig.WaitInterval then begin
-      VSubItem.WriteInteger('Sleep', VMapType.TileDownloaderConfig.WaitInterval);
+        VSubItem.WriteInteger('Sleep', VMapType.TileDownloaderConfig.WaitInterval);
     end else begin
       VSubItem.DeleteValue('Sleep');
     end;

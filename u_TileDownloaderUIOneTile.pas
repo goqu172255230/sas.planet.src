@@ -5,20 +5,15 @@ interface
 uses
   Windows,
   Classes,
-  Types,
   i_TileError,
-  i_DownloadInfoSimple,
-  u_TileDownloaderThreadBase,
-  u_MapType;
+  u_MapType,
+  u_TileDownloaderThread;
 
 type
-  TTileDownloaderUIOneTile = class(TTileDownloaderThreadBase)
+  TTileDownloaderUIOneTile = class(TTileDownloaderThread)
   private
-    FMapTileUpdateEvent: TMapTileUpdateEvent;
-    FErrorLogger: ITileErrorLogger;
-    FDownloadInfo: IDownloadInfoSimple;
-
-    procedure AfterWriteToFile;
+    FLoadXY: TPoint;
+    FZoom: Byte;
   protected
     procedure Execute; override;
   public
@@ -26,88 +21,43 @@ type
       AXY: TPoint;
       AZoom: byte;
       AMapType: TMapType;
-      ADownloadInfo: IDownloadInfoSimple;
       AMapTileUpdateEvent: TMapTileUpdateEvent;
       AErrorLogger: ITileErrorLogger
-    ); overload;
+    );
   end;
 
 implementation
 
 uses
   SysUtils,
-  i_DownloadResult,
-  u_TileErrorInfo,
-  u_ResStrings;
+  u_TileErrorInfo;
 
 constructor TTileDownloaderUIOneTile.Create(
   AXY: TPoint;
   AZoom: byte;
   AMapType: TMapType;
-  ADownloadInfo: IDownloadInfoSimple;
   AMapTileUpdateEvent: TMapTileUpdateEvent;
   AErrorLogger: ITileErrorLogger
 );
 begin
-  inherited Create(False);
-  FMapTileUpdateEvent := AMapTileUpdateEvent;
-  FDownloadInfo := ADownloadInfo;
-  FErrorLogger := AErrorLogger;
+  inherited Create(False, AMapTileUpdateEvent, AErrorLogger, 1);
+  FMapType := AMapType;
   FLoadXY := AXY;
   FZoom := AZoom;
-  FMapType := AMapType;
-
   Priority := tpLower;
-  FreeOnTerminate := true;
+  FreeOnTerminate := True;
   randomize;
 end;
 
-procedure TTileDownloaderUIOneTile.AfterWriteToFile;
-begin
-  if Addr(FMapTileUpdateEvent) <> nil then begin
-    FMapTileUpdateEvent(FMapType, FZoom, FLoadXY);
-  end;
-end;
 
 procedure TTileDownloaderUIOneTile.Execute;
-var
-  VResult: IDownloadResult;
-  VErrorString: string;
-  VResultOk: IDownloadResultOk;
-  VResultDownloadError: IDownloadResultError;
 begin
-  if FMapType.UseDwn then begin
-      try
-        VResult := FMapType.DownloadTile(FCancelNotifier, FLoadXY, FZoom, false);
-        if not Terminated then begin
-          VErrorString := '';
-          if Supports(VResult, IDownloadResultOk, VResultOk) then begin
-            FDownloadInfo.Add(1, VResultOk.Size);
-          end else if Supports(VResult, IDownloadResultError, VResultDownloadError) then begin
-            VErrorString := VResultDownloadError.ErrorText;
-          end;
-        end;
-      except
-        on E: Exception do begin
-          VErrorString := E.Message;
-        end;
-      end;
-  end else begin
-    VErrorString := SAS_ERR_NotLoads;
-  end;
-  if not Terminated then begin
-    if VErrorString = '' then begin
-      Synchronize(AfterWriteToFile);
-    end else begin
-      FErrorLogger.LogError(
-        TTileErrorInfo.Create(
-          FMapType,
-          FZoom,
-          FLoadXY,
-          VErrorString
-        )
-      );
-    end;
+  if FMapType.UseDwn then
+  try
+    Download(FLoadXY, FZoom, OnTileDownload);
+  except
+    on E: Exception do
+      FErrorLogger.LogError( TTileErrorInfo.Create(FMapType, FZoom, FLoadXY, E.Message) );
   end;
 end;
 

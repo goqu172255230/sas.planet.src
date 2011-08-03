@@ -20,10 +20,10 @@ uses
   i_MapTypes,
   i_DownloadUIConfig,
   u_MapType,
-  u_TileDownloaderThreadBase;
+  u_TileDownloaderThread;
 
 type
-  TTileDownloaderUI = class(TTileDownloaderThreadBase)
+  TTileDownloaderUI = class(TTileDownloaderThread)
   private
     FConfig: IDownloadUIConfig;
     FMapsSet: IActiveMapsSet;
@@ -48,7 +48,7 @@ type
     FLoadXY: TPoint;
 
     procedure GetCurrentMapAndPos;
-    procedure AfterWriteToFile;
+    //procedure AfterWriteToFile;
     procedure OnPosChange(Sender: TObject);
     procedure OnConfigChange(Sender: TObject);
   protected
@@ -66,6 +66,9 @@ type
     procedure StartThreads;
     procedure SendTerminateToThreads;
   end;
+
+const
+  MaxThreadsUICount = 8;
 
 implementation
 
@@ -92,7 +95,7 @@ constructor TTileDownloaderUI.Create(
 var
   VChangePosListener: IJclListener;
 begin
-  inherited Create(True);
+  inherited Create(True, AMapTileUpdateEvent, AErrorLogger, MaxThreadsUICount);
   FConfig := AConfig;
 
   FCancelNotifierInternal := TOperationCancelNotifier.Create;
@@ -176,18 +179,18 @@ begin
   Resume;
 end;
 
-procedure TTileDownloaderUI.AfterWriteToFile;
-begin
-  if Addr(FMapTileUpdateEvent) <> nil then begin
-    FMapTileUpdateEvent(FMapType, FVisualCoordConverter.GetZoom, FLoadXY);
-  end;
-end;
+//procedure TTileDownloaderUI.AfterWriteToFile;
+//begin
+//  if Addr(FMapTileUpdateEvent) <> nil then begin
+//    FMapTileUpdateEvent(FMapType, FVisualCoordConverter.GetZoom, FLoadXY);
+//  end;
+//end;
 
 procedure TTileDownloaderUI.Execute;
 var
-  VResult: IDownloadResult;
-  VResultOk: IDownloadResultOk;
-  VResultDownloadError: IDownloadResultError;
+//  VResult: IDownloadResult;
+//  VResultOk: IDownloadResultOk;
+//  VResultDownloadError: IDownloadResultError;
   VNeedDownload: Boolean;
   VIterator: ITileIterator;
   VTile: TPoint;
@@ -207,7 +210,7 @@ var
   VIteratorsList: IInterfaceList;
   VMapsList: IInterfaceList;
   VAllIteratorsFinished: Boolean;
-  VErrorString: string;
+//  VErrorString: string;
 begin
   VIteratorsList := TInterfaceList.Create;
   VMapsList := TInterfaceList.Create;
@@ -306,36 +309,15 @@ begin
                   end;
                 end;
                 if VNeedDownload then begin
-                    try
-                      VResult := FMapType.DownloadTile(FCancelNotifier, FLoadXY, VZoom, false);
-                      VErrorString := '';
-                      if Supports(VResult, IDownloadResultOk, VResultOk) then begin
-                        FDownloadInfo.Add(1, VResultOk.Size);
-                      end else if Supports(VResult, IDownloadResultError, VResultDownloadError) then begin
-                        VErrorString := VResultDownloadError.ErrorText;
-                      end;
-                    except
-                      on E: Exception do begin
-                        VErrorString := E.Message;
-                      end;
-                    else
-                      VErrorString := SAS_ERR_TileDownloadUnexpectedError;
-                    end;
-                    if Terminated then begin
-                      break;
-                    end;
-                    if VErrorString = '' then begin
-                      Synchronize(AfterWriteToFile);
-                    end else begin
-                      FErrorLogger.LogError(
-                        TTileErrorInfo.Create(
-                          FMapType,
-                          VZoom,
-                          FLoadXY,
-                          VErrorString
-                        )
-                      );
-                    end;
+                  try
+                    Download(VTile, VZoom, OnTileDownload, False, FCancelNotifier);
+                  except
+                    on E:Exception do
+                      FErrorLogger.LogError( TTileErrorInfo.Create(FMapType, VZoom, VTile, E.Message) );
+                  end;
+                  if Terminated then begin
+                    break;
+                  end;
                 end;
               end;
             end;

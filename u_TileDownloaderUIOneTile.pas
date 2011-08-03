@@ -8,17 +8,18 @@ uses
   Types,
   i_TileError,
   i_DownloadInfoSimple,
-  u_TileDownloaderThreadBase,
+  u_TileDownloaderThread,
   u_MapType;
 
 type
-  TTileDownloaderUIOneTile = class(TTileDownloaderThreadBase)
+  TTileDownloaderUIOneTile = class(TTileDownloaderThread)
   private
-    FMapTileUpdateEvent: TMapTileUpdateEvent;
+    //FMapTileUpdateEvent: TMapTileUpdateEvent;
     FErrorLogger: ITileErrorLogger;
     FDownloadInfo: IDownloadInfoSimple;
-
-    procedure AfterWriteToFile;
+    FLoadXY: TPoint;
+    FZoom: Byte;
+    //procedure AfterWriteToFile;
   protected
     procedure Execute; override;
   public
@@ -49,8 +50,8 @@ constructor TTileDownloaderUIOneTile.Create(
   AErrorLogger: ITileErrorLogger
 );
 begin
-  inherited Create(False);
-  FMapTileUpdateEvent := AMapTileUpdateEvent;
+  inherited Create(False, AMapTileUpdateEvent, AErrorLogger, 1);
+  //FMapTileUpdateEvent := AMapTileUpdateEvent;
   FDownloadInfo := ADownloadInfo;
   FErrorLogger := AErrorLogger;
   FLoadXY := AXY;
@@ -62,52 +63,21 @@ begin
   randomize;
 end;
 
-procedure TTileDownloaderUIOneTile.AfterWriteToFile;
-begin
-  if Addr(FMapTileUpdateEvent) <> nil then begin
-    FMapTileUpdateEvent(FMapType, FZoom, FLoadXY);
-  end;
-end;
+//procedure TTileDownloaderUIOneTile.AfterWriteToFile;
+//begin
+//  if Addr(FMapTileUpdateEvent) <> nil then begin
+//    FMapTileUpdateEvent(FMapType, FZoom, FLoadXY);
+//  end;
+//end;
 
 procedure TTileDownloaderUIOneTile.Execute;
-var
-  VResult: IDownloadResult;
-  VErrorString: string;
-  VResultOk: IDownloadResultOk;
-  VResultDownloadError: IDownloadResultError;
 begin
-  if FMapType.UseDwn then begin
-      try
-        VResult := FMapType.DownloadTile(FCancelNotifier, FLoadXY, FZoom, false);
-        if not Terminated then begin
-          VErrorString := '';
-          if Supports(VResult, IDownloadResultOk, VResultOk) then begin
-            FDownloadInfo.Add(1, VResultOk.Size);
-          end else if Supports(VResult, IDownloadResultError, VResultDownloadError) then begin
-            VErrorString := VResultDownloadError.ErrorText;
-          end;
-        end;
-      except
-        on E: Exception do begin
-          VErrorString := E.Message;
-        end;
-      end;
-  end else begin
-    VErrorString := SAS_ERR_NotLoads;
-  end;
-  if not Terminated then begin
-    if VErrorString = '' then begin
-      Synchronize(AfterWriteToFile);
-    end else begin
-      FErrorLogger.LogError(
-        TTileErrorInfo.Create(
-          FMapType,
-          FZoom,
-          FLoadXY,
-          VErrorString
-        )
-      );
-    end;
+  if FMapType.UseDwn then
+  try
+    Download(FLoadXY, FZoom, OnTileDownload, False, FCancelNotifier);
+  except
+    on E: Exception do
+      FErrorLogger.LogError( TTileErrorInfo.Create(FMapType, FZoom, FLoadXY, E.Message) );
   end;
 end;
 

@@ -380,6 +380,10 @@
       <Form>frExportYaMaps</Form>
       <DesignClass>TFrame</DesignClass>
     </DCCReference>
+    <DCCReference Include="RegionProcess\fr_ExportYaMapsNew.pas">
+      <Form>frExportYaMapsNew</Form>
+      <DesignClass>TFrame</DesignClass>
+    </DCCReference>
     <DCCReference Include="RegionProcess\fr_MapCombine.pas">
       <Form>frMapCombine</Form>
       <DesignClass>TFrame</DesignClass>
@@ -423,7 +427,9 @@
     <DCCReference Include="RegionProcess\u_ThreadExportToTar.pas" />
     <DCCReference Include="RegionProcess\u_ThreadExportToZip.pas" />
     <DCCReference Include="RegionProcess\u_ThreadExportYaMaps.pas" />
-    <DCCReference Include="RegionProcess\u_ThreadExportYaMapsNew.pas" />
+    <DCCReference Include="RegionProcess\u_ThreadExportYaMapsNew.pas">
+      <Form>$R .\Resources\VersionInfo.res</Form>
+    </DCCReference>
     <DCCReference Include="RegionProcess\u_ThreadGenPrevZoom.pas" />
     <DCCReference Include="RegionProcess\u_ThreadMapCombineBase.pas" />
     <DCCReference Include="RegionProcess\u_ThreadMapCombineBMP.pas" />

@@ -1,23 +1,3 @@
-{******************************************************************************}
-{* SAS.Planet (SAS.Планета)                                                   *}
-{* Copyright (C) 2007-2011, SAS.Planet development team.                      *}
-{* This program is free software: you can redistribute it and/or modify       *}
-{* it under the terms of the GNU General Public License as published by       *}
-{* the Free Software Foundation, either version 3 of the License, or          *}
-{* (at your option) any later version.                                        *}
-{*                                                                            *}
-{* This program is distributed in the hope that it will be useful,            *}
-{* but WITHOUT ANY WARRANTY; without even the implied warranty of             *}
-{* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the              *}
-{* GNU General Public License for more details.                               *}
-{*                                                                            *}
-{* You should have received a copy of the GNU General Public License          *}
-{* along with this program.  If not, see <http://www.gnu.org/licenses/>.      *}
-{*                                                                            *}
-{* http://sasgis.ru                                                           *}
-{* az@sasgis.ru                                                               *}
-{******************************************************************************}
-
 unit u_TileDownloaderUI;
 
 interface
@@ -29,8 +9,8 @@ uses
   i_JclNotify,
   i_JclListenerNotifierLinksList,
   t_CommonTypes,
-  i_OperationNotifier,
-  u_OperationNotifier,
+  i_OperationCancelNotifier,
+  u_OperationCancelNotifier,
   i_CoordConverter,
   i_LocalCoordConverter,
   i_TileError,
@@ -40,10 +20,10 @@ uses
   i_MapTypes,
   i_DownloadUIConfig,
   u_MapType,
-  u_TileDownloaderThreadBase;
+  u_TileDownloaderThread;
 
 type
-  TTileDownloaderUI = class(TTileDownloaderThreadBase)
+  TTileDownloaderUI = class(TTileDownloaderThread)
   private
     FConfig: IDownloadUIConfig;
     FMapsSet: IActiveMapsSet;
@@ -51,8 +31,8 @@ type
     FViewPortState: IViewPortState;
     FErrorLogger: ITileErrorLogger;
     FMapTileUpdateEvent: TMapTileUpdateEvent;
-    FCancelNotifierInternal: IOperationNotifierInternal;
-    FCancelNotifier: IOperationNotifier;
+    FCancelNotifierInternal: TOperationCancelNotifier;
+    FCancelNotifier: IOperationCancelNotifier;
 
 
     FTileMaxAgeInInternet: TDateTime;
@@ -68,7 +48,7 @@ type
     FLoadXY: TPoint;
 
     procedure GetCurrentMapAndPos;
-    procedure AfterWriteToFile;
+    //procedure AfterWriteToFile;
     procedure OnPosChange(Sender: TObject);
     procedure OnConfigChange(Sender: TObject);
   protected
@@ -86,6 +66,9 @@ type
     procedure StartThreads;
     procedure SendTerminateToThreads;
   end;
+
+const
+  MaxThreadsUICount = 32;
 
 implementation
 
@@ -111,14 +94,12 @@ constructor TTileDownloaderUI.Create(
 );
 var
   VChangePosListener: IJclListener;
-  VOperationNotifier: TOperationNotifier;
 begin
-  inherited Create(True);
+  inherited Create(True, AMapTileUpdateEvent, AErrorLogger, MaxThreadsUICount);
   FConfig := AConfig;
 
-  VOperationNotifier := TOperationNotifier.Create;
-  FCancelNotifierInternal := VOperationNotifier;
-  FCancelNotifier := VOperationNotifier;
+  FCancelNotifierInternal := TOperationCancelNotifier.Create;
+  FCancelNotifier := FCancelNotifierInternal;
 
   FViewPortState := AViewPortState;
   FMapsSet := AMapsSet;
@@ -186,7 +167,7 @@ procedure TTileDownloaderUI.SendTerminateToThreads;
 begin
   inherited;
   FLinksList.DeactivateLinks;
-  FCancelNotifierInternal.NextOperation;
+  FCancelNotifierInternal.SetCanceled;
   Terminate;
 end;
 
@@ -198,18 +179,18 @@ begin
   Resume;
 end;
 
-procedure TTileDownloaderUI.AfterWriteToFile;
-begin
-  if Addr(FMapTileUpdateEvent) <> nil then begin
-    FMapTileUpdateEvent(FMapType, FVisualCoordConverter.GetZoom, FLoadXY);
-  end;
-end;
+//procedure TTileDownloaderUI.AfterWriteToFile;
+//begin
+//  if Addr(FMapTileUpdateEvent) <> nil then begin
+//    FMapTileUpdateEvent(FMapType, FVisualCoordConverter.GetZoom, FLoadXY);
+//  end;
+//end;
 
 procedure TTileDownloaderUI.Execute;
 var
-  VResult: IDownloadResult;
-  VResultOk: IDownloadResultOk;
-  VResultDownloadError: IDownloadResultError;
+//  VResult: IDownloadResult;
+//  VResultOk: IDownloadResultOk;
+//  VResultDownloadError: IDownloadResultError;
   VNeedDownload: Boolean;
   VIterator: ITileIterator;
   VTile: TPoint;
@@ -229,8 +210,7 @@ var
   VIteratorsList: IInterfaceList;
   VMapsList: IInterfaceList;
   VAllIteratorsFinished: Boolean;
-  VErrorString: string;
-  VOperatonID: Integer;
+//  VErrorString: string;
 begin
   VIteratorsList := TInterfaceList.Create;
   VMapsList := TInterfaceList.Create;
@@ -281,7 +261,7 @@ begin
             VMap := VActiveMapsSet.GetMapTypeByGUID(VGUID);
             if VMap <> nil then begin
               FMapType := VMap.MapType;
-              if FMapType.Abilities.UseDownload then begin
+              if FMapType.UseDwn then begin
                 VMapGeoConverter := FMapType.GeoConvert;
                 VLonLatRectInMap := VLonLatRect;
                 VMapGeoConverter.CheckLonLatRect(VLonLatRectInMap);
@@ -328,41 +308,16 @@ begin
                     end;
                   end;
                 end;
-                VOperatonID := FCancelNotifier.CurrentOperation;
                 if VNeedDownload then begin
-                    VErrorString := '';
-                    try
-                      VResult := FMapType.DownloadTile(VOperatonID, FCancelNotifier, FLoadXY, VZoom, false);
-                      if Terminated then begin
-                        break;
-                      end;
-                      if Supports(VResult, IDownloadResultOk, VResultOk) then begin
-                        FDownloadInfo.Add(1, VResultOk.Size);
-                        Synchronize(AfterWriteToFile);
-                      end else if Supports(VResult, IDownloadResultError, VResultDownloadError) then begin
-                        VErrorString := VResultDownloadError.ErrorText;
-                      end;
-                    except
-                      on E: Exception do begin
-                        VErrorString := E.Message;
-                      end;
-                    else
-                      VErrorString := SAS_ERR_TileDownloadUnexpectedError;
-                    end;
-                    if Terminated then begin
-                      break;
-                    end;
-
-                    if VErrorString <> '' then begin
-                      FErrorLogger.LogError(
-                        TTileErrorInfo.Create(
-                          FMapType,
-                          VZoom,
-                          FLoadXY,
-                          VErrorString
-                        )
-                      );
-                    end;
+                  try
+                    Download(VTile, VZoom, OnTileDownload, False, FCancelNotifier);
+                  except
+                    on E:Exception do
+                      FErrorLogger.LogError( TTileErrorInfo.Create(FMapType, VZoom, VTile, E.Message) );
+                  end;
+                  if Terminated then begin
+                    break;
+                  end;
                 end;
               end;
             end;

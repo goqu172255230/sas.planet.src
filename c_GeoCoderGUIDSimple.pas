@@ -1,0 +1,34 @@
+{******************************************************************************}
+{* SAS.Planet (SAS.Планета)                                                   *}
+{* Copyright (C) 2007-2011, SAS.Planet development team.                      *}
+{* This program is free software: you can redistribute it and/or modify       *}
+{* it under the terms of the GNU General Public License as published by       *}
+{* the Free Software Foundation, either version 3 of the License, or          *}
+{* (at your option) any later version.                                        *}
+{*                                                                            *}
+{* This program is distributed in the hope that it will be useful,            *}
+{* but WITHOUT ANY WARRANTY; without even the implied warranty of             *}
+{* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the              *}
+{* GNU General Public License for more details.                               *}
+{*                                                                            *}
+{* You should have received a copy of the GNU General Public License          *}
+{* along with this program.  If not, see <http://www.gnu.org/licenses/>.      *}
+{*                                                                            *}
+{* http://sasgis.ru                                                           *}
+{* az@sasgis.ru                                                               *}
+{******************************************************************************}
+
+unit c_GeoCoderGUIDSimple;
+
+interface
+
+const
+  CGeoCoderGoogleGUID: TGUID = '{012C3CBF-9EDF-44F1-B728-346C9585A95C}';
+  CGeoCoderYandexGUID: TGUID = '{67496A88-0531-4C1D-9FF1-81F20683B38B}';
+  CGeoCoder2GISGUID: TGUID = '{B0D90300-565D-4152-9642-7BE3DDDA391B}';
+  CGeoCoderOSMGUID: TGUID = '{2CF10192-3F54-4E0E-9B4E-9957BBF599E6}';
+  CGeoCoderWikiMapiaGUID: TGUID = '{C1761C40-58A9-4128-B079-1AD1F5513B4F}';
+
+implementation
+
+end.

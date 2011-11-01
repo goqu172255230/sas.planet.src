@@ -1,0 +1,91 @@
+{******************************************************************************}
+{* SAS.Planet (SAS.Планета)                                                   *}
+{* Copyright (C) 2007-2011, SAS.Planet development team.                      *}
+{* This program is free software: you can redistribute it and/or modify       *}
+{* it under the terms of the GNU General Public License as published by       *}
+{* the Free Software Foundation, either version 3 of the License, or          *}
+{* (at your option) any later version.                                        *}
+{*                                                                            *}
+{* This program is distributed in the hope that it will be useful,            *}
+{* but WITHOUT ANY WARRANTY; without even the implied warranty of             *}
+{* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the              *}
+{* GNU General Public License for more details.                               *}
+{*                                                                            *}
+{* You should have received a copy of the GNU General Public License          *}
+{* along with this program.  If not, see <http://www.gnu.org/licenses/>.      *}
+{*                                                                            *}
+{* http://sasgis.ru                                                           *}
+{* az@sasgis.ru                                                               *}
+{******************************************************************************}
+
+unit u_ContentTypeListByKey;
+
+interface
+
+uses
+  Classes,
+  i_ContentTypeInfo;
+
+type
+  TContentTypeListByKey = class
+  private
+    FList: TStringList;
+  public
+    constructor Create;
+    destructor Destroy; override;
+    procedure Add(AKey: string; AType: IContentTypeInfoBasic);
+    function Get(AKey: string):  IContentTypeInfoBasic;
+    function GetEnumerator: TStringsEnumerator;
+  end;
+
+
+implementation
+
+uses
+  SysUtils;
+
+{ TContentTypeListByKey }
+
+procedure TContentTypeListByKey.Add(AKey: string; AType: IContentTypeInfoBasic);
+begin
+  AType._AddRef;
+  FList.AddObject(AKey, Pointer(AType));
+end;
+
+constructor TContentTypeListByKey.Create;
+begin
+  FList := TStringList.Create;
+  FList.Sorted := True;
+  FList.Duplicates := dupError;
+end;
+
+destructor TContentTypeListByKey.Destroy;
+var
+  i: Integer;
+begin
+  if FList <> nil then begin
+    for i := 0 to FList.Count - 1 do begin
+      IInterface(Pointer(FList.Objects[i]))._Release;
+    end;
+    FreeAndNil(FList);
+  end;
+  inherited;
+end;
+
+function TContentTypeListByKey.Get(AKey: string): IContentTypeInfoBasic;
+var
+  VIndex: Integer;
+begin
+  if FList.Find(AKey, VIndex) then begin
+    Result := IContentTypeInfoBasic(Pointer(FList.Objects[VIndex]));
+  end else begin
+    Result := nil;
+  end;
+end;
+
+function TContentTypeListByKey.GetEnumerator: TStringsEnumerator;
+begin
+  Result := FList.GetEnumerator;
+end;
+
+end.

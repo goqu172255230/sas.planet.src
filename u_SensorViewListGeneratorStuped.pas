@@ -1,0 +1,174 @@
+{******************************************************************************}
+{* SAS.Planet (SAS.Планета)                                                   *}
+{* Copyright (C) 2007-2011, SAS.Planet development team.                      *}
+{* This program is free software: you can redistribute it and/or modify       *}
+{* it under the terms of the GNU General Public License as published by       *}
+{* the Free Software Foundation, either version 3 of the License, or          *}
+{* (at your option) any later version.                                        *}
+{*                                                                            *}
+{* This program is distributed in the hope that it will be useful,            *}
+{* but WITHOUT ANY WARRANTY; without even the implied warranty of             *}
+{* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the              *}
+{* GNU General Public License for more details.                               *}
+{*                                                                            *}
+{* You should have received a copy of the GNU General Public License          *}
+{* along with this program.  If not, see <http://www.gnu.org/licenses/>.      *}
+{*                                                                            *}
+{* http://sasgis.ru                                                           *}
+{* az@sasgis.ru                                                               *}
+{******************************************************************************}
+
+unit u_SensorViewListGeneratorStuped;
+
+interface
+
+uses
+  Classes,
+  ImgList,
+  TB2Item,
+  TB2Dock,
+  i_JclNotify,
+  i_GUIDSet,
+  i_SensorList,
+  i_SensorViewListGenerator;
+
+type
+  TSensorViewListGeneratorStuped = class(TInterfacedObject, ISensorViewListGenerator)
+  private
+    FTimerNoifier: IJclNotifier;
+    FOwner: TComponent;
+    FDefaultDoc: TTBDock;
+    FParentMenu: TTBCustomItem;
+    FImages: TCustomImageList;
+    FImageIndexReset: TImageIndex;
+    procedure AddSensor(ASensor: ISensorListEntity; AResult: IGUIDInterfaceSet);
+    procedure AddSensorsInFixedOrder(ASensorList: ISensorList; AResult: IGUIDInterfaceSet);
+  protected
+    function CreateSensorViewList(ASensorList: ISensorList): IGUIDInterfaceSet;
+  public
+    constructor Create(
+      ATimerNoifier: IJclNotifier;
+      AOwner: TComponent;
+      ADefaultDoc: TTBDock;
+      AParentMenu: TTBCustomItem;
+      AImages: TCustomImageList;
+      AImageIndexReset: TImageIndex
+    );
+  end;
+
+implementation
+
+uses
+  ActiveX,
+  SysUtils,
+  u_GUIDInterfaceSet,
+  c_SensorsGUIDSimple,
+  i_Sensor,
+  u_SensorViewTextTBXPanel,
+  u_SensorViewConfigSimple;
+
+{ TSensorViewListGeneratorStuped }
+
+procedure TSensorViewListGeneratorStuped.AddSensor(ASensor: ISensorListEntity;
+  AResult: IGUIDInterfaceSet);
+var
+  VSensorViewConfig: ISensorViewConfig;
+  VSensorView: ISensorView;
+  VGUID: TGUID;
+begin
+  if ASensor <> nil then begin
+    if IsEqualGUID(ASensor.GetSensorTypeIID, ISensorText) then begin
+      VGUID := ASensor.GUID;
+      if not AResult.IsExists(VGUID) then begin
+        VSensorViewConfig := TSensorViewConfigSimple.Create;
+        VSensorView :=
+          TSensorViewTextTBXPanel.Create(
+            ASensor,
+            VSensorViewConfig,
+            FTimerNoifier,
+            FOwner,
+            FDefaultDoc,
+            FParentMenu,
+            FImages,
+            FImageIndexReset
+          );
+        AResult.Add(VGUID, VSensorView);
+      end;
+    end;
+  end;
+end;
+
+procedure TSensorViewListGeneratorStuped.AddSensorsInFixedOrder(
+  ASensorList: ISensorList; AResult: IGUIDInterfaceSet);
+var
+  VSensor: ISensorListEntity;
+begin
+  VSensor := ASensorList.Get(CSensorLastSpeedGUID);
+  AddSensor(VSensor, AResult);
+  VSensor := ASensorList.Get(CSensorAvgSpeedGUID);
+  AddSensor(VSensor, AResult);
+  VSensor := ASensorList.Get(CSensorMaxSpeedGUID);
+  AddSensor(VSensor, AResult);
+  VSensor := ASensorList.Get(CSensorDistGUID);
+  AddSensor(VSensor, AResult);
+  VSensor := ASensorList.Get(CSensorOdometer1GUID);
+  AddSensor(VSensor, AResult);
+  VSensor := ASensorList.Get(CSensorOdometer2GUID);
+  AddSensor(VSensor, AResult);
+  VSensor := ASensorList.Get(CSensorDistToMarkGUID);
+  AddSensor(VSensor, AResult);
+  VSensor := ASensorList.Get(CSensorLastAltitudeGUID);
+  AddSensor(VSensor, AResult);
+  VSensor := ASensorList.Get(CSensorBatteryGUID);
+  AddSensor(VSensor, AResult);
+  VSensor := ASensorList.Get(CSensorHeadingGUID);
+  AddSensor(VSensor, AResult);
+end;
+
+constructor TSensorViewListGeneratorStuped.Create(
+  ATimerNoifier: IJclNotifier;
+  AOwner: TComponent;
+  ADefaultDoc: TTBDock;
+  AParentMenu: TTBCustomItem;
+  AImages: TCustomImageList;
+  AImageIndexReset: TImageIndex
+);
+begin
+  FTimerNoifier := ATimerNoifier;
+  FOwner := AOwner;
+  FDefaultDoc := ADefaultDoc;
+  FParentMenu := AParentMenu;
+  FImages := AImages;
+  FImageIndexReset := AImageIndexReset;
+end;
+
+function TSensorViewListGeneratorStuped.CreateSensorViewList(
+  ASensorList: ISensorList): IGUIDInterfaceSet;
+var
+  VGUID: TGUID;
+  i: Cardinal;
+  VSensor: ISensorListEntity;
+  VEnum: IEnumGUID;
+begin
+  FDefaultDoc.BeginUpdate;
+  try
+    Result := TGUIDInterfaceSet.Create;
+    ASensorList.LockRead;
+    try
+      AddSensorsInFixedOrder(ASensorList, Result);
+      VEnum := ASensorList.GetGUIDEnum;
+      while VEnum.Next(1, VGUID, i) = S_OK do begin
+        VSensor := ASensorList.Get(VGUID);
+        AddSensor(VSensor, Result);
+      end;
+    finally
+      ASensorList.UnlockRead;
+    end;
+  finally
+    FDefaultDoc.EndUpdate;
+    FDefaultDoc.CommitNewPositions := True;
+    FDefaultDoc.ArrangeToolbars;
+  end;
+end;
+
+end.

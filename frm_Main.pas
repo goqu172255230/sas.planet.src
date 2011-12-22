@@ -3338,6 +3338,7 @@ end;
 procedure TfrmMain.NMarkEditClick(Sender: TObject);
 var
   VMark: IMark;
+  VMarkModifed: IMark;
   VMarkPoint: IMarkPoint;
   VMarkLine: IMarkLine;
   VMarkPoly: IMarkPoly;
@@ -3348,9 +3349,9 @@ begin
   );
   if VMark <> nil then begin
     if Supports(VMark, IMarkPoint, VMarkPoint) then begin
-      VMark := FMarkDBGUI.EditMarkModal(VMark);
-      if VMark <> nil then begin
-        GState.MarksDB.MarksDb.WriteMark(VMark);
+      VMarkModifed := FMarkDBGUI.EditMarkModal(VMark);
+      if VMarkModifed <> nil then begin
+        GState.MarksDB.MarksDb.UpdateMark(VMark, VMarkModifed);
         FLayerMapMarks.Redraw;
       end;
     end else if Supports(VMark, IMarkLine, VMarkLine) then begin

@@ -7,6 +7,7 @@ uses
   SysUtils,
   Classes,
   GR32,
+  i_VectorItemLonLat,
   u_MapType,
   u_GeoFun,
   u_ResStrings,
@@ -27,7 +28,7 @@ type
   public
     constructor Create(
       APath: string;
-      APolygon: TArrayOfDoublePoint;
+      APolygon: ILonLatPolygonLine;
       Azoomarr: array of boolean;
       Atypemap: TMapType;
       ANotSaveNotExists: boolean;
@@ -44,7 +45,7 @@ uses
 
 constructor TThreadExportKML.Create(
   APath: string;
-  APolygon: TArrayOfDoublePoint;
+  APolygon: ILonLatPolygonLine;
   Azoomarr: array of boolean;
   Atypemap: TMapType;
   ANotSaveNotExists: boolean;
@@ -124,17 +125,17 @@ var
   VZoom: Byte;
   polyg: TArrayOfPoint;
   ToFile: string;
-  max, min: TPoint;
+  VBounds: TRect;
   VLen: Integer;
 begin
   inherited;
   FTilesToProcess := 0;
-  VLen := Length(FPolygLL);
+  VLen := FPolygLL.Count;
   SetLength(polyg, VLen);
   for i := 0 to Length(FZooms) - 1 do begin
     VZoom := FZooms[i];
-    FMapType.GeoConvert.LonLatArray2PixelArray(@FPolygLL[0], VLen, @Polyg[0], VZoom);
-    FTilesToProcess := FTilesToProcess + GetDwnlNum(min, max, @Polyg[0], VLen, true);
+    FMapType.GeoConvert.LonLatArray2PixelArray(FPolygLL.Points, VLen, @Polyg[0], VZoom);
+    FTilesToProcess := FTilesToProcess + GetDwnlNum(VBounds, @Polyg[0], VLen, true);
   end;
   FTilesProcessed := 0;
   ProgressFormUpdateCaption(SAS_STR_ExportTiles, SAS_STR_AllSaves + ' ' + inttostr(FTilesToProcess) + ' ' + SAS_STR_Files);
@@ -147,12 +148,12 @@ begin
     Write(KMLFile, ToFile);
 
     VZoom := FZooms[0];
-    FMapType.GeoConvert.LonLatArray2PixelArray(@FPolygLL[0], VLen, @Polyg[0], VZoom);
-    GetDwnlNum(min, max, @Polyg[0], VLen, false);
-    p_x := min.x;
-    while p_x < max.x do begin
-      p_y := min.Y;
-      while p_y < max.Y do begin
+    FMapType.GeoConvert.LonLatArray2PixelArray(FPolygLL.Points, VLen, @Polyg[0], VZoom);
+    GetDwnlNum(VBounds, @Polyg[0], VLen, false);
+    p_x := VBounds.Left;
+    while p_x < VBounds.Right do begin
+      p_y := VBounds.Top;
+      while p_y < VBounds.Bottom do begin
         if not CancelNotifier.IsOperationCanceled(OperationID) then begin
           if (RgnAndRgn(@Polyg[0], VLen, p_x, p_y, false)) then begin
             KmlFileWrite(p_x, p_y, VZoom, 1);

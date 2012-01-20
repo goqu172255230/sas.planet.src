@@ -9,7 +9,7 @@ uses
   Classes,
   GR32,
   YaMobileCache,
-  t_GeoTypes,
+  i_VectorItemLonLat,
   i_CoordConverterFactory,
   u_MapType,
   u_ResStrings,
@@ -43,7 +43,7 @@ type
     constructor Create(
       ACoordConverterFactory: ICoordConverterFactory;
       APath: string;
-      APolygon: TArrayOfDoublePoint;
+      APolygon: ILonLatPolygonLine;
       Azoomarr: array of boolean;
       Atypemaparr: array of TMapType;
       Areplace: boolean;
@@ -68,7 +68,7 @@ uses
 constructor TThreadExportYaMobileV4.Create(
   ACoordConverterFactory: ICoordConverterFactory;
   APath: string;
-  APolygon: TArrayOfDoublePoint;
+  APolygon: ILonLatPolygonLine;
   Azoomarr: array of boolean;
   Atypemaparr: array of TMapType;
   Areplace: boolean;

@@ -9,8 +9,8 @@ uses
   GR32,
   u_MapType,
   u_ResStrings,
-  t_GeoTypes,
   i_CoordConverterFactory,
+  i_VectorItemLonLat,
   u_ThreadExportAbstract;
 
 type
@@ -37,7 +37,7 @@ type
     constructor Create(
       ACoordConverterFactory: ICoordConverterFactory;
       APath: string;
-      APolygon: TArrayOfDoublePoint;
+      APolygon: ILonLatPolygonLine;
       Azoomarr: array of boolean;
       Atypemaparr: array of TMapType;
       Areplace: boolean;
@@ -63,7 +63,7 @@ const
 constructor TThreadExportYaMobileV3.Create(
   ACoordConverterFactory: ICoordConverterFactory;
   APath: string;
-  APolygon: TArrayOfDoublePoint;
+  APolygon: ILonLatPolygonLine;
   Azoomarr: array of boolean;
   Atypemaparr: array of TMapType;
   Areplace: boolean;

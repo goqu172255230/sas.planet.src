@@ -11,6 +11,7 @@ uses
   GR32,
   i_CoordConverterFactory,
   i_CoordConverter,
+  i_VectorItemLonLat,
   u_MapType,
   u_GeoFun,
   t_GeoTypes,
@@ -43,7 +44,7 @@ type
     constructor Create(
       ACoordConverterFactory: ICoordConverterFactory;
       APath: string;
-      APolygon: TArrayOfDoublePoint;
+      APolygon: ILonLatPolygonLine;
       Azoomarr: array of boolean;
       Atypemaparr: array of TMapType;
       AActiveMapIndex: Integer;
@@ -69,7 +70,7 @@ uses
 constructor TThreadExportIPhone.Create(
   ACoordConverterFactory: ICoordConverterFactory;
   APath: string;
-  APolygon: TArrayOfDoublePoint;
+  APolygon: ILonLatPolygonLine;
   Azoomarr: array of boolean;
   Atypemaparr: array of TMapType;
   AActiveMapIndex: Integer;
@@ -148,16 +149,16 @@ var
   PList: Text;
   VLLCenter: TDoublePoint;
   VPolyg: TArrayOfPoint;
-  max, min: TPoint;
+  VRect: TRect;
   VZoom: Integer;
   VLen: Integer;
 begin
   VZoom := FZooms[0];
-  VLen := Length(FPolygLL);
+  VLen := FPolygLL.Count;
   SetLength(VPolyg, VLen);
-  AGeoConvert.LonLatArray2PixelArray(@FPolygLL[0], VLen, @VPolyg[0], VZoom);
-  GetMinMax(min, max, @VPolyg[0], Length(VPolyg), true);
-  VLLCenter := AGeoConvert.PixelPos2LonLat(Point(min.x + (max.X - min.X) div 2, min.y + (max.y - min.y) div 2), VZoom);
+  AGeoConvert.LonLatArray2PixelArray(FPolygLL.Points, VLen, @VPolyg[0], VZoom);
+  GetMinMax(VRect, @VPolyg[0], Length(VPolyg), true);
+  VLLCenter := AGeoConvert.PixelPos2LonLat(Point(VRect.Left + (VRect.Right - VRect.Left) div 2, VRect.Top + (VRect.Bottom - VRect.Top) div 2), VZoom);
   AssignFile(Plist, FExportPath + 'com.apple.Maps.plist');
   Rewrite(PList);
   Writeln(PList, '<plist>');

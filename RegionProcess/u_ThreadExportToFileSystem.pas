@@ -7,9 +7,9 @@ uses
   SysUtils,
   Classes,
   i_TileFileNameGenerator,
+  i_VectorItemLonLat,
   u_MapType,
   u_ResStrings,
-  t_GeoTypes,
   u_ThreadExportAbstract;
 
 type
@@ -26,7 +26,7 @@ type
   public
     constructor Create(
       APath: string;
-      APolygon: TArrayOfDoublePoint;
+      APolygon: ILonLatPolygonLine;
       Azoomarr: array of boolean;
       Atypemaparr: array of TMapType;
       Amove: boolean;
@@ -44,7 +44,7 @@ uses
 
 constructor TThreadExportToFileSystem.Create(
   APath: string;
-  APolygon: TArrayOfDoublePoint;
+  APolygon: ILonLatPolygonLine;
   Azoomarr: array of boolean;
   Atypemaparr: array of TMapType;
   Amove, Areplace: boolean;

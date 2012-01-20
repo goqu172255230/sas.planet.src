@@ -9,6 +9,8 @@ uses
   GR32,
   i_GlobalViewMainConfig,
   i_BitmapLayerProvider,
+  i_VectorItemLonLat,
+  i_VectorItemProjected,
   i_LocalCoordConverterFactorySimpe,
   u_ECWWrite,
   u_MapType,
@@ -42,7 +44,8 @@ type
       ALocalConverterFactory: ILocalCoordConverterFactorySimpe;
       AMapCalibrationList: IInterfaceList;
       AFileName: string;
-      APolygon: TArrayOfDoublePoint;
+      APolygon: ILonLatPolygonLine;
+      AProjectedPolygon: IProjectedPolygonLine;
       ASplitCount: TPoint;
       Azoom: byte;
       Atypemap: TMapType;
@@ -66,7 +69,8 @@ constructor TThreadMapCombineECW.Create(
   ALocalConverterFactory: ILocalCoordConverterFactorySimpe;
   AMapCalibrationList: IInterfaceList;
   AFileName: string;
-  APolygon: TArrayOfDoublePoint;
+  APolygon: ILonLatPolygonLine;
+  AProjectedPolygon: IProjectedPolygonLine;
   ASplitCount: TPoint;
   Azoom: byte;
   Atypemap, AHtypemap: TMapType;
@@ -82,6 +86,7 @@ begin
     AMapCalibrationList,
     AFileName,
     APolygon,
+    AProjectedPolygon,
     ASplitCount,
     Azoom,
     Atypemap,

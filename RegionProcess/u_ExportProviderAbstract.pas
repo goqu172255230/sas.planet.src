@@ -5,10 +5,10 @@ interface
 uses
   Controls,
   i_LanguageManager,
+  i_VectorItemLonLat,
   i_MapTypes,
   i_ActiveMapsConfig,
-  i_MapTypeGUIConfigList,
-  t_GeoTypes;
+  i_MapTypeGUIConfigList;
 
 type
   TExportProviderAbstract = class
@@ -33,11 +33,11 @@ type
       AGUIConfigList: IMapTypeGUIConfigList
     );
     function GetCaption: string; virtual; abstract;
-    procedure InitFrame(Azoom: byte; APolygon: TArrayOfDoublePoint); virtual; abstract;
+    procedure InitFrame(Azoom: byte; APolygon: ILonLatPolygon); virtual; abstract;
     procedure Show; virtual; abstract;
     procedure Hide; virtual; abstract;
     procedure RefreshTranslation; virtual; abstract;
-    procedure StartProcess(APolygon: TArrayOfDoublePoint); virtual; abstract;
+    procedure StartProcess(APolygon: ILonLatPolygon); virtual; abstract;
   end;
 
 implementation

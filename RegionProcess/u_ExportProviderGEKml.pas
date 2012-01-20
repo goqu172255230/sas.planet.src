@@ -3,7 +3,7 @@ unit u_ExportProviderGEKml;
 interface
 
 uses
-  t_GeoTypes,
+  i_VectorItemLonLat,
   u_ExportProviderAbstract,
   fr_ExportGEKml;
 
@@ -14,11 +14,11 @@ type
   public
     destructor Destroy; override;
     function GetCaption: string; override;
-    procedure InitFrame(Azoom: byte; APolygon: TArrayOfDoublePoint); override;
+    procedure InitFrame(Azoom: byte; APolygon: ILonLatPolygon); override;
     procedure Show; override;
     procedure Hide; override;
     procedure RefreshTranslation; override;
-    procedure StartProcess(APolygon: TArrayOfDoublePoint); override;
+    procedure StartProcess(APolygon: ILonLatPolygon); override;
   end;
 
 
@@ -43,7 +43,7 @@ begin
   Result := SAS_STR_ExportGEKmlExportCaption;
 end;
 
-procedure TExportProviderGEKml.InitFrame(Azoom: byte; APolygon: TArrayOfDoublePoint);
+procedure TExportProviderGEKml.InitFrame(Azoom: byte; APolygon: ILonLatPolygon);
 begin
   if FFrame = nil then begin
     FFrame := TfrExportGEKml.Create(
@@ -86,7 +86,7 @@ begin
   end;
 end;
 
-procedure TExportProviderGEKml.StartProcess(APolygon: TArrayOfDoublePoint);
+procedure TExportProviderGEKml.StartProcess(APolygon: ILonLatPolygon);
 var
   i:integer;
   path:string;
@@ -101,7 +101,14 @@ begin
   path:=FFrame.edtTargetFile.Text;
   RelativePath:=FFrame.chkUseRelativePath.Checked;
   NotSaveNotExists:=FFrame.chkNotSaveNotExists.Checked;
-  TThreadExportKML.Create(path,APolygon,ZoomArr,VMapType,NotSaveNotExists,RelativePath)
+  TThreadExportKML.Create(
+    path,
+    APolygon.Item[0],
+    ZoomArr,
+    VMapType,
+    NotSaveNotExists,
+    RelativePath
+  );
 end;
 
 end.

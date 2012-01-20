@@ -11,6 +11,8 @@ uses
   i_GlobalViewMainConfig,
   i_BitmapLayerProvider,
   i_BitmapPostProcessingConfig,
+  i_VectorItemLonLat,
+  i_VectorItemProjected,
   i_LocalCoordConverter,
   i_LocalCoordConverterFactorySimpe,
   u_MapType,
@@ -48,12 +50,13 @@ type
     FRecolorConfig: IBitmapPostProcessingConfigStatic;
     FConverterFactory: ILocalCoordConverterFactorySimpe;
     FTempBitmap: TCustomBitmap32;
+    FMainTypeMap: TMapType;
   protected
     FTypeMap: TMapType;
     FHTypeMap: TMapType;
-    FMainTypeMap: TMapType;
     FZoom: byte;
     FPoly: TArrayOfPoint;
+    FPolyProjected: IProjectedPolygonLine;
     FMapCalibrationList: IInterfaceList;
     FSplitCount: TPoint;
 
@@ -105,7 +108,8 @@ type
       ALocalConverterFactory: ILocalCoordConverterFactorySimpe;
       AMapCalibrationList: IInterfaceList;
       AFileName: string;
-      APolygon: TArrayOfDoublePoint;
+      APolygon: ILonLatPolygonLine;
+      AProjectedPolygon: IProjectedPolygonLine;
       ASplitCount: TPoint;
       Azoom: byte;
       Atypemap: TMapType;
@@ -133,7 +137,8 @@ constructor TThreadMapCombineBase.Create(
   ALocalConverterFactory: ILocalCoordConverterFactorySimpe;
   AMapCalibrationList: IInterfaceList;
   AFileName: string;
-  APolygon: TArrayOfDoublePoint;
+  APolygon: ILonLatPolygonLine;
+  AProjectedPolygon: IProjectedPolygonLine;
   ASplitCount: TPoint;
   Azoom: byte;
   Atypemap: TMapType;
@@ -167,6 +172,7 @@ begin
   FUsePrevZoomAtMap := AViewConfig.UsePrevZoomAtMap;
   FUsePrevZoomAtLayer := AViewConfig.UsePrevZoomAtLayer;
   FBackGroundColor := Color32(AViewConfig.BackGroundColor);
+  FPolyProjected := AProjectedPolygon;
 end;
 
 procedure TThreadMapCombineBase.ProgressFormUpdateOnProgress;
@@ -243,11 +249,13 @@ var
   VLen: Integer;
 begin
   inherited;
-  VLen := Length(FPolygLL);
+  VLen := FPolyProjected.Count;
   SetLength(FPoly, VLen);
-  FMainTypeMap.GeoConvert.LonLatArray2PixelArray(@FPolygLL[0], VLen, @FPoly[0], FZoom);
+  for i := 0 to VLen - 1 do begin
+    FPoly[i] := Point(Trunc(FPolyProjected.Points[i].X), Trunc(FPolyProjected.Points[i].Y));
+  end;
 
-  VProcessTiles := GetDwnlNum(FMapRect.TopLeft, FMapRect.BottomRight, @FPoly[0], VLen, true);
+  VProcessTiles := GetDwnlNum(FMapRect, @FPoly[0], VLen, true);
   GetMinMax(FMapRect, @FPoly[0], VLen, false);
 
   FMapSize.X := FMapRect.Right - FMapRect.Left;

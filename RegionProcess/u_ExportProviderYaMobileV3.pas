@@ -4,12 +4,12 @@ interface
 
 uses
   Controls,
-  t_GeoTypes,
   i_LanguageManager,
   i_MapTypes,
   i_ActiveMapsConfig,
   i_MapTypeGUIConfigList,
   i_CoordConverterFactory,
+  i_VectorItemLonLat,
   u_ExportProviderAbstract,
   fr_ExportYaMobileV3;
 
@@ -29,11 +29,11 @@ type
     );
     destructor Destroy; override;
     function GetCaption: string; override;
-    procedure InitFrame(Azoom: byte; APolygon: TArrayOfDoublePoint); override;
+    procedure InitFrame(Azoom: byte; APolygon: ILonLatPolygon); override;
     procedure Show; override;
     procedure Hide; override;
     procedure RefreshTranslation; override;
-    procedure StartProcess(APolygon: TArrayOfDoublePoint); override;
+    procedure StartProcess(APolygon: ILonLatPolygon); override;
   end;
 
 
@@ -77,7 +77,7 @@ begin
   Result := SAS_STR_ExportYaMobileV3Caption;
 end;
 
-procedure TExportProviderYaMobileV3.InitFrame(Azoom: byte; APolygon: TArrayOfDoublePoint);
+procedure TExportProviderYaMobileV3.InitFrame(Azoom: byte; APolygon: ILonLatPolygon);
 begin
   if FFrame = nil then begin
     FFrame :=
@@ -121,7 +121,7 @@ begin
   end;
 end;
 
-procedure TExportProviderYaMobileV3.StartProcess(APolygon: TArrayOfDoublePoint);
+procedure TExportProviderYaMobileV3.StartProcess(APolygon: ILonLatPolygon);
 var
   i:integer;
   path:string;
@@ -140,10 +140,11 @@ begin
   comprMap:=FFrame.seMapCompress.Value;
   path:=IncludeTrailingPathDelimiter(FFrame.edtTargetPath.Text);
   Replace:=FFrame.chkReplaseTiles.Checked;
+  Assert(APolygon.Count = 1);
   TThreadExportYaMobileV3.Create(
     FCoordConverterFactory,
     path,
-    APolygon,
+    APolygon.Item[0],
     ZoomArr,
     typemaparr,
     Replace,

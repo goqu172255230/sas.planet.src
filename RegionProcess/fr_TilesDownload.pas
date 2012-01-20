@@ -13,6 +13,7 @@ uses
   ComCtrls,
   t_GeoTypes,
   i_MapTypes,
+  i_VectorItemLonLat,
   i_ActiveMapsConfig,
   i_MapTypeGUIConfigList,
   u_CommonFormAndFrameParents;
@@ -41,7 +42,7 @@ type
     procedure chkReplaceOlderClick(Sender: TObject);
     procedure cbbZoomChange(Sender: TObject);
   private
-    FPolygLL: TArrayOfDoublePoint;
+    FPolygLL: ILonLatPolygon;
     FMainMapsConfig: IMainMapsConfig;
     FFullMapsSet: IMapTypeSet;
     FGUIConfigList: IMapTypeGUIConfigList;
@@ -52,7 +53,7 @@ type
       AFullMapsSet: IMapTypeSet;
       AGUIConfigList: IMapTypeGUIConfigList
     ); reintroduce;
-    procedure Init(AZoom: Byte; APolygLL: TArrayOfDoublePoint);
+    procedure Init(AZoom: Byte; APolygLL: ILonLatPolygon);
   end;
 
 implementation
@@ -68,28 +69,27 @@ uses
 procedure TfrTilesDownload.cbbZoomChange(Sender: TObject);
 var
   polyg:TArrayOfPoint;
-  min,max:TPoint;
+  VRect: TRect;
   numd:int64 ;
   Vmt: TMapType;
   VZoom: byte;
-  VPolyLL: TArrayOfDoublePoint;
+  VPolyLL: ILonLatPolygon;
   VLen: Integer;
 begin
   if cbbMap.ItemIndex >= 0 then begin
     Vmt := TMapType(cbbMap.Items.Objects[cbbMap.ItemIndex]);
     VZoom := cbbZoom.ItemIndex;
-    VPolyLL := copy(FPolygLL);
-    VLen := Length(VPolyLL);
+    VPolyLL := FPolygLL;
+    VLen := VPolyLL.Item[0].Count;
     Vmt.GeoConvert.CheckZoom(VZoom);
-    Vmt.GeoConvert.CheckAndCorrectLonLatArray(@VPolyLL[0], VLen);
     SetLength(Polyg, VLen);
-    Vmt.GeoConvert.LonLatArray2PixelArray(@VPolyLL[0], VLen, @Polyg[0], VZoom);
-    numd:=GetDwnlNum(min,max,@Polyg[0], VLen,true);
-    lblStat.Caption:=SAS_STR_filesnum+': '+inttostr((max.x-min.x)div 256+1)+'x'
-                    +inttostr((max.y-min.y)div 256+1)+'('+inttostr(numd)+')';
-    GetMinMax(min,max,@Polyg[0], VLen,false);
-    lblStat.Caption:=lblStat.Caption+', '+SAS_STR_Resolution+' '+inttostr(max.x-min.x)+'x'
-                  +inttostr(max.y-min.y);
+    Vmt.GeoConvert.LonLatArray2PixelArray(VPolyLL.Item[0].Points, VLen, @Polyg[0], VZoom);
+    numd:=GetDwnlNum(VRect, @Polyg[0], VLen,true);
+    lblStat.Caption:=SAS_STR_filesnum+': '+inttostr((VRect.Right-VRect.Left)div 256+1)+'x'
+                    +inttostr((VRect.Bottom-VRect.Top)div 256+1)+'('+inttostr(numd)+')';
+    GetMinMax(VRect, @Polyg[0], VLen,false);
+    lblStat.Caption:=lblStat.Caption+', '+SAS_STR_Resolution+' '+inttostr(VRect.Right-VRect.Left)+'x'
+                  +inttostr(VRect.Bottom-VRect.Top);
   end;
 end;
 
@@ -118,7 +118,7 @@ begin
   FGUIConfigList := AGUIConfigList;
 end;
 
-procedure TfrTilesDownload.Init(AZoom: Byte; APolygLL: TArrayOfDoublePoint);
+procedure TfrTilesDownload.Init(AZoom: Byte; APolygLL: ILonLatPolygon);
 var
   i: integer;
   VMapType: TMapType;

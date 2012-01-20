@@ -23,8 +23,8 @@ unit u_PathDetalizeProviderListEntity;
 interface
 
 uses
-  t_GeoTypes,
   i_PathDetalizeProvider,
+  i_VectorItemLonLat,
   u_UserInterfaceItemBase,
   i_PathDetalizeProviderList;
 
@@ -33,7 +33,7 @@ type
   protected { IPathDetalizeProviderListEntity }
     function GetProvider: IPathDetalizeProvider;
   protected { IPathDetalizeProvider }
-    function GetPath(ASource: TArrayOfDoublePoint; var AComment: string): TArrayOfDoublePoint; virtual; abstract;
+    function GetPath(ASource: ILonLatPath; var AComment: string): ILonLatPath; virtual; abstract;
   end;
 
 

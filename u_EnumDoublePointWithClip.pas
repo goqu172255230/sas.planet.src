@@ -4,10 +4,11 @@ interface
 
 uses
   t_GeoTypes,
+  i_DoublePointFilter,
   i_EnumDoublePoint;
 
 type
-  TEnumDoublePointClipByLineAbstract = class(TInterfacedObject, IEnumDoublePoint)
+  TEnumDoublePointClipByLineAbstract = class(TInterfacedObject, IEnumDoublePoint, IEnumProjectedPoint, IEnumLocalPoint)
   private
     FSourceEnum: IEnumDoublePoint;
     FFinished: Boolean;
@@ -85,6 +86,51 @@ type
     );
   end;
 
+  TEnumProjectedPointClipByRect = class(TEnumDoublePointClipByRect, IEnumProjectedPoint)
+  public
+    constructor Create(
+      AClosed: Boolean;
+      ARect: TDoubleRect;
+      ASourceEnum: IEnumProjectedPoint
+    );
+  end;
+
+  TEnumLocalPointClipByRect = class(TEnumDoublePointClipByRect, IEnumLocalPoint)
+  public
+    constructor Create(
+      AClosed: Boolean;
+      ARect: TDoubleRect;
+      ASourceEnum: IEnumLocalPoint
+    );
+  end;
+
+  TDoublePointFilterClipByRect = class(TInterfacedObject, IDoublePointFilter)
+  private
+    FClosed: Boolean;
+    FRect: TDoubleRect;
+  private
+    function CreateFilteredEnum(ASource: IEnumDoublePoint): IEnumDoublePoint;
+  public
+    constructor Create(
+      AClosed: Boolean;
+      ARect: TDoubleRect
+    );
+  end;
+
+  TProjectedPointFilterClipByRect = class(TInterfacedObject, IProjectedPointFilter)
+  private
+    FClosed: Boolean;
+    FRect: TDoubleRect;
+  private
+    function CreateFilteredEnum(ASource: IEnumProjectedPoint): IEnumProjectedPoint;
+  public
+    constructor Create(
+      AClosed: Boolean;
+      ARect: TDoubleRect
+    );
+  end;
+
+
 implementation
 
 uses
@@ -140,7 +186,7 @@ begin
         $33:     раз-раз нет
         }
         case VLineCode of
-          $01, $12, $21, $22, $03, $13, $23, $31, $32: begin
+          $01, $11, $12, $21, $22, $03, $13, $23, $31, $32: begin
             APoint := VCurrPoint;
             FPrevPoint := VCurrPoint;
             FPrevPointCode := VCurrPointCode;
@@ -335,6 +381,132 @@ end;
 function TEnumDoublePointClipByRect.Next(out APoint: TDoublePoint): Boolean;
 begin
   Result := FEnum.Next(APoint);
+end;
+
+{ TEnumProjectedPointClipByRect }
+
+constructor TEnumProjectedPointClipByRect.Create(AClosed: Boolean;
+  ARect: TDoubleRect; ASourceEnum: IEnumProjectedPoint);
+begin
+  inherited Create(AClosed, ARect, ASourceEnum);
+end;
+
+{ TEnumLocalPointClipByRect }
+
+constructor TEnumLocalPointClipByRect.Create(AClosed: Boolean;
+  ARect: TDoubleRect; ASourceEnum: IEnumLocalPoint);
+begin
+  inherited Create(AClosed, ARect, ASourceEnum);
+end;
+
+{ TDoublePointFilterClipByRect }
+
+constructor TDoublePointFilterClipByRect.Create(AClosed: Boolean;
+  ARect: TDoubleRect);
+begin
+  FClosed := AClosed;
+  FRect := ARect;
+end;
+
+function TDoublePointFilterClipByRect.CreateFilteredEnum(
+  ASource: IEnumDoublePoint): IEnumDoublePoint;
+begin
+  if FClosed then begin
+    Result :=
+      TEnumDoublePointClosePoly.Create(
+        TEnumDoublePointClipByLeftBorder.Create(
+          FRect.Left,
+          TEnumDoublePointClosePoly.Create(
+            TEnumDoublePointClipByTopBorder.Create(
+              FRect.Top,
+              TEnumDoublePointClosePoly.Create(
+                TEnumDoublePointClipByRightBorder.Create(
+                  FRect.Right,
+                  TEnumDoublePointClosePoly.Create(
+                    TEnumDoublePointClipByBottomBorder.Create(
+                      FRect.Bottom,
+                      TEnumDoublePointClosePoly.Create(
+                        ASource
+                      )
+                    )
+                  )
+                )
+              )
+            )
+          )
+        )
+      );
+  end else begin
+    Result :=
+      TEnumDoublePointClipByLeftBorder.Create(
+        FRect.Left,
+        TEnumDoublePointClipByTopBorder.Create(
+          FRect.Top,
+          TEnumDoublePointClipByRightBorder.Create(
+            FRect.Right,
+            TEnumDoublePointClipByBottomBorder.Create(
+              FRect.Bottom,
+              ASource
+            )
+          )
+        )
+      );
+  end;
+end;
+
+{ TProjectedPointFilterClipByRect }
+
+constructor TProjectedPointFilterClipByRect.Create(AClosed: Boolean;
+  ARect: TDoubleRect);
+begin
+  FClosed := AClosed;
+  FRect := ARect;
+end;
+
+function TProjectedPointFilterClipByRect.CreateFilteredEnum(
+  ASource: IEnumProjectedPoint): IEnumProjectedPoint;
+begin
+  if FClosed then begin
+    Result :=
+      TEnumProjectedPointClosePoly.Create(
+        TEnumDoublePointClipByLeftBorder.Create(
+          FRect.Left,
+          TEnumProjectedPointClosePoly.Create(
+            TEnumDoublePointClipByTopBorder.Create(
+              FRect.Top,
+              TEnumProjectedPointClosePoly.Create(
+                TEnumDoublePointClipByRightBorder.Create(
+                  FRect.Right,
+                  TEnumProjectedPointClosePoly.Create(
+                    TEnumDoublePointClipByBottomBorder.Create(
+                      FRect.Bottom,
+                      TEnumProjectedPointClosePoly.Create(
+                        ASource
+                      )
+                    )
+                  )
+                )
+              )
+            )
+          )
+        )
+      );
+  end else begin
+    Result :=
+      TEnumDoublePointClipByLeftBorder.Create(
+        FRect.Left,
+        TEnumDoublePointClipByTopBorder.Create(
+          FRect.Top,
+          TEnumDoublePointClipByRightBorder.Create(
+            FRect.Right,
+            TEnumDoublePointClipByBottomBorder.Create(
+              FRect.Bottom,
+              ASource
+            )
+          )
+        )
+      );
+  end;
 end;
 
 end.

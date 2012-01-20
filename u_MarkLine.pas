@@ -25,6 +25,7 @@ interface
 uses
   GR32,
   t_GeoTypes,
+  i_VectorItemLonLat,
   i_MarksSimple,
   i_MarkCategory,
   i_HtmlToHintTextConverter,
@@ -34,12 +35,12 @@ type
   TMarkLine = class(TMarkFullBase, IMarkLine)
   private
     FLLRect: TDoubleRect;
-    FPoints: TArrayOfDoublePoint;
+    FLine: ILonLatPath;
     FLineColor: TColor32;
     FLineWidth: Integer;
   protected
     function GetLLRect: TDoubleRect; override;
-    function GetPoints: TArrayOfDoublePoint;
+    function GetLine: ILonLatPath;
     function GetLineColor: TColor32;
     function GetLineWidth: Integer;
     function GetGoToLonLat: TDoublePoint; override;
@@ -53,7 +54,7 @@ type
       ACategory: ICategory;
       ADesc: string;
       ALLRect: TDoubleRect;
-      APoints: TArrayOfDoublePoint;
+      ALine: ILonLatPath;
       ALineColor: TColor32;
       ALineWidth: Integer
     );
@@ -72,14 +73,14 @@ constructor TMarkLine.Create(
   ACategory: ICategory;
   ADesc: string;
   ALLRect: TDoubleRect;
-  APoints: TArrayOfDoublePoint;
+  ALine: ILonLatPath;
   ALineColor: TColor32;
   ALineWidth: Integer
 );
 begin
   inherited Create(AHintConverter, ADbCode, AName, AId, ACategory, ADesc, AVisible);
   FLLRect := ALLRect;
-  FPoints := APoints;
+  FLine := ALine;
   FLineColor := ALineColor;
   FLineWidth := ALineWidth;
 end;
@@ -91,7 +92,7 @@ end;
 
 function TMarkLine.GetGoToLonLat: TDoublePoint;
 begin
-  Result := FPoints[0];
+  FLine.GetEnum.Next(Result);
 end;
 
 function TMarkLine.GetLLRect: TDoubleRect;
@@ -99,9 +100,9 @@ begin
   Result := FLLRect;
 end;
 
-function TMarkLine.GetPoints: TArrayOfDoublePoint;
+function TMarkLine.GetLine: ILonLatPath;
 begin
-  Result := FPoints;
+  Result := FLine;
 end;
 
 function TMarkLine.GetLineWidth: Integer;

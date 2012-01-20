@@ -4,8 +4,8 @@ interface
 
 uses
   Controls,
-  t_GeoTypes,
   i_LanguageManager,
+  i_VectorItemLonLat,
   i_MapTypes,
   i_ActiveMapsConfig,
   i_MapTypeGUIConfigList,
@@ -29,11 +29,11 @@ type
     );
     destructor Destroy; override;
     function GetCaption: string; override;
-    procedure InitFrame(Azoom: byte; APolygon: TArrayOfDoublePoint); override;
+    procedure InitFrame(Azoom: byte; APolygon: ILonLatPolygon); override;
     procedure Show; override;
     procedure Hide; override;
     procedure RefreshTranslation; override;
-    procedure StartProcess(APolygon: TArrayOfDoublePoint); override;
+    procedure StartProcess(APolygon: ILonLatPolygon); override;
   end;
 
 
@@ -72,7 +72,7 @@ begin
   Result := SAS_STR_OperationTilesCopyCaption;
 end;
 
-procedure TProviderTilesCopy.InitFrame(Azoom: byte; APolygon: TArrayOfDoublePoint);
+procedure TProviderTilesCopy.InitFrame(Azoom: byte; APolygon: ILonLatPolygon);
 begin
   if FFrame = nil then begin
     FFrame := TfrTilesCopy.Create(
@@ -115,7 +115,7 @@ begin
   end;
 end;
 
-procedure TProviderTilesCopy.StartProcess(APolygon: TArrayOfDoublePoint);
+procedure TProviderTilesCopy.StartProcess(APolygon: ILonLatPolygon);
 var
   i:integer;
   path:string;
@@ -138,7 +138,7 @@ begin
   if FFrame.cbbNamesType.ItemIndex = 4 then begin
     TThreadExportToBDB.Create(
       path,
-      APolygon,
+      APolygon.Item[0],
       ZoomArr,
       typemaparr,
       FFrame.chkDeleteSource.Checked,
@@ -147,7 +147,7 @@ begin
   end else begin
     TThreadExportToFileSystem.Create(
       path,
-      APolygon,
+      APolygon.Item[0],
       ZoomArr,
       typemaparr,
       FFrame.chkDeleteSource.Checked,

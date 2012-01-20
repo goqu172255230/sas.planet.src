@@ -4,9 +4,10 @@ interface
 
 uses
   Controls,
-  t_GeoTypes,
   i_JclNotify,
   i_MapTypes,
+  i_VectorItemLonLat,
+  i_VectorItmesFactory,
   i_LanguageManager,
   i_ActiveMapsConfig,
   i_MapTypeGUIConfigList,
@@ -25,6 +26,7 @@ type
     FValueToStringConverterConfig: IValueToStringConverterConfig;
     FDownloadConfig: IGlobalDownloadConfig;
     FDownloadInfo: IDownloadInfoSimple;
+    FVectorItmesFactory: IVectorItmesFactory;
   public
     constructor Create(
       AParent: TWinControl;
@@ -34,16 +36,18 @@ type
       AMainMapsConfig: IMainMapsConfig;
       AFullMapsSet: IMapTypeSet;
       AGUIConfigList: IMapTypeGUIConfigList;
+      AVectorItmesFactory: IVectorItmesFactory;
       ADownloadConfig: IGlobalDownloadConfig;
       ADownloadInfo: IDownloadInfoSimple
     );
     destructor Destroy; override;
     function GetCaption: string; override;
-    procedure InitFrame(Azoom: byte; APolygon: TArrayOfDoublePoint); override;
+    procedure InitFrame(Azoom: byte; APolygon: ILonLatPolygon); override;
     procedure Show; override;
     procedure Hide; override;
     procedure RefreshTranslation; override;
-    procedure StartProcess(APolygon: TArrayOfDoublePoint); override;
+    procedure StartProcess(APolygon: ILonLatPolygon); override;
+    procedure StartBySLS(AFileName: string);
   end;
 
 
@@ -51,8 +55,11 @@ implementation
 
 uses
   SysUtils,
+  IniFiles,
   i_LogSimple,
   i_LogForTaskThread,
+  i_ConfigDataProvider,
+  u_ConfigDataProviderByIniFile,
   u_LogForTaskThread,
   u_ThreadDownloadTiles,
   frm_ProgressDownload,
@@ -68,6 +75,7 @@ constructor TProviderTilesDownload.Create(
   AMainMapsConfig: IMainMapsConfig;
   AFullMapsSet: IMapTypeSet;
   AGUIConfigList: IMapTypeGUIConfigList;
+  AVectorItmesFactory: IVectorItmesFactory;
   ADownloadConfig: IGlobalDownloadConfig;
   ADownloadInfo: IDownloadInfoSimple
 );
@@ -75,6 +83,7 @@ begin
   inherited Create(AParent, ALanguageManager, AMainMapsConfig, AFullMapsSet, AGUIConfigList);
   FAppClosingNotifier := AAppClosingNotifier;
   FValueToStringConverterConfig := AValueToStringConverterConfig;
+  FVectorItmesFactory := AVectorItmesFactory;
   FDownloadConfig := ADownloadConfig;
   FDownloadInfo := ADownloadInfo;
 end;
@@ -90,7 +99,7 @@ begin
   Result := SAS_STR_OperationDownloadCaption;
 end;
 
-procedure TProviderTilesDownload.InitFrame(Azoom: byte; APolygon: TArrayOfDoublePoint);
+procedure TProviderTilesDownload.InitFrame(Azoom: byte; APolygon: ILonLatPolygon);
 begin
   if FFrame = nil then begin
     FFrame := TfrTilesDownload.Create(
@@ -102,7 +111,7 @@ begin
     FFrame.Visible := False;
     FFrame.Parent := Self.Parent;
   end;
-  FFrame.Init(Azoom,APolygon);
+  FFrame.Init(Azoom, APolygon);
 end;
 
 procedure TProviderTilesDownload.RefreshTranslation;
@@ -133,7 +142,41 @@ begin
   end;
 end;
 
-procedure TProviderTilesDownload.StartProcess(APolygon: TArrayOfDoublePoint);
+procedure TProviderTilesDownload.StartBySLS(AFileName: string);
+var
+  VIni: TMemIniFile;
+  VSLSData: IConfigDataProvider;
+  VSessionSection: IConfigDataProvider;
+  VLog: TLogForTaskThread;
+  VSimpleLog: ILogSimple;
+  VThreadLog:ILogForTaskThread;
+  VThread: TThreadDownloadTiles;
+begin
+  VIni := TMemIniFile.Create(AFileName);
+  VSLSData := TConfigDataProviderByIniFile.Create(VIni);
+  VSessionSection := VSLSData.GetSubItem('Session');
+  VLog := TLogForTaskThread.Create(5000, 0);
+  VSimpleLog := VLog;
+  VThreadLog := VLog;
+  VThread :=
+    TThreadDownloadTiles.CreateFromSls(
+      FAppClosingNotifier,
+      FVectorItmesFactory,
+      VSimpleLog,
+      FullMapsSet,
+      VSessionSection,
+      FDownloadConfig,
+      FDownloadInfo
+    );
+  TfrmProgressDownload.Create(
+    LanguageManager,
+    FValueToStringConverterConfig,
+    VThread,
+    VThreadLog
+  );
+end;
+
+procedure TProviderTilesDownload.StartProcess(APolygon: ILonLatPolygon);
 var
   smb:TMapType;
   VZoom: byte;
@@ -150,7 +193,7 @@ begin
   VThread := TThreadDownloadTiles.Create(
     FAppClosingNotifier,
     VSimpleLog,
-    APolygon,
+    APolygon.Item[0],
     FDownloadConfig,
     FDownloadInfo,
     FFrame.chkReplace.Checked,

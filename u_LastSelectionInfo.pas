@@ -27,13 +27,16 @@ uses
   i_ConfigDataProvider,
   i_ConfigDataWriteProvider,
   i_LastSelectionInfo,
+  i_VectorItemLonLat,
+  i_VectorItmesFactory,
   u_ConfigDataElementBase;
 
 type
   TLastSelectionInfo = class(TConfigDataElementBase, ILastSelectionInfo)
   private
+    FVectorItmesFactory: IVectorItmesFactory;
     // Полигон последнего выделения при операциях с областью.
-    FPolygon: TArrayOfDoublePoint;
+    FPolygon: ILonLatPolygon;
     // Масштаб, на котором было последнее выделение
     FZoom: Byte;
   protected
@@ -41,24 +44,28 @@ type
     procedure DoWriteConfig(AConfigData: IConfigDataWriteProvider); override;
   protected
     function GetZoom: Byte;
-    function GetPolygon: TArrayOfDoublePoint;
-    procedure SetPolygon(ALonLatPolygon: TArrayOfDoublePoint; AZoom: Byte);
+    function GetPolygon: ILonLatPolygon;
+    procedure SetPolygon(ALonLatPolygon: ILonLatPolygon; AZoom: Byte); overload;
+    procedure SetPolygon(APoints: PDoublePointArray; ACount: Integer; AZoom: Byte); overload;
   public
-    constructor Create();
+    constructor Create(AVectorItmesFactory: IVectorItmesFactory);
   end;
 
 implementation
 
 uses
-  SysUtils;
+  SysUtils,
+  i_DoublePointsAggregator,
+  i_EnumDoublePoint,
+  u_DoublePointsAggregator;
 
 { TLastSelectionInfo }
 
-constructor TLastSelectionInfo.Create;
+constructor TLastSelectionInfo.Create(AVectorItmesFactory: IVectorItmesFactory);
 begin
-  inherited;
-
-  FPolygon := nil;
+  inherited Create;
+  FVectorItmesFactory := AVectorItmesFactory;
+  FPolygon := AVectorItmesFactory.CreateLonLatPolygon(nil, 0);
   FZoom := 0;
 end;
 
@@ -67,25 +74,25 @@ var
   i: Integer;
   VPoint: TDoublePoint;
   VValidPoint: Boolean;
-  VPolygon: TArrayOfDoublePoint;
+  VPolygon: IDoublePointsAggregator;
   VZoom: Byte;
 begin
   inherited;
   if AConfigData <> nil then begin
+    VPolygon := TDoublePointsAggregator.Create;
     i:=1;
     repeat
       VPoint.X := AConfigData.ReadFloat('PointX_'+inttostr(i), 1000000);
       VPoint.Y := AConfigData.ReadFloat('PointY_'+inttostr(i), 1000000);
       VValidPoint := (Abs(VPoint.X) < 360) and (Abs(VPoint.Y) < 360);
       if VValidPoint then begin
-        SetLength(VPolygon, i);
-        VPolygon[i - 1] := VPoint;
+        VPolygon.Add(VPoint);
         inc(i);
       end;
     until not VValidPoint;
-    if length(VPolygon)>0 then begin
+    if VPolygon.Count > 0 then begin
       VZoom := AConfigData.Readinteger('Zoom', FZoom);
-      SetPolygon(VPolygon, VZoom);
+      SetPolygon(VPolygon.Points, VPolygon.Count, VZoom);
     end;
   end;
 end;
@@ -94,23 +101,28 @@ procedure TLastSelectionInfo.DoWriteConfig(
   AConfigData: IConfigDataWriteProvider);
 var
   i: Integer;
+  VEnum: IEnumDoublePoint;
+  VPoint: TDoublePoint;
 begin
   inherited;
   AConfigData.DeleteValues;
-  if Length(FPolygon)>0 then begin
+  if FPolygon.Count > 0 then begin
     AConfigData.WriteInteger('Zoom', FZoom);
-    for i := 0 to length(FPolygon) - 1 do begin
-      AConfigData.WriteFloat('PointX_'+inttostr(i+1), FPolygon[i].x);
-      AConfigData.WriteFloat('PointY_'+inttostr(i+1), FPolygon[i].y);
+    VEnum := FPolygon.GetEnum;
+    i := 1;
+    while VEnum.Next(VPoint) do begin
+      AConfigData.WriteFloat('PointX_'+inttostr(i), VPoint.X);
+      AConfigData.WriteFloat('PointY_'+inttostr(i), VPoint.Y);
+      Inc(i);
     end;
   end;
 end;
 
-function TLastSelectionInfo.GetPolygon: TArrayOfDoublePoint;
+function TLastSelectionInfo.GetPolygon: ILonLatPolygon;
 begin
   LockRead;
   try
-    Result := Copy(FPolygon);
+    Result := FPolygon;
   finally
     UnlockRead;
   end;
@@ -126,12 +138,25 @@ begin
   end;
 end;
 
-procedure TLastSelectionInfo.SetPolygon(ALonLatPolygon: TArrayOfDoublePoint;
+procedure TLastSelectionInfo.SetPolygon(APoints: PDoublePointArray;
+  ACount: Integer; AZoom: Byte);
+begin
+  LockWrite;
+  try
+    FPolygon := FVectorItmesFactory.CreateLonLatPolygon(APoints, ACount);
+    FZoom := AZoom;
+    SetChanged;
+  finally
+    UnlockWrite;
+  end;
+end;
+
+procedure TLastSelectionInfo.SetPolygon(ALonLatPolygon: ILonLatPolygon;
   AZoom: Byte);
 begin
   LockWrite;
   try
-    FPolygon := copy(ALonLatPolygon);
+    FPolygon := ALonLatPolygon;
     FZoom := AZoom;
     SetChanged;
   finally

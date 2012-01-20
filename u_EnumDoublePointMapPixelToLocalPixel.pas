@@ -5,12 +5,13 @@ interface
 uses
   t_GeoTypes,
   i_LocalCoordConverter,
+  i_DoublePointFilter,
   i_EnumDoublePoint;
 
 type
-  TEnumDoublePointMapPixelToLocalPixel = class(TInterfacedObject, IEnumDoublePoint)
+  TEnumDoublePointMapPixelToLocalPixel = class(TInterfacedObject, IEnumLocalPoint)
   private
-    FSourceEnum: IEnumDoublePoint;
+    FSourceEnum: IEnumProjectedPoint;
     FLocalConverter: ILocalCoordConverter;
     FFinished: Boolean;
   private
@@ -18,10 +19,20 @@ type
   public
     constructor Create(
       ALocalConverter: ILocalCoordConverter;
-      ASourceEnum: IEnumDoublePoint
+      ASourceEnum: IEnumProjectedPoint
     );
   end;
 
+  TProjectedPointConverter = class(TInterfacedObject, IProjectedPointConverter)
+  private
+    FLocalConverter: ILocalCoordConverter;
+  private
+    function CreateFilteredEnum(ASource: IEnumProjectedPoint): IEnumLocalPoint;
+  public
+    constructor Create(
+      ALocalConverter: ILocalCoordConverter
+    );
+  end;
 
 implementation
 
@@ -32,7 +43,7 @@ uses
 
 constructor TEnumDoublePointMapPixelToLocalPixel.Create(
   ALocalConverter: ILocalCoordConverter;
-  ASourceEnum: IEnumDoublePoint
+  ASourceEnum: IEnumProjectedPoint
 );
 begin
   FSourceEnum := ASourceEnum;
@@ -62,6 +73,20 @@ begin
       APoint := CEmptyDoublePoint;
     end;
   end;
+end;
+
+{ TProjectedPointConverter }
+
+constructor TProjectedPointConverter.Create(
+  ALocalConverter: ILocalCoordConverter);
+begin
+  FLocalConverter := ALocalConverter;
+end;
+
+function TProjectedPointConverter.CreateFilteredEnum(
+  ASource: IEnumProjectedPoint): IEnumLocalPoint;
+begin
+  Result := TEnumDoublePointMapPixelToLocalPixel.Create(FLocalConverter, ASource);
 end;
 
 end.

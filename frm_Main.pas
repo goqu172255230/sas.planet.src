@@ -114,9 +114,6 @@ uses
   u_CenterScale,
   u_SelectionLayer,
   u_CalcLineLayer,
-  u_MarkPolyLineLayer,
-  u_MarkPolygonLayer,
-  u_SelectionPolygonLayer,
   u_SelectionPolylineLayer,
   u_SelectionRectLayer,
   u_MapLayerGPSMarker,
@@ -564,7 +561,6 @@ type
     FWikiLayer: TWikiLayer;
     FLayerMapMarks: TMapMarksLayer;
     FLayerSearchResults: TSearchResultsLayer;
-//    FUIDownLoader: TTileDownloaderUI;
     FUIDownload: IInterface;
 
     ProgramStart: Boolean;
@@ -691,13 +687,11 @@ uses
   c_SasVersion,
   u_JclListenerNotifierLinksList,
   u_TileDownloaderUIOneTile,
-  u_LogForTaskThread,
   u_NotifyEventListener,
   i_MapTypes,
   i_GeoCoderList,
-  i_LogSimple,
-  i_LogForTaskThread,
   i_CoordConverter,
+  i_VectorItemLonLat,
   i_LocalCoordConverter,
   i_ValueToStringConverter,
   i_GUIDListStatic,
@@ -708,6 +702,7 @@ uses
   u_SensorViewListGeneratorStuped,
   u_MainWindowPositionConfig,
   u_TileErrorLogProviedrStuped,
+  u_PolyLineLayerBase,
   u_LineOnMapEdit,
   u_MapTypeIconsList,
   u_SelectionRect,
@@ -718,13 +713,13 @@ uses
   u_UITileDownloadList,
   u_MapTypeConfigModalEditByForm,
   i_ImportConfig,
+  u_EnumDoublePointLine2Poly,
   u_BitmapMarkerProviderSimpleBase,
   u_BitmapMarkerProviderSimpleSquare,
   u_BitmapMarkerProviderSimpleArrow,
   u_BitmapMarkerProviderSimpleCross,
   u_BitmapMarkerProviderChangeableFaked,
   u_BitmapMarkerProviderStaticFromDataProvider,
-  u_ThreadDownloadTiles,
   u_SaveLoadTBConfigByConfigProvider,
   u_MapTypeMenuItemsGeneratorBasic,
   u_TreeByPathDetalizeProviderList,
@@ -735,7 +730,6 @@ uses
   vsagps_public_base,
   vsagps_public_position,
   vsagps_public_time,
-  frm_ProgressDownload,
   frm_StartLogo,
   StrUtils;
 
@@ -770,6 +764,7 @@ begin
       GState.MarksDB,
       GState.LocalConverterFactory,
       GState.BitmapPostProcessingConfig,
+      GState.VectorItmesFactory,
       GState.MapCalibrationList,
       GState.DownloadConfig,
       GState.DownloadInfo,
@@ -839,13 +834,13 @@ begin
   FLineOnMapByOperation[ao_add_point] := nil;
   FLineOnMapByOperation[ao_edit_point] := nil;
   FLineOnMapByOperation[ao_select_rect] := nil;
-  FLineOnMapByOperation[ao_add_line] := TLineOnMapEdit.Create;
+  FLineOnMapByOperation[ao_add_line] := TPathOnMapEdit.Create(GState.VectorItmesFactory);
   FLineOnMapByOperation[ao_edit_line] := FLineOnMapByOperation[ao_add_line];
-  FLineOnMapByOperation[ao_add_poly] := TLineOnMapEdit.Create;
+  FLineOnMapByOperation[ao_add_poly] := TPolygonOnMapEdit.Create(GState.VectorItmesFactory);
   FLineOnMapByOperation[ao_edit_poly] := FLineOnMapByOperation[ao_add_poly];
-  FLineOnMapByOperation[ao_calc_line] := TLineOnMapEdit.Create;
-  FLineOnMapByOperation[ao_select_poly] := TLineOnMapEdit.Create;
-  FLineOnMapByOperation[ao_select_line] := TLineOnMapEdit.Create;
+  FLineOnMapByOperation[ao_calc_line] := TPathOnMapEdit.Create(GState.VectorItmesFactory);
+  FLineOnMapByOperation[ao_select_poly] := TPolygonOnMapEdit.Create(GState.VectorItmesFactory);
+  FLineOnMapByOperation[ao_select_line] := TPathOnMapEdit.Create(GState.VectorItmesFactory);
 
   FSelectionRect :=
     TSelectionRect.Create(
@@ -922,6 +917,7 @@ begin
       GState.LanguageManager,
       GState.MarksDB,
       FConfig.ViewPortState,
+      GState.VectorItmesFactory,
       GState.ValueToStringConverterConfig,
       FFormRegionProcess
     );
@@ -1088,6 +1084,7 @@ begin
         GState.AppClosingNotifier,
         map,
         FConfig.ViewPortState,
+        GState.VectorItmesFactory,
         GState.ImageResamplerConfig,
         GState.LocalConverterFactory,
         GState.ClearStrategyFactory,
@@ -1114,6 +1111,7 @@ begin
         GState.AppClosingNotifier,
         map,
         FConfig.ViewPortState,
+        GState.VectorItmesFactory,
         GState.ImageResamplerConfig,
         GState.LocalConverterFactory,
         GState.ClearStrategyFactory,
@@ -1159,8 +1157,29 @@ begin
         GState.PerfCounterList,
         map,
         FConfig.ViewPortState,
+        GState.VectorItmesFactory,
         FConfig.LayersConfig.LastSelectionLayerConfig,
         GState.LastSelectionInfo
+      )
+    );
+    FLayersList.Add(
+      TPathEditLayer.Create(
+        GState.PerfCounterList,
+        map,
+        FConfig.ViewPortState,
+        GState.VectorItmesFactory,
+        FLineOnMapByOperation[ao_calc_line] as IPathOnMapEdit,
+        FConfig.LayersConfig.CalcLineLayerConfig.LineConfig
+      )
+    );
+    FLayersList.Add(
+      TPathEditPointsSetLayer.Create(
+        GState.PerfCounterList,
+        map,
+        FConfig.ViewPortState,
+        GState.VectorItmesFactory,
+        FLineOnMapByOperation[ao_calc_line] as IPathOnMapEdit,
+        FConfig.LayersConfig.CalcLineLayerConfig.PointsConfig
       )
     );
     FLayersList.Add(
@@ -1168,47 +1187,103 @@ begin
         GState.PerfCounterList,
         map,
         FConfig.ViewPortState,
-        FLineOnMapByOperation[ao_calc_line],
-        FConfig.LayersConfig.CalcLineLayerConfig,
+        FLineOnMapByOperation[ao_calc_line] as IPathOnMapEdit,
+        FConfig.LayersConfig.CalcLineLayerConfig.CaptionConfig,
         GState.ValueToStringConverterConfig
       )
     );
     FLayersList.Add(
-      TMarkPolyLineLayer.Create(
+      TPathEditLayer.Create(
         GState.PerfCounterList,
         map,
         FConfig.ViewPortState,
-        FLineOnMapByOperation[ao_add_line],
-        FConfig.LayersConfig.MarkPolyLineLayerConfig
+        GState.VectorItmesFactory,
+        FLineOnMapByOperation[ao_add_line] as IPathOnMapEdit,
+        FConfig.LayersConfig.MarkPolyLineLayerConfig.LineConfig
       )
     );
     FLayersList.Add(
-      TMarkPolygonLayer.Create(
+      TPathEditPointsSetLayer.Create(
         GState.PerfCounterList,
         map,
         FConfig.ViewPortState,
-        FLineOnMapByOperation[ao_add_poly],
-        FConfig.LayersConfig.MarkPolygonLayerConfig
+        GState.VectorItmesFactory,
+        FLineOnMapByOperation[ao_add_line] as IPathOnMapEdit,
+        FConfig.LayersConfig.MarkPolyLineLayerConfig.PointsConfig
       )
     );
     FLayersList.Add(
-      TSelectionPolygonLayer.Create(
+      TPolygonEditLayer.Create(
         GState.PerfCounterList,
         map,
         FConfig.ViewPortState,
-        FLineOnMapByOperation[ao_select_poly],
-        FConfig.LayersConfig.SelectionPolygonLayerConfig
+        GState.VectorItmesFactory,
+        FLineOnMapByOperation[ao_add_poly] as IPolygonOnMapEdit,
+        FConfig.LayersConfig.MarkPolygonLayerConfig.LineConfig
       )
     );
     FLayersList.Add(
-      TSelectionPolylineLayer.Create(
+      TPolygonEditPointsSetLayer.Create(
         GState.PerfCounterList,
         map,
         FConfig.ViewPortState,
-        FLineOnMapByOperation[ao_select_line],
-        FConfig.LayersConfig.SelectionPolylineLayerConfig
+        GState.VectorItmesFactory,
+        FLineOnMapByOperation[ao_add_poly] as IPolygonOnMapEdit,
+        FConfig.LayersConfig.MarkPolygonLayerConfig.PointsConfig
       )
     );
+    FLayersList.Add(
+      TPolygonEditLayer.Create(
+        GState.PerfCounterList,
+        map,
+        FConfig.ViewPortState,
+        GState.VectorItmesFactory,
+        FLineOnMapByOperation[ao_select_poly] as IPolygonOnMapEdit,
+        FConfig.LayersConfig.SelectionPolygonLayerConfig.LineConfig
+      )
+    );
+    FLayersList.Add(
+      TPolygonEditPointsSetLayer.Create(
+        GState.PerfCounterList,
+        map,
+        FConfig.ViewPortState,
+        GState.VectorItmesFactory,
+        FLineOnMapByOperation[ao_select_poly] as IPolygonOnMapEdit,
+        FConfig.LayersConfig.SelectionPolygonLayerConfig.PointsConfig
+      )
+    );
+
+    FLayersList.Add(
+      TSelectionPolylineShadowLayer.Create(
+        GState.PerfCounterList,
+        map,
+        FConfig.ViewPortState,
+        GState.VectorItmesFactory,
+        FLineOnMapByOperation[ao_select_line] as IPathOnMapEdit,
+        FConfig.LayersConfig.SelectionPolylineLayerConfig.ShadowConfig
+      )
+    );
+    FLayersList.Add(
+      TPathEditLayer.Create(
+        GState.PerfCounterList,
+        map,
+        FConfig.ViewPortState,
+        GState.VectorItmesFactory,
+        FLineOnMapByOperation[ao_select_line] as IPathOnMapEdit,
+        FConfig.LayersConfig.SelectionPolylineLayerConfig.LineConfig
+      )
+    );
+    FLayersList.Add(
+      TPathEditPointsSetLayer.Create(
+        GState.PerfCounterList,
+        map,
+        FConfig.ViewPortState,
+        GState.VectorItmesFactory,
+        FLineOnMapByOperation[ao_select_line] as IPathOnMapEdit,
+        FConfig.LayersConfig.SelectionPolylineLayerConfig.PointsConfig
+      )
+    );
+
     FLayersList.Add(
       TSelectionRectLayer.Create(
         GState.PerfCounterList,
@@ -1989,12 +2064,12 @@ begin
   TBEditSelectPolylineRadiusCap1.Visible:=newop=ao_select_line;
   TBEditSelectPolylineRadiusCap2.Visible:=newop=ao_select_line;
   if FLineOnMapEdit <> nil then begin
-    FLineOnMapEdit.Empty;
+    FLineOnMapEdit.Clear;
   end;
   FLineOnMapEdit := FLineOnMapByOperation[newop];
   if newop=ao_select_line then begin
    TBEditSelectPolylineRadius.Value :=
-    Round(FConfig.LayersConfig.SelectionPolylineLayerConfig.GetRadius);
+    Round(FConfig.LayersConfig.SelectionPolylineLayerConfig.ShadowConfig.Radius);
   end;
 
   case newop of
@@ -2096,15 +2171,27 @@ end;
 procedure TfrmMain.OnLineOnMapEditChange;
 var
   VLineOnMapEdit: ILineOnMapEdit;
+  VPathOnMapEdit: IPathOnMapEdit;
+  VPolygonOnMapEdit: IPolygonOnMapEdit;
+  VSaveAviable: Boolean;
+  VPath: ILonLatPath;
+  VPoly: ILonLatPolygon;
 begin
   VLineOnMapEdit := FLineOnMapEdit;
   if VLineOnMapEdit <> nil then begin
-    VLineOnMapEdit.LockRead;
-    try
-      TBEditPath.Visible:=(VLineOnMapEdit.GetCount > 1);
-    finally
-      VLineOnMapEdit.UnlockRead;
+    VSaveAviable := False;
+    if Supports(VLineOnMapEdit, IPathOnMapEdit, VPathOnMapEdit) then begin
+      VPath := VPathOnMapEdit.Path;
+      if VPath.Count > 0 then begin
+        VSaveAviable := (VPath.Item[0].Count > 1);
+      end;
+    end else if Supports(VLineOnMapEdit, IPolygonOnMapEdit, VPolygonOnMapEdit) then begin
+      VPoly := VPolygonOnMapEdit.Polygon;
+      if VPoly.Count > 0 then begin
+        VSaveAviable := (VPoly.Item[0].Count > 2);
+      end;
     end;
+    TBEditPath.Visible := VSaveAviable;
   end;
 end;
 
@@ -2228,10 +2315,10 @@ begin
   if VIsFullScreen then begin
     Self.WindowState := wsMaximized;
     SetBounds(
-      Left-ClientOrigin.X,
-      Top-ClientOrigin.Y,
-      GetDeviceCaps(Canvas.handle, HORZRES) + (Width - ClientWidth),
-      GetDeviceCaps(Canvas.handle, VERTRES) + (Height - ClientHeight)
+      Monitor.Left + Left - ClientOrigin.X,
+      Monitor.Top + Top - ClientOrigin.Y,
+      Monitor.Width + (Width - ClientWidth),
+      Monitor.Height + (Height - ClientHeight)
     );
   end else begin
     if VIsMaximized then begin
@@ -2242,10 +2329,10 @@ begin
       end;
       Self.WindowState := wsMaximized;
       SetBounds(
-        0,
-        0,
-        GetDeviceCaps(Canvas.handle, HORZRES),
-        GetDeviceCaps(Canvas.handle, VERTRES)
+        Monitor.Left,
+        Monitor.Top,
+        Monitor.Width,
+        Monitor.Height
       );
     end else begin
       Self.WindowState := wsNormal;
@@ -2293,6 +2380,7 @@ var
   VMap: IMapType;
   VMapType: TMapType;
   VCancelSelection: Boolean;
+  VLineOnMapEdit: ILineOnMapEdit;
 begin
   if Self.Active then begin
     VShortCut := ShortCutFromMessage(Msg);
@@ -2332,9 +2420,10 @@ begin
           ao_add_poly,
           ao_edit_line,
           ao_edit_poly: begin
-            if FLineOnMapEdit <> nil then begin
-              if (FLineOnMapEdit.GetCount>0) then begin
-                FLineOnMapEdit.Empty;
+            VLineOnMapEdit := FLineOnMapEdit;
+            if VLineOnMapEdit <> nil then begin
+              if not VLineOnMapEdit.IsEmpty then begin
+                VLineOnMapEdit.Clear;
               end else begin
                 setalloperationfalse(ao_movemap);
               end;
@@ -2347,8 +2436,9 @@ begin
         case FCurrentOper of
           ao_add_Poly,
           ao_edit_Poly: begin
-            if FLineOnMapEdit <> nil then begin
-              if FLineOnMapEdit.GetCount > 2 then begin
+            VLineOnMapEdit := FLineOnMapEdit;
+            if VLineOnMapEdit <> nil then begin
+              if VLineOnMapEdit.IsReady then begin
                 TBEditPathSaveClick(Self);
                 Handled := True;
               end;
@@ -2357,16 +2447,18 @@ begin
           ao_add_line,
           ao_edit_line,
           ao_select_line: begin
-            if FLineOnMapEdit <> nil then begin
-              if FLineOnMapEdit.GetCount > 1 then begin
+            VLineOnMapEdit := FLineOnMapEdit;
+            if VLineOnMapEdit <> nil then begin
+              if VLineOnMapEdit.IsReady then begin
                 TBEditPathSaveClick(Self);
                 Handled := True;
               end;
             end;
           end;
           ao_select_poly: begin
-            if FLineOnMapEdit <> nil then begin
-              if FLineOnMapEdit.GetCount > 2 then begin
+            VLineOnMapEdit := FLineOnMapEdit;
+            if VLineOnMapEdit <> nil then begin
+              if VLineOnMapEdit.IsReady then begin
                 TBEditPathOkClick(Self);
                 Handled := True;
               end;
@@ -3063,11 +3155,16 @@ end;
 procedure TfrmMain.TBPreviousClick(Sender: TObject);
 var
   VZoom: Byte;
-  VPolygon: TArrayOfDoublePoint;
+  VPolygon: ILonLatPolygon;
 begin
-  VZoom := GState.LastSelectionInfo.Zoom;
-  VPolygon := Copy(GState.LastSelectionInfo.Polygon);
-  if length(VPolygon)>0 then begin
+  GState.LastSelectionInfo.LockRead;
+  try
+    VZoom := GState.LastSelectionInfo.Zoom;
+    VPolygon := GState.LastSelectionInfo.Polygon;
+  finally
+    GState.LastSelectionInfo.UnlockRead;
+  end;
+  if VPolygon.Count > 0 then begin
     setalloperationfalse(ao_movemap);
     FFormRegionProcess.Show_(VZoom, VPolygon);
   end else begin
@@ -3333,7 +3430,7 @@ end;
 
 procedure TfrmMain.TBCOORDClick(Sender: TObject);
 var
-  Poly: TArrayOfDoublePoint;
+  Poly: ILonLatPolygon;
   VSelLonLat: TfrmLonLatRectEdit;
   VLonLatRect: TDoubleRect;
 begin
@@ -3346,9 +3443,14 @@ begin
     );
   Try
     Poly := GState.LastSelectionInfo.Polygon;
-    GetMinMax(VLonLatRect, @Poly[0], Length(Poly));
+    if Poly.Count > 0 then begin
+      VLonLatRect := Poly.Item[0].Bounds;
+    end else begin
+      VLonLatRect.TopLeft := FConfig.ViewPortState.GetVisualCoordConverter.GetCenterLonLat;
+      VLonLatRect.BottomRight := VLonLatRect.TopLeft;
+    end;
     if VSelLonLat.Execute(VLonLatRect) Then Begin
-      Poly := PolygonFromRect(VLonLatRect);
+      Poly := GState.VectorItmesFactory.CreateLonLatPolygonByRect(VLonLatRect);
       setalloperationfalse(ao_movemap);
       FFormRegionProcess.Show_(FConfig.ViewPortState.GetCurrentZoom, Poly);
       Poly := nil;
@@ -3366,7 +3468,7 @@ end;
 
 procedure TfrmMain.TBEditSelectPolylineRadiusChange(Sender: TObject);
 begin
-  FConfig.LayersConfig.SelectionPolylineLayerConfig.SetRadius(TBEditSelectPolylineRadius.Value);
+  FConfig.LayersConfig.SelectionPolylineLayerConfig.ShadowConfig.Radius := TBEditSelectPolylineRadius.Value;
 end;
 
 procedure TfrmMain.ShowMiniMapClick(Sender: TObject);
@@ -3386,10 +3488,10 @@ end;
 
 procedure TfrmMain.TBItem5Click(Sender: TObject);
 var
-  VAllPoints: TArrayOfDoublePoint;
+  VAllPoints: ILonLatPath;
 begin
   VAllPoints := GState.GPSRecorder.GetAllPoints;
-  if length(VAllPoints)>1 then begin
+  if VAllPoints.Count > 0 then begin
     if FMarkDBGUI.SaveLineModal(nil, VAllPoints, '') then begin
       setalloperationfalse(ao_movemap);
       FLayerMapMarks.Redraw;
@@ -3462,6 +3564,8 @@ var
   VMarkPoint: IMarkPoint;
   VMarkLine: IMarkLine;
   VMarkPoly: IMarkPoly;
+  VPathOnMapEdit: IPathOnMapEdit;
+  VPolygonOnMapEdit: IPolygonOnMapEdit;
 begin
   FLayerMapMarks.MouseOnReg(
     FMouseState.GetLastDownPos(mbRight),
@@ -3477,14 +3581,14 @@ begin
     end else if Supports(VMark, IMarkLine, VMarkLine) then begin
       setalloperationfalse(ao_edit_line);
       FEditMarkLine := VMarkLine;
-      if FLineOnMapEdit <> nil then begin
-        FLineOnMapEdit.SetPoints(VMarkLine.Points);
+      if Supports(FLineOnMapEdit, IPathOnMapEdit, VPathOnMapEdit) then begin
+        VPathOnMapEdit.SetPath(VMarkLine.Line);
       end;
     end else if Supports(VMark, IMarkPoly, VMarkPoly) then begin
       setalloperationfalse(ao_edit_poly);
       FEditMarkPoly := VMarkPoly;
-      if FLineOnMapEdit <> nil then begin
-        FLineOnMapEdit.SetPoints(VMarkPoly.Points);
+      if Supports(FLineOnMapEdit, IPolygonOnMapEdit, VPolygonOnMapEdit) then begin
+        VPolygonOnMapEdit.SetPolygon(VMarkPoly.Line);
       end;
     end;
   end;
@@ -3526,7 +3630,7 @@ begin
     VMark
   );
   if VMark <> nil then begin
-    FMarkDBGUI.OperationMark(VMark, FConfig.ViewPortState.GetCurrentZoom, FConfig.ViewPortState.GetCurrentCoordConverter);
+    FMarkDBGUI.OperationMark(VMark, FConfig.ViewPortState.GetVisualCoordConverter.ProjectionInfo);
   end;
 end;
 
@@ -3705,7 +3809,6 @@ var
   VClickLonLat: TDoublePoint;
   VClickRect: TRect;
   VClickLonLatRect: TDoubleRect;
-  Vlastpoint: Integer;
   VLocalConverter: ILocalCoordConverter;
   VConverter: ICoordConverter;
   VZoom: Byte;
@@ -3745,7 +3848,6 @@ begin
   if (Button=mbLeft)and(FCurrentOper<>ao_movemap) then begin
     if (FLineOnMapEdit <> nil)then begin
       movepoint:=true;
-      Vlastpoint := -1;
       if VIsClickInMap then begin
         VClickRect.Left := X - 5;
         VClickRect.Top := Y - 5;
@@ -3754,28 +3856,25 @@ begin
         VClickMapRect := VLocalConverter.LocalRect2MapRectFloat(VClickRect);
         VConverter.CheckPixelRectFloat(VClickMapRect, VZoom);
         VClickLonLatRect := VConverter.PixelRectFloat2LonLatRect(VClickMapRect, VZoom);
-        Vlastpoint := FLineOnMapEdit.GetPointIndexInLonLatRect(VClickLonLatRect);
-      end;
-      if Vlastpoint < 0 then begin
-        VMark := nil;
-        if (FConfig.LayersConfig.MarksLayerConfig.MarksShowConfig.IsUseMarks)and
-           (FConfig.LayersConfig.MarksLayerConfig.MarksDrawConfig.MagnetDraw) then begin
-          FLayerMapMarks.MouseOnReg(Point(x, y), VMark);
+        if not FLineOnMapEdit.SelectPointInLonLatRect(VClickLonLatRect) then begin
+          VMark := nil;
+          if (FConfig.LayersConfig.MarksLayerConfig.MarksShowConfig.IsUseMarks)and
+             (FConfig.LayersConfig.MarksLayerConfig.MarksDrawConfig.MagnetDraw) then begin
+            FLayerMapMarks.MouseOnReg(Point(x, y), VMark);
+          end;
+          if VMark <> nil then begin
+            if Supports(VMark, IMarkPoint, VMarkPoint) then begin
+              VClickLonLat := VMarkPoint.Point;
+            end;
+            if Supports(VMark, IMarkPoly, VMarkPoly) then begin
+              FLayerMapMarks.GetIntersection(VClickLonLat,VClickLonLat, VMarkPoly, VLocalConverter.ProjectionInfo)
+            end;
+            if Supports(VMark, IMarkLine, VMarkLine) then begin
+              FLayerMapMarks.GetIntersection(VClickLonLat,VClickLonLat, VMarkLine, VLocalConverter.ProjectionInfo)
+            end;
+          end;
+          FLineOnMapEdit.InsertPoint(VClickLonLat);
         end;
-        if VMark <> nil then begin
-          if Supports(VMark, IMarkPoint, VMarkPoint) then begin
-            VClickLonLat := VMarkPoint.Point;
-          end;
-          if Supports(VMark, IMarkPoly, VMarkPoly) then begin
-            FLayerMapMarks.GetIntersection(VClickLonLat,VClickLonLat, VMarkPoly, VConverter, VZoom)
-          end;
-          if Supports(VMark, IMarkLine, VMarkLine) then begin
-            FLayerMapMarks.GetIntersection(VClickLonLat,VClickLonLat, VMarkLine, VConverter, VZoom)
-          end;
-        end;
-        FLineOnMapEdit.InsertPoint(VClickLonLat);
-      end else begin
-        FLineOnMapEdit.SetActiveIndex(Vlastpoint);
       end;
     end;
     if (FCurrentOper=ao_select_rect)then begin
@@ -3848,7 +3947,7 @@ var
   VZoomCurr: Byte;
   VSelectionRect: TDoubleRect;
   VSelectionFinished: Boolean;
-  VPoly: TArrayOfDoublePoint;
+  VPoly: ILonLatPolygon;
   VMapMoving: Boolean;
   VMapType: TMapType;
   VValidPoint: Boolean;
@@ -3935,7 +4034,7 @@ begin
         FSelectionRect.UnlockWrite;
       end;
       if VSelectionFinished then begin
-        VPoly := PolygonFromRect(VSelectionRect);
+        VPoly := GState.VectorItmesFactory.CreateLonLatPolygonByRect(VSelectionRect);
         setalloperationfalse(ao_movemap);
         FFormRegionProcess.Show_(VZoomCurr, VPoly);
         VPoly := nil;
@@ -4065,10 +4164,10 @@ begin
         VLonLat := VMarkPoint.Point;
       end;
       if Supports(VMark, IMarkPoly, VMarkPoly) then begin
-        FLayerMapMarks.GetIntersection(VLonLat,VLonLat, VMarkPoly, VConverter, VZoomCurr)
+        FLayerMapMarks.GetIntersection(VLonLat,VLonLat, VMarkPoly, VLocalConverter.ProjectionInfo)
       end;
       if Supports(VMark, IMarkLine, VMarkLine) then begin
-        FLayerMapMarks.GetIntersection(VLonLat,VLonLat, VMarkLine, VConverter, VZoomCurr)
+        FLayerMapMarks.GetIntersection(VLonLat,VLonLat, VMarkLine, VLocalConverter.ProjectionInfo)
       end;
     end;
     FLineOnMapEdit.MoveActivePoint(VLonLat);
@@ -4262,8 +4361,8 @@ begin
   if FCurrentOper = ao_calc_line then begin
     FConfig.LayersConfig.CalcLineLayerConfig.LockWrite;
     try
-      FConfig.LayersConfig.CalcLineLayerConfig.LenShow :=
-        not FConfig.LayersConfig.CalcLineLayerConfig.LenShow;
+      FConfig.LayersConfig.CalcLineLayerConfig.CaptionConfig.LenShow :=
+        not FConfig.LayersConfig.CalcLineLayerConfig.CaptionConfig.LenShow;
     finally
       FConfig.LayersConfig.CalcLineLayerConfig.UnlockWrite;
     end;
@@ -4271,24 +4370,35 @@ begin
 end;
 
 procedure TfrmMain.TBEditPathSaveClick(Sender: TObject);
-var result:boolean;
+var
+  VResult: boolean;
+  VPathEdit: IPathOnMapEdit;
+  VPolygonEdit: IPolygonOnMapEdit;
 begin
-  result := false;
+  VResult := false;
   case FCurrentOper of
     ao_add_Poly: begin
-      result:=FMarkDBGUI.SavePolyModal(nil, FLineOnMapEdit.GetPoints);
+      if Supports(FLineOnMapEdit, IPolygonOnMapEdit, VPolygonEdit) then begin
+        VResult := FMarkDBGUI.SavePolyModal(nil, VPolygonEdit.Polygon);
+      end;
     end;
     ao_edit_poly: begin
-      result:=FMarkDBGUI.SavePolyModal(FEditMarkPoly, FLineOnMapEdit.GetPoints);
+      if Supports(FLineOnMapEdit, IPolygonOnMapEdit, VPolygonEdit) then begin
+        VResult := FMarkDBGUI.SavePolyModal(FEditMarkPoly, VPolygonEdit.Polygon);
+      end;
     end;
     ao_add_Line: begin
-      result:=FMarkDBGUI.SaveLineModal(nil, FLineOnMapEdit.GetPoints, FMarshrutComment);
+      if Supports(FLineOnMapEdit, IPathOnMapEdit, VPathEdit) then begin
+        VResult := FMarkDBGUI.SaveLineModal(nil, VPathEdit.Path, FMarshrutComment);
+      end;
     end;
     ao_edit_line: begin
-      result:=FMarkDBGUI.SaveLineModal(FEditMarkLine, FLineOnMapEdit.GetPoints, FMarshrutComment);
+      if Supports(FLineOnMapEdit, IPathOnMapEdit, VPathEdit) then begin
+        VResult := FMarkDBGUI.SaveLineModal(FEditMarkLine, VPathEdit.Path, FMarshrutComment);
+      end;
     end;
   end;
-  if result then begin
+  if VResult then begin
     setalloperationfalse(ao_movemap);
     FLayerMapMarks.Redraw;
   end;
@@ -4422,18 +4532,37 @@ end;
 
 procedure TfrmMain.TBEditPathOkClick(Sender: TObject);
 var
-  VPoly: TArrayOfDoublePoint;
+  VPoly: ILonLatPolygon;
+  VPath: ILonLatPath;
+  VLineOnMapEdit: ILineOnMapEdit;
+  VPathLine: ILonLatPathLine;
 begin
-  case FCurrentOper of
-    ao_select_poly: begin
-      VPoly := Copy(FLineOnMapEdit.GetPoints);
-      setalloperationfalse(ao_movemap);
-      FFormRegionProcess.Show_(FConfig.ViewPortState.GetCurrentZoom, VPoly);
-    end;
-    ao_select_line: begin
-      VPoly := ConveryPolyline2Polygon(@FLineOnMapEdit.GetPoints[0], Length(FLineOnMapEdit.GetPoints), FConfig.LayersConfig.SelectionPolylineLayerConfig.GetRadius, FConfig.ViewPortState.GetVisualCoordConverter.GetGeoConverter, FConfig.ViewPortState.GetVisualCoordConverter.GetZoom);
-      setalloperationfalse(ao_movemap);
-      FFormRegionProcess.Show_(FConfig.ViewPortState.GetCurrentZoom, VPoly);
+  VLineOnMapEdit := FLineOnMapEdit;
+  if VLineOnMapEdit <> nil then begin
+    case FCurrentOper of
+      ao_select_poly: begin
+        VPoly := (VLineOnMapEdit as IPolygonOnMapEdit).Polygon;
+        setalloperationfalse(ao_movemap);
+        FFormRegionProcess.Show_(FConfig.ViewPortState.GetCurrentZoom, VPoly);
+      end;
+      ao_select_line: begin
+        VPath := (VLineOnMapEdit as IPathOnMapEdit).Path;
+        if VPath.Count > 0 then begin
+          VPathLine := VPath.Item[0];
+          if VPathLine.Count > 1 then begin
+            VPoly :=
+              GState.VectorItmesFactory.CreateLonLatPolygonByLonLatPathAndFilter(
+                VPath,
+                TLonLatPointFilterLine2Poly.Create(
+                  FConfig.LayersConfig.SelectionPolylineLayerConfig.ShadowConfig.Radius,
+                  FConfig.ViewPortState.GetVisualCoordConverter.ProjectionInfo
+                )
+              );
+            setalloperationfalse(ao_movemap);
+            FFormRegionProcess.Show_(FConfig.ViewPortState.GetCurrentZoom, VPoly);
+          end;
+        end;
+      end;
     end;
   end;
 end;
@@ -4566,10 +4695,6 @@ end;
 
 procedure TfrmMain.TBXItem6Click(Sender: TObject);
 var
-  VLog: TLogForTaskThread;
-  VSimpleLog: ILogSimple;
-  VThreadLog:ILogForTaskThread;
-  VThread: TThreadDownloadTiles;
   VFileName: string;
   VImportConfig: IImportConfig;
 begin
@@ -4577,25 +4702,7 @@ begin
     VFileName := OpenSessionDialog.FileName;
     if FileExists(VFileName) then begin
       if ExtractFileExt(VFileName)='.sls' then begin
-        VLog := TLogForTaskThread.Create(5000, 0);
-        VSimpleLog := VLog;
-        VThreadLog := VLog;
-        VThread :=
-          TThreadDownloadTiles.CreateFromSls(
-            GState.AppClosingNotifier,
-            VSimpleLog,
-            GState.MapType.FullMapsSet,
-            VFileName,
-            GState.DownloadConfig,
-            GState.DownloadInfo,
-            FConfig.ViewPortState.GetCurrentZoom
-          );
-        TfrmProgressDownload.Create(
-          GState.LanguageManager,
-          GState.ValueToStringConverterConfig,
-          VThread,
-          VThreadLog
-        );
+        FFormRegionProcess.StartSlsFromFile(VFileName);
       end else if ExtractFileExt(VFileName)='.hlg' then begin
         setalloperationfalse(ao_movemap);
         FFormRegionProcess.LoadSelFromFile(VFileName);
@@ -4621,7 +4728,7 @@ var
   VZoom: Byte;
   VMapRect: TDoubleRect;
   VLonLatRect: TDoubleRect;
-  VPolygon: TArrayOfDoublePoint;
+  VPolygon: ILonLatPolygon;
 begin
   TBRectSave.ImageIndex:=20;
   VLocalConverter := FConfig.ViewPortState.GetVisualCoordConverter;
@@ -4631,7 +4738,7 @@ begin
   VConverter.CheckPixelRectFloat(VMapRect, VZoom);
   VLonLatRect := VConverter.PixelRectFloat2LonLatRect(VMapRect, VZoom);
 
-  VPolygon := PolygonFromRect(VLonLatRect);
+  VPolygon := GState.VectorItmesFactory.CreateLonLatPolygonByRect(VLonLatRect);
   setalloperationfalse(ao_movemap);
   FFormRegionProcess.Show_(VZoom, VPolygon);
 end;
@@ -4939,26 +5046,27 @@ end;
 
 procedure TfrmMain.TBEditPathMarshClick(Sender: TObject);
 var
-  VResult: TArrayOfDoublePoint;
+  VResult: ILonLatPath;
   VProvider: IPathDetalizeProvider;
   VIsError: Boolean;
   VInterface: IInterface;
+  VPathOnMapEdit: IPathOnMapEdit;
 begin
-  if FLineOnMapEdit <> nil then begin
+  if Supports(FLineOnMapEdit, IPathOnMapEdit, VPathOnMapEdit) then begin
     VInterface := IInterface(TTBXItem(Sender).tag);
     if Supports(VInterface, IPathDetalizeProvider, VProvider) then begin
       VIsError := True;
       try
-        VResult := VProvider.GetPath(FLineOnMapEdit.GetPoints, FMarshrutComment);
-        VIsError := False;
+        VResult := VProvider.GetPath(VPathOnMapEdit.Path, FMarshrutComment);
+        VIsError := (VResult = nil);
       except
         on E: Exception do begin
           ShowMessage(E.Message);
         end;
       end;
       if not VIsError then begin
-        if Length(VResult) > 0 then begin
-          FLineOnMapEdit.SetPoints(VResult);
+        if VResult.Count > 0 then begin
+          VPathOnMapEdit.SetPath(VResult);
         end;
       end else begin
         FMarshrutComment := '';
@@ -5020,14 +5128,14 @@ Procedure TfrmMain.TrayControl(var Msg: TMessage);
 begin
   if (Msg.WParam = SC_MINIMIZE) and GState.GlobalAppConfig.IsShowIconInTray then begin
     TrayIcon.Visible := True;
-    ShowWindow(frmMain.Handle, SW_HIDE);
+    ShowWindow(Self.Handle, SW_HIDE);
     ShowWindow(Application.Handle, SW_HIDE);
   end else inherited;
 end;
 
 procedure TfrmMain.OnMinimize(Sender: TObject);
 begin
-  PostMessage(frmMain.Handle, WM_SYSCOMMAND, SC_MINIMIZE, 0);
+  PostMessage(Self.Handle, WM_SYSCOMMAND, SC_MINIMIZE, 0);
 end;
 
 procedure TfrmMain.OnPathProvidesChange;
@@ -5057,7 +5165,7 @@ end;
 procedure TfrmMain.TrayItemRestoreClick(Sender: TObject);
 begin
   ShowWindow(Application.Handle, SW_SHOW);
-  ShowWindow(frmMain.Handle, SW_SHOW);
+  ShowWindow(Self.Handle, SW_SHOW);
   TrayIcon.Visible := False;
 end;
 

@@ -7,6 +7,7 @@ uses
   Controls,
   t_GeoTypes,
   i_LanguageManager,
+  i_VectorItemLonLat,
   i_MapTypes,
   i_ActiveMapsConfig,
   i_MapTypeGUIConfigList,
@@ -15,6 +16,7 @@ uses
   i_UsedMarksConfig,
   i_MarksDrawConfig,
   i_MapCalibration,
+  i_VectorItmesFactory,
   i_GlobalViewMainConfig,
   u_ExportProviderAbstract,
   u_MarksSystem,
@@ -25,6 +27,7 @@ type
   private
     FFrame: TfrMapCombine;
     FViewConfig: IGlobalViewMainConfig;
+    FVectorItmesFactory: IVectorItmesFactory;
     FMarksDB: TMarksSystem;
     FMarksShowConfig: IUsedMarksConfig;
     FMarksDrawConfig: IMarksDrawConfig;
@@ -39,6 +42,7 @@ type
       AFullMapsSet: IMapTypeSet;
       AGUIConfigList: IMapTypeGUIConfigList;
       AViewConfig: IGlobalViewMainConfig;
+      AVectorItmesFactory: IVectorItmesFactory;
       AMarksShowConfig: IUsedMarksConfig;
       AMarksDrawConfig: IMarksDrawConfig;
       AMarksDB: TMarksSystem;
@@ -48,11 +52,11 @@ type
     );
     destructor Destroy; override;
     function GetCaption: string; override;
-    procedure InitFrame(Azoom: byte; APolygon: TArrayOfDoublePoint); override;
+    procedure InitFrame(Azoom: byte; APolygon: ILonLatPolygon); override;
     procedure Show; override;
     procedure Hide; override;
     procedure RefreshTranslation; override;
-    procedure StartProcess(APolygon: TArrayOfDoublePoint); override;
+    procedure StartProcess(APolygon: ILonLatPolygon); override;
   end;
 
 
@@ -63,7 +67,13 @@ uses
   SysUtils,
   gnugettext,
   i_MarksSimple,
+  i_CoordConverter,
+  i_VectorItemProjected,
   i_BitmapLayerProvider,
+  i_ProjectionInfo,
+  u_ProjectionInfo,
+  u_GeoFun,
+  u_IdCacheSimpleThreadSafe,
   u_MapMarksBitmapLayerProviderByMarksSubset,
   u_ThreadMapCombineBMP,
   u_ThreadMapCombineECW,
@@ -82,6 +92,7 @@ constructor TProviderMapCombine.Create(
   AFullMapsSet: IMapTypeSet;
   AGUIConfigList: IMapTypeGUIConfigList;
   AViewConfig: IGlobalViewMainConfig;
+  AVectorItmesFactory: IVectorItmesFactory;
   AMarksShowConfig: IUsedMarksConfig;
   AMarksDrawConfig: IMarksDrawConfig;
   AMarksDB: TMarksSystem;
@@ -98,6 +109,7 @@ begin
   FMarksDB := AMarksDB;
   FLocalConverterFactory := ALocalConverterFactory;
   FBitmapPostProcessingConfig := ABitmapPostProcessingConfig;
+  FVectorItmesFactory := AVectorItmesFactory;
 end;
 
 destructor TProviderMapCombine.Destroy;
@@ -111,7 +123,7 @@ begin
   Result := SAS_STR_OperationMapCombineCaption;
 end;
 
-procedure TProviderMapCombine.InitFrame(Azoom: byte; APolygon: TArrayOfDoublePoint);
+procedure TProviderMapCombine.InitFrame(Azoom: byte; APolygon: ILonLatPolygon);
 begin
   if FFrame = nil then begin
     FFrame := TfrMapCombine.Create(
@@ -155,7 +167,7 @@ begin
   end;
 end;
 
-procedure TProviderMapCombine.StartProcess(APolygon: TArrayOfDoublePoint);
+procedure TProviderMapCombine.StartProcess(APolygon: ILonLatPolygon);
 var
   Amt,Hmt:TMapType;
   i:integer;
@@ -169,13 +181,48 @@ var
   VZoom: Byte;
   VList: IInterfaceList;
   VMarksImageProvider: IBitmapLayerProvider;
+  VMainMapType: TMapType;
+  VGeoConverter: ICoordConverter;
+  VProjection: IProjectionInfo;
+  VProjectedPolygon: IProjectedPolygon;
+  VPolygonLine: IProjectedPolygonLine;
+  VMapRect: TDoubleRect;
+  VLineClipRect: TDoubleRect;
 begin
   Amt:=TMapType(FFrame.cbbMap.Items.Objects[FFrame.cbbMap.ItemIndex]);
   Hmt:=TMapType(FFrame.cbbHybr.Items.Objects[FFrame.cbbHybr.ItemIndex]);
+
+  if Amt <> nil then begin
+    VMainMapType := Amt;
+  end else if Hmt <> nil then begin
+    VMainMapType := Hmt;
+  end else begin
+    raise Exception.Create( _('No one Map or Layer are selected!') );
+  end;
+
   VFileName := FFrame.edtTargetFile.Text;
   if VFileName = '' then begin
     raise Exception.Create( _('Please, select output file first!') );
   end;
+
+  VGeoConverter := VMainMapType.GeoConvert;
+
+  VZoom := FFrame.cbbZoom.ItemIndex+1;
+  VGeoConverter.CheckZoom(VZoom);
+
+  VProjection := TProjectionInfo.Create(VGeoConverter, VZoom);
+
+  VLonLatRect := APolygon.Item[0].Bounds;
+  VGeoConverter.CheckLonLatRect(VLonLatRect);
+
+  VProjectedPolygon :=
+    FVectorItmesFactory.CreateProjectedPolygonByLonLatPolygon(
+      VProjection,
+      APolygon
+    );
+  VPolygonLine := VProjectedPolygon.Item[0];
+  GetMinMax(VMapRect, VPolygonLine.Points, VPolygonLine.Count);
+
   VPrTypes := TInterfaceList.Create;
   for i:=0 to FFrame.chklstPrTypes.Items.Count-1 do begin
     if FFrame.chklstPrTypes.Checked[i] then begin
@@ -185,7 +232,6 @@ begin
   VSplitCount.X := FFrame.seSplitHor.Value;
   VSplitCount.Y := FFrame.seSplitVert.Value;
   VFileExt := UpperCase(ExtractFileExt(VFileName));
-  VZoom := FFrame.cbbZoom.ItemIndex+1;
   VMarksSubset := nil;
   if FFrame.chkUseMapMarks.Checked then begin
     VMarksConfigStatic := FMarksShowConfig.GetStatic;
@@ -198,22 +244,6 @@ begin
         if (VList <> nil) and (VList.Count = 0) then begin
           VMarksSubset := nil;
         end else begin
-          VLonLatRect.TopLeft := APolygon[0];
-          VLonLatRect.BottomRight := APolygon[0];
-          for i := 1 to Length(APolygon) - 1 do begin
-            if VLonLatRect.Left > APolygon[i].X then begin
-              VLonLatRect.Left := APolygon[i].X;
-            end;
-            if VLonLatRect.Top < APolygon[i].Y then begin
-              VLonLatRect.Top := APolygon[i].Y;
-            end;
-            if VLonLatRect.Right < APolygon[i].X then begin
-              VLonLatRect.Right := APolygon[i].X;
-            end;
-            if VLonLatRect.Bottom > APolygon[i].Y then begin
-              VLonLatRect.Bottom := APolygon[i].Y;
-            end;
-          end;
           VMarksSubset := FMarksDB.MarksDb.GetMarksSubset(VLonLatRect, VList, VMarksConfigStatic.IgnoreMarksVisible);
         end;
       finally
@@ -225,10 +255,17 @@ begin
   end;
   VMarksImageProvider := nil;
   if VMarksSubset <> nil then begin
+    VLineClipRect.Left := VMapRect.Left - 10;
+    VLineClipRect.Top := VMapRect.Top - 10;
+    VLineClipRect.Right := VMapRect.Right + 10;
+    VLineClipRect.Bottom := VMapRect.Bottom + 10;
     VMarksImageProvider :=
       TMapMarksBitmapLayerProviderByMarksSubset.Create(
         FMarksDrawConfig.GetStatic,
-        nil,
+        FVectorItmesFactory,
+        VProjection,
+        TIdCacheSimpleThreadSafe.Create,
+        VLineClipRect,
         VMarksSubset
       );
   end;
@@ -239,7 +276,8 @@ begin
       FLocalConverterFactory,
       VPrTypes,
       VFileName,
-      APolygon,
+      APolygon.Item[0],
+      VPolygonLine,
       VSplitCount,
       VZoom,
       Amt,Hmt,
@@ -254,7 +292,8 @@ begin
       FLocalConverterFactory,
       VPrTypes,
       VFileName,
-      APolygon,
+      APolygon.Item[0],
+      VPolygonLine,
       VSplitCount,
       VZoom,
       Amt,Hmt,
@@ -268,7 +307,8 @@ begin
       FLocalConverterFactory,
       VPrTypes,
       VFileName,
-      APolygon,
+      APolygon.Item[0],
+      VPolygonLine,
       VSplitCount,
       VZoom,
       Amt,Hmt,
@@ -283,7 +323,8 @@ begin
       FLocalConverterFactory,
       VPrTypes,
       VFileName,
-      APolygon,
+      APolygon.Item[0],
+      VPolygonLine,
       VSplitCount,
       VZoom,
       Amt,Hmt,
@@ -298,7 +339,8 @@ begin
       FLocalConverterFactory,
       VPrTypes,
       VFileName,
-      APolygon,
+      APolygon.Item[0],
+      VPolygonLine,
       VSplitCount,
       VZoom,
       Amt,Hmt,

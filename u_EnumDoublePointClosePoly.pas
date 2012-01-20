@@ -4,6 +4,7 @@ interface
 
 uses
   t_GeoTypes,
+  i_DoublePointFilter,
   i_EnumDoublePoint;
 
 type
@@ -21,6 +22,47 @@ type
     constructor Create(
       ASourceEnum: IEnumDoublePoint
     );
+  end;
+
+  TEnumLonLatPointClosePoly = class(TEnumDoublePointClosePoly, IEnumLonLatPoint)
+  public
+    constructor Create(
+      ASourceEnum: IEnumLonLatPoint
+    );
+  end;
+
+  TEnumProjectedPointClosePoly = class(TEnumDoublePointClosePoly, IEnumProjectedPoint)
+  public
+    constructor Create(
+      ASourceEnum: IEnumProjectedPoint
+    );
+  end;
+
+  TEnumLocalPointClosePoly = class(TEnumDoublePointClosePoly, IEnumLocalPoint)
+  public
+    constructor Create(
+      ASourceEnum: IEnumLocalPoint
+    );
+  end;
+
+  TDoublePointFilterPolygonClose = class(TInterfacedObject, IDoublePointFilter)
+  private
+    function CreateFilteredEnum(ASource: IEnumDoublePoint): IEnumDoublePoint;
+  end;
+
+  TLonLatPointFilterPolygonClose = class(TInterfacedObject, ILonLatPointFilter)
+  private
+    function CreateFilteredEnum(ASource: IEnumLonLatPoint): IEnumLonLatPoint;
+  end;
+
+  TProjectedPointFilterPolygonClose = class(TInterfacedObject, IProjectedPointFilter)
+  private
+    function CreateFilteredEnum(ASource: IEnumProjectedPoint): IEnumProjectedPoint;
+  end;
+
+  TLocalPointFilterPolygonClose = class(TInterfacedObject, ILocalPointFilter)
+  private
+    function CreateFilteredEnum(ASource: IEnumLocalPoint): IEnumLocalPoint;
   end;
 
 implementation
@@ -85,6 +127,60 @@ begin
     Result := False;
     APoint := CEmptyDoublePoint;
   end;
+end;
+
+{ TEnumLonLatPointClosePoly }
+
+constructor TEnumLonLatPointClosePoly.Create(ASourceEnum: IEnumLonLatPoint);
+begin
+  inherited Create(ASourceEnum);
+end;
+
+{ TEnumProjectedPointClosePoly }
+
+constructor TEnumProjectedPointClosePoly.Create(
+  ASourceEnum: IEnumProjectedPoint);
+begin
+  inherited Create(ASourceEnum);
+end;
+
+{ TEnumLocalPointClosePoly }
+
+constructor TEnumLocalPointClosePoly.Create(ASourceEnum: IEnumLocalPoint);
+begin
+  inherited Create(ASourceEnum);
+end;
+
+{ TDoublePointFilterPolygonClose }
+
+function TDoublePointFilterPolygonClose.CreateFilteredEnum(
+  ASource: IEnumDoublePoint): IEnumDoublePoint;
+begin
+  Result := TEnumDoublePointClosePoly.Create(ASource);
+end;
+
+{ TLonLatPointFilterPolygonClose }
+
+function TLonLatPointFilterPolygonClose.CreateFilteredEnum(
+  ASource: IEnumLonLatPoint): IEnumLonLatPoint;
+begin
+  Result := TEnumLonLatPointClosePoly.Create(ASource);
+end;
+
+{ TProjectedPointFilterPolygonClose }
+
+function TProjectedPointFilterPolygonClose.CreateFilteredEnum(
+  ASource: IEnumProjectedPoint): IEnumProjectedPoint;
+begin
+  Result := TEnumProjectedPointClosePoly.Create(ASource);
+end;
+
+{ TLocalPointFilterPolygonClose }
+
+function TLocalPointFilterPolygonClose.CreateFilteredEnum(
+  ASource: IEnumLocalPoint): IEnumLocalPoint;
+begin
+  Result := TEnumLocalPointClosePoly.Create(ASource);
 end;
 
 end.

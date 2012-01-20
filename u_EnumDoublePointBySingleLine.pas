@@ -4,14 +4,13 @@ interface
 
 uses
   t_GeoTypes,
-  i_EnumDoublePoint,
-  i_VectorItemLonLat,
-  i_VectorItemProjected;
+  i_EnumDoublePoint;
 
 type
-  TEnumDoublePointBySingleLine = class(TInterfacedObject, IEnumDoublePoint)
+  TEnumDoublePointBySingleLineBase = class(TInterfacedObject, IEnumDoublePoint)
   private
     FSourceLine: IInterface;
+    FClosed: Boolean;
     FPoints: PDoublePointArray;
     FCount: Integer;
     FIndex: Integer;
@@ -20,9 +19,19 @@ type
   public
     constructor Create(
       ADataOwner: IInterface;
+      AClosed: Boolean;
       APoints: PDoublePointArray;
       ACount: Integer
     );
+  end;
+
+  TEnumDoublePointBySingleLonLatLine = class(TEnumDoublePointBySingleLineBase, IEnumLonLatPoint)
+  end;
+
+  TEnumDoublePointBySingleProjectedLine = class(TEnumDoublePointBySingleLineBase, IEnumProjectedPoint)
+  end;
+
+  TEnumLocalPointBySingleLocalLine = class(TEnumDoublePointBySingleLineBase, IEnumLocalPoint)
   end;
 
 implementation
@@ -30,33 +39,44 @@ implementation
 uses
   u_GeoFun;
 
-{ TEnumDoublePointBySingleLine }
+{ TEnumDoublePointBySingleLineBase }
 
-constructor TEnumDoublePointBySingleLine.Create(
+constructor TEnumDoublePointBySingleLineBase.Create(
   ADataOwner: IInterface;
+  AClosed: Boolean;
   APoints: PDoublePointArray;
   ACount: Integer
 );
 begin
   FSourceLine := ADataOwner;
+  FClosed := AClosed;
   FPoints := APoints;
   FCount := ACount;
   FIndex := 0;
   Assert(FCount > 0, 'No points');
 end;
 
-function TEnumDoublePointBySingleLine.Next(out APoint: TDoublePoint): Boolean;
+function TEnumDoublePointBySingleLineBase.Next(out APoint: TDoublePoint): Boolean;
 begin
   if FIndex < FCount then begin
     APoint := FPoints[FIndex];
     Inc(FIndex);
     Result := True;
   end else begin
-    Result := False;
-    if FIndex = FCount then begin
+    if (FIndex = FCount) then begin
+      if FClosed and (FCount > 1)  then begin
+        APoint := FPoints[0];
+        Result := True;
+      end else begin
+        APoint := CEmptyDoublePoint;
+        Result := False;
+      end;
       FPoints := nil;
       FSourceLine := nil;
       Inc(FIndex);
+    end else begin
+      APoint := CEmptyDoublePoint;
+      Result := False;
     end;
   end;
 end;

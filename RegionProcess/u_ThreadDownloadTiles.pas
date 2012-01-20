@@ -9,9 +9,13 @@ uses
   t_GeoTypes,
   i_JclNotify,
   i_LogSimple,
+  i_ConfigDataProvider,
+  i_ConfigDataWriteProvider,
   i_OperationNotifier,
   i_GlobalDownloadConfig,
   i_TileRequestResult,
+  i_VectorItemLonLat,
+  i_VectorItmesFactory,
   i_DownloadInfoSimple,
   i_MapTypes,
   u_MapType,
@@ -23,7 +27,7 @@ type
     FAppClosingNotifier: IJclNotifier;
     FMapType: TMapType;
     FDownloadInfo: IDownloadInfoSimple;
-    FPolygLL: TArrayOfDoublePoint;
+    FPolygLL: ILonLatPolygonLine;
     FSecondLoadTNE:boolean;
     FReplaceExistTiles: boolean;
     FCheckExistTileSize: boolean;
@@ -89,7 +93,7 @@ type
       ALog: ILogSimple;
       AMapType: TMapType;
       AZoom: byte;
-      APolygon: TArrayOfDoublePoint;
+      APolygon: ILonLatPolygonLine;
       ADownloadConfig: IGlobalDownloadConfig;
       ADownloadInfo: IDownloadInfoSimple;
       AReplaceExistTiles: Boolean;
@@ -107,7 +111,7 @@ type
     constructor Create(
       AAppClosingNotifier: IJclNotifier;
       ALog: ILogSimple;
-      APolygon: TArrayOfDoublePoint;
+      APolygon: ILonLatPolygonLine;
       ADownloadConfig: IGlobalDownloadConfig;
       ADownloadInfo: IDownloadInfoSimple;
       Azamena: boolean;
@@ -120,16 +124,16 @@ type
     );
     constructor CreateFromSls(
       AAppClosingNotifier: IJclNotifier;
+      AVectorItmesFactory: IVectorItmesFactory;
       ALog: ILogSimple;
       AFullMapsSet: IMapTypeSet;
-      FileName: string;
+      ASLSSection: IConfigDataProvider;
       ADownloadConfig: IGlobalDownloadConfig;
-      ADownloadInfo: IDownloadInfoSimple;
-      AZoom: Byte
+      ADownloadInfo: IDownloadInfoSimple
     );
     destructor Destroy; override;
 
-    procedure SaveToFile(AFileName: string);
+    procedure SaveToFile(ASLSSection: IConfigDataWriteProvider);
     procedure DownloadPause;
     procedure DownloadResume;
     property TotalInRegion: Int64 read FTotalInRegion;
@@ -147,24 +151,33 @@ implementation
 
 uses
   SysUtils,
-  IniFiles,
   Types,
   i_DownloadResult,
+  i_EnumDoublePoint,
+  i_DoublePointsAggregator,
   i_TileRequest,
   i_TileIterator,
   i_TileDownloaderState,
   u_DownloadInfoSimple,
   u_TileIteratorStuped,
+  u_DoublePointsAggregator,
   u_NotifyEventListener,
   u_ResStrings;
 
 constructor TThreadDownloadTiles.CreateInternal(
-  AAppClosingNotifier: IJclNotifier; ALog: ILogSimple; AMapType: TMapType;
-  AZoom: byte; APolygon: TArrayOfDoublePoint;
-  ADownloadConfig: IGlobalDownloadConfig; ADownloadInfo: IDownloadInfoSimple;
+  AAppClosingNotifier: IJclNotifier;
+  ALog: ILogSimple;
+  AMapType: TMapType;
+  AZoom: byte;
+  APolygon: ILonLatPolygonLine;
+  ADownloadConfig: IGlobalDownloadConfig;
+  ADownloadInfo: IDownloadInfoSimple;
   AReplaceExistTiles, ACheckExistTileSize, ACheckExistTileDate: Boolean;
   AReplaceOlderDate: TDateTime; ASecondLoadTNE: Boolean;
-  ALastProcessedPoint: TPoint; AProcessed: Int64; AElapsedTime: TDateTime);
+  ALastProcessedPoint: TPoint;
+  AProcessed: Int64;
+  AElapsedTime: TDateTime
+);
 var
   VOperationNotifier: TOperationNotifier;
   VState: ITileDownloaderStateStatic;
@@ -173,15 +186,15 @@ begin
 
   FAppClosingNotifier := AAppClosingNotifier;
   FDownloadInfo := ADownloadInfo;
+  FDownloadConfig := ADownloadConfig;
+  FLog := ALog;
+
   FPausedSleepTime := 100;
   FBanSleepTime := 5000;
   FProxyAuthErrorSleepTime := 10000;
   FDownloadErrorSleepTime := 5000;
-  PrepareStrings;
-
-  FDownloadConfig := ADownloadConfig;
-  FLog := ALog;
   Priority := tpLower;
+
   FReplaceExistTiles := AReplaceExistTiles;
   Fzoom := AZoom;
   FCheckExistTileSize := ACheckExistTileSize;
@@ -189,11 +202,14 @@ begin
   FCheckTileDate := AReplaceOlderDate;
   FCheckExistTileDate := ACheckExistTileDate;
   FSecondLoadTNE := ASecondLoadTNE;
-  FPolygLL := copy(APolygon);
+  FPolygLL := APolygon;
   FProcessed := AProcessed;
   FElapsedTime := AElapsedTime;
   FLastProcessedPoint := ALastProcessedPoint;
-
+  if Terminated then begin
+    FFinished := true;
+    Exit;
+  end;
   if FMapType = nil then begin
     Terminate;
     FFinished := true;
@@ -212,12 +228,20 @@ begin
     FFinished := true;
     Exit;
   end;
-  if Length(FPolygLL) < 3 then begin
+  if FPolygLL = nil then begin
+    ALog.WriteText('Polygon does not exist', 10);
+    Terminate;
+    FFinished := true;
+    Exit;
+  end;
+  if FPolygLL.Count < 3 then begin
     ALog.WriteText('Empty Polygon', 10);
     Terminate;
     FFinished := true;
     Exit;
   end;
+
+  PrepareStrings;
 
   VOperationNotifier := TOperationNotifier.Create;
   FCancelNotifierInternal := VOperationNotifier;
@@ -232,7 +256,7 @@ end;
 constructor TThreadDownloadTiles.Create(
   AAppClosingNotifier: IJclNotifier;
   ALog: ILogSimple;
-  APolygon: TArrayOfDoublePoint;
+  APolygon: ILonLatPolygonLine;
   ADownloadConfig: IGlobalDownloadConfig;
   ADownloadInfo: IDownloadInfoSimple;
   Azamena, ACheckExistTileSize, Azdate, ASecondLoadTNE: boolean;
@@ -262,15 +286,14 @@ end;
 
 constructor TThreadDownloadTiles.CreateFromSls(
   AAppClosingNotifier: IJclNotifier;
+  AVectorItmesFactory: IVectorItmesFactory;
   ALog: ILogSimple;
   AFullMapsSet: IMapTypeSet;
-  FileName:string;
+  ASLSSection: IConfigDataProvider;
   ADownloadConfig: IGlobalDownloadConfig;
-  ADownloadInfo: IDownloadInfoSimple;
-  AZoom: Byte
+  ADownloadInfo: IDownloadInfoSimple
 );
 var
-  Ini: Tinifile;
   i: integer;
   VGuids: string;
   VGuid: TGUID;
@@ -285,120 +308,171 @@ var
   VProcessed: Int64;
   VSecondLoadTNE: Boolean;
   VLastProcessedPoint: TPoint;
-  VPolygLL: TArrayOfDoublePoint;
+  VPolygon: IDoublePointsAggregator;
   VElapsedTime: TDateTime;
   VMapType: TMapType;
+  VPoint: TDoublePoint;
+  VValidPoint: Boolean;
+  VPolygonLine: ILonLatPolygonLine;
 begin
-  Ini:=TiniFile.Create(FileName);
-  try
-    VGuids:=Ini.ReadString('Session','MapGUID','');
-    VGuid := StringToGUID(VGuids);
-    VZoom := Ini.ReadInteger('Session', 'zoom', AZoom + 1) - 1;
-    VReplaceExistTiles := Ini.ReadBool('Session', 'zamena', false);
-    VCheckExistTileSize := Ini.ReadBool('Session','raz', false);
-    VCheckExistTileDate := Ini.ReadBool('Session','zdate', false);
-    VCheckTileDate := Ini.ReadDate('Session', 'FDate', now);
-    VProcessedTileCount := Ini.ReadInteger('Session', 'scachano', 0);
-    VProcessedSize := trunc(Ini.ReadFloat('Session','dwnb', 0)*1024);
-
-    VProcessed := Ini.ReadInteger('Session', 'obrab', 0);
-    VSecondLoadTNE:=Ini.ReadBool('Session', 'SecondLoadTNE', false);
-    if FDownloadConfig.IsUseSessionLastSuccess then begin
-      VLastProcessedPoint.X:=Ini.ReadInteger('Session','LastSuccessfulStartX',-1);
-      VLastProcessedPoint.Y:=Ini.ReadInteger('Session','LastSuccessfulStartY',-1);
-    end else begin
-      VLastProcessedPoint.X:=Ini.ReadInteger('Session','StartX',-1);
-      VLastProcessedPoint.Y:=Ini.ReadInteger('Session','StartY',-1);
-    end;
-    i:=1;
-    while Ini.ReadFloat('Session','LLPointX_'+inttostr(i),-10000)>-10000 do begin
-      setlength(VPolygLL, i);
-      VPolygLL[i-1].x := Ini.ReadFloat('Session','LLPointX_'+inttostr(i),-10000);
-      VPolygLL[i-1].y := Ini.ReadFloat('Session','LLPointY_'+inttostr(i),-10000);
-      inc(i);
-    end;
-    VElapsedTime := Ini.ReadFloat('Session', 'ElapsedTime', 0);
-  finally
-    ini.Free;
-  end;
   VMapType := nil;
-  VMap := AFullMapsSet.GetMapTypeByGUID(VGuid);
-  if VMap = nil then begin
-    ALog.WriteText(Format('Map with GUID = %s not found', [VGuids]), 10);
-  end else begin
-    VMapType := VMap.MapType;
-  end;
+  VReplaceExistTiles := False;
+  VCheckExistTileSize := False;
+  VCheckExistTileDate := False;
+  VCheckTileDate := Now;
+  VSecondLoadTNE := False;
+  VProcessed := 0;
+  VElapsedTime := 0;
+  VProcessedTileCount := 0;
+  VProcessedSize := 0;
+  try
+    if ASLSSection = nil then begin
+      ALog.WriteText('No SLS data', 10);
+      Terminate;
+      FFinished := true;
+      Exit;
+    end;
+    VGuids := ASLSSection.ReadString('MapGUID','');
+    if VGuids = '' then begin
+      ALog.WriteText('Map GUID is empty', 10);
+      Terminate;
+      FFinished := true;
+      Exit;
+    end;
+    VGuid := StringToGUID(VGuids);
+    VZoom := ASLSSection.ReadInteger('zoom', 0);
+    if VZoom > 0 then begin
+      Dec(VZoom);
+    end else begin
+      ALog.WriteText('Unknown zoom', 10);
+      Terminate;
+      FFinished := true;
+      Exit;
+    end;
+    VReplaceExistTiles := ASLSSection.ReadBool('zamena', VReplaceExistTiles);
+    VCheckExistTileSize := ASLSSection.ReadBool('raz', VCheckExistTileSize);
+    VCheckExistTileDate := ASLSSection.ReadBool('zdate', VCheckExistTileDate);
+    VCheckTileDate := ASLSSection.ReadDate('FDate', VCheckTileDate);
+    VProcessedTileCount := ASLSSection.ReadInteger('scachano', VProcessedTileCount);
+    VProcessedSize := trunc(ASLSSection.ReadFloat('dwnb', 0)*1024);
 
-  CreateInternal(
-    AAppClosingNotifier,
-    ALog,
-    VMapType,
-    VZoom,
-    VPolygLL,
-    ADownloadConfig,
-    TDownloadInfoSimple.Create(ADownloadInfo, VProcessedTileCount, VProcessedSize),
-    VReplaceExistTiles,
-    VCheckExistTileSize,
-    VCheckExistTileDate,
-    VCheckTileDate,
-    VSecondLoadTNE,
-    VLastProcessedPoint,
-    VProcessed,
-    VElapsedTime
-  );
+    VProcessed := ASLSSection.ReadInteger('obrab', VProcessed);
+    VSecondLoadTNE:=ASLSSection.ReadBool('SecondLoadTNE', VSecondLoadTNE);
+    VElapsedTime := ASLSSection.ReadFloat('ElapsedTime', VProcessed);
+    if ADownloadConfig.IsUseSessionLastSuccess then begin
+      VLastProcessedPoint.X:=ASLSSection.ReadInteger('LastSuccessfulStartX',-1);
+      VLastProcessedPoint.Y:=ASLSSection.ReadInteger('LastSuccessfulStartY',-1);
+    end else begin
+      VLastProcessedPoint.X:=ASLSSection.ReadInteger('StartX',-1);
+      VLastProcessedPoint.Y:=ASLSSection.ReadInteger('StartY',-1);
+    end;
+    VPolygon := TDoublePointsAggregator.Create;
+    i:=1;
+    repeat
+      VPoint.X := ASLSSection.ReadFloat('LLPointX_'+inttostr(i),-10000);
+      VPoint.Y := ASLSSection.ReadFloat('LLPointY_'+inttostr(i),-10000);
+      VValidPoint := (Abs(VPoint.X) < 360) and (Abs(VPoint.Y) < 360);
+      if VValidPoint then begin
+        VPolygon.Add(VPoint);
+        inc(i);
+      end;
+    until not VValidPoint;
+    if VPolygon.Count > 0 then begin
+      VPolygonLine := AVectorItmesFactory.CreateLonLatPolygon(VPolygon.Points, VPolygon.Count).Item[0];
+    end;
+    VMap := AFullMapsSet.GetMapTypeByGUID(VGuid);
+    if VMap = nil then begin
+      ALog.WriteText(Format('Map with GUID = %s not found', [VGuids]), 10);
+    end else begin
+      VMapType := VMap.MapType;
+      if not VMapType.GeoConvert.CheckZoom(VZoom) then begin
+        ALog.WriteText('Unknown zoom', 10);
+        Terminate;
+        FFinished := true;
+        Exit;
+      end;
+    end;
+  finally
+    CreateInternal(
+      AAppClosingNotifier,
+      ALog,
+      VMapType,
+      VZoom,
+      VPolygonLine,
+      ADownloadConfig,
+      TDownloadInfoSimple.Create(ADownloadInfo, VProcessedTileCount, VProcessedSize),
+      VReplaceExistTiles,
+      VCheckExistTileSize,
+      VCheckExistTileDate,
+      VCheckTileDate,
+      VSecondLoadTNE,
+      VLastProcessedPoint,
+      VProcessed,
+      VElapsedTime
+    );
+  end;
 end;
 
 destructor TThreadDownloadTiles.Destroy;
 begin
-  FCancelNotifierInternal.NextOperation;
-  FTileDownloadFinishListener.Disconnect;
+  if FCancelNotifierInternal <> nil then begin
+    FCancelNotifierInternal.NextOperation;
+    FCancelNotifierInternal := nil;
+  end;
+  if FTileDownloadFinishListener <> nil then begin
+    FTileDownloadFinishListener.Disconnect;
+    FTileDownloadFinishListener := nil;
+  end;
 
-  FAppClosingNotifier.Remove(FAppClosingListener);
+  if FAppClosingNotifier <> nil then begin
+    FAppClosingNotifier.Remove(FAppClosingListener);
+  end;
   FAppClosingNotifier := nil;
   FAppClosingListener := nil;
 
-  FFinishEvent.SetEvent;
-  FreeAndNil(FFinishEvent);
+  if FFinishEvent <> nil then begin
+    FFinishEvent.SetEvent;
+    FreeAndNil(FFinishEvent);
+  end;
 
   FLog := nil;
   inherited;
 end;
 
-procedure TThreadDownloadTiles.SaveToFile(AFileName: string);
+procedure TThreadDownloadTiles.SaveToFile(ASLSSection: IConfigDataWriteProvider);
 var
-  Ini: Tinifile;
   i:integer;
   VElapsedTime: TDateTime;
+  VEnum: IEnumDoublePoint;
+  VPoint: TDoublePoint;
 begin
-  Ini:=TiniFile.Create(AFileName);
-  try
-    Ini.WriteString('Session', 'MapGUID', GUIDToString(FMapType.Zmp.GUID));
-    Ini.WriteInteger('Session', 'zoom', Fzoom + 1);
-    Ini.WriteBool('Session', 'zamena', FReplaceExistTiles);
-    Ini.WriteBool('Session', 'raz', FCheckExistTileSize);
-    Ini.WriteBool('Session', 'zdate', FCheckExistTileDate);
-    Ini.WriteDate('Session', 'FDate', FCheckTileDate);
-    Ini.WriteBool('Session', 'SecondLoadTNE', FSecondLoadTNE);
-    Ini.WriteInteger('Session', 'scachano', FDownloadInfo.TileCount);
-    Ini.WriteInteger('Session', 'obrab', FProcessed);
-    Ini.WriteFloat('Session', 'dwnb', FDownloadInfo.Size / 1024);
-    Ini.WriteInteger('Session', 'StartX', FLastProcessedPoint.X);
-    Ini.WriteInteger('Session', 'StartY', FLastProcessedPoint.Y);
-    Ini.WriteInteger('Session', 'LastSuccessfulStartX', FLastSuccessfulPoint.X);
-    Ini.WriteInteger('Session', 'LastSuccessfulStartY', FLastSuccessfulPoint.Y);
-    for i := 1 to length(FPolygLL) do begin
-      Ini.WriteFloat('Session', 'LLPointX_'+inttostr(i), FPolygLL[i-1].x);
-      Ini.WriteFloat('Session', 'LLPointY_'+inttostr(i), FPolygLL[i-1].y);
-    end;
-    if (FDownloadPause) then begin
-      VElapsedTime := FElapsedTime;
-    end else begin
-      VElapsedTime := FElapsedTime + (Now - FStartTime);
-    end;
-    Ini.WriteFloat('Session', 'ElapsedTime', VElapsedTime);
-  finally
-    ini.Free;
+  ASLSSection.WriteString('MapGUID', GUIDToString(FMapType.Zmp.GUID));
+  ASLSSection.WriteInteger('zoom', Fzoom + 1);
+  ASLSSection.WriteBool('zamena', FReplaceExistTiles);
+  ASLSSection.WriteBool('raz', FCheckExistTileSize);
+  ASLSSection.WriteBool('zdate', FCheckExistTileDate);
+  ASLSSection.WriteDate('FDate', FCheckTileDate);
+  ASLSSection.WriteBool('SecondLoadTNE', FSecondLoadTNE);
+  ASLSSection.WriteInteger('scachano', FDownloadInfo.TileCount);
+  ASLSSection.WriteInteger('obrab', FProcessed);
+  ASLSSection.WriteFloat('dwnb', FDownloadInfo.Size / 1024);
+  ASLSSection.WriteInteger('StartX', FLastProcessedPoint.X);
+  ASLSSection.WriteInteger('StartY', FLastProcessedPoint.Y);
+  ASLSSection.WriteInteger('LastSuccessfulStartX', FLastSuccessfulPoint.X);
+  ASLSSection.WriteInteger('LastSuccessfulStartY', FLastSuccessfulPoint.Y);
+  VEnum := FPolygLL.GetEnum;
+  i := 0;
+  while VEnum.Next(VPoint) do begin
+    ASLSSection.WriteFloat('LLPointX_'+inttostr(i), VPoint.x);
+    ASLSSection.WriteFloat('LLPointY_'+inttostr(i), VPoint.y);
+    Inc(i);
   end;
+  if (FDownloadPause) then begin
+    VElapsedTime := FElapsedTime;
+  end else begin
+    VElapsedTime := FElapsedTime + (Now - FStartTime);
+  end;
+  ASLSSection.WriteFloat('ElapsedTime', VElapsedTime);
 end;
 
 procedure TThreadDownloadTiles.SleepCancelable(ATime: Cardinal);

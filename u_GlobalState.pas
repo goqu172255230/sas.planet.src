@@ -75,6 +75,7 @@ uses
   i_SatellitesInViewMapDraw,
   i_SensorList,
   i_TimeZoneDiffByLonLat,
+  i_VectorItmesFactory,
   i_InvisibleBrowser,
   i_InternalBrowser,
   i_DebugInfoWindow,
@@ -135,6 +136,7 @@ type
     FDebugInfoWindow: IDebugInfoWindow;
     FAppClosingNotifier: IJclNotifier;
     FTimeZoneDiffByLonLat: ITimeZoneDiffByLonLat;
+    FVectorItmesFactory: IVectorItmesFactory;
 
     procedure OnGUISyncronizedTimer(Sender: TObject);
     function GetMarkIconsPath: string;
@@ -192,6 +194,7 @@ type
     property InternalBrowser: IInternalBrowser read FInternalBrowser;
     property DebugInfoWindow: IDebugInfoWindow read FDebugInfoWindow;
     property TimeZoneDiffByLonLat: ITimeZoneDiffByLonLat read FTimeZoneDiffByLonLat;
+    property VectorItmesFactory: IVectorItmesFactory read FVectorItmesFactory;
 
     constructor Create;
     destructor Destroy; override;
@@ -265,6 +268,7 @@ uses
   u_DebugInfoWindow,
   u_InternalPerformanceCounterList,
   u_IeEmbeddedProtocolFactory,
+  u_VectorItmesFactorySimple,
   u_PathDetalizeProviderListSimple,
   u_InternalDomainInfoProviderList,
   u_InternalDomainInfoProviderByMapTypeList,
@@ -288,6 +292,7 @@ begin
   FAppClosingNotifier := TJclBaseNotifier.Create;
   FMainConfigProvider := TSASMainConfigProvider.Create(FProgramPath, ExtractFileName(ParamStr(0)), HInstance);
   FResourceProvider := FMainConfigProvider.GetSubItem('sas:\Resource');
+  FVectorItmesFactory := TVectorItmesFactorySimple.Create;
   FGUISyncronizedTimer := TTimer.Create(nil);
   FGUISyncronizedTimer.Enabled := False;
   FGUISyncronizedTimer.Interval := 500;
@@ -324,6 +329,7 @@ begin
   FGPSPositionFactory := TGPSPositionFactory.Create;
   FGPSRecorder :=
     TGPSRecorderStuped.Create(
+      FVectorItmesFactory,
       TDatum.Create(3395, 6378137, 6356752),
       FGPSPositionFactory
     );
@@ -335,6 +341,7 @@ begin
   FTileNameGenerator := TTileFileNameGeneratorsSimpleList.Create(FCacheConfig);
   FContentTypeManager :=
     TContentTypeManagerSimple.Create(
+      FVectorItmesFactory,
       THtmlToHintTextConverterStuped.Create,
       FPerfCounterList
     );
@@ -348,23 +355,28 @@ begin
   // xml loaders
   VXmlLoader :=
     TXmlInfoSimpleParser.Create(
+      FVectorItmesFactory,
       THtmlToHintTextConverterStuped.Create,
       VMarksKmlLoadCounterList
     );
   VKmlLoader :=
     TKmlInfoSimpleParser.Create(
+      FVectorItmesFactory,
       THtmlToHintTextConverterStuped.Create,
       VMarksKmlLoadCounterList
     );
   VKmzLoader :=
     TKmzInfoSimpleParser.Create(
+      FVectorItmesFactory,
       THtmlToHintTextConverterStuped.Create,
       VMarksKmlLoadCounterList
     );
 
   FImportFileByExt := TImportByFileExt.Create(
+    FVectorItmesFactory,
     VXmlLoader,
     TPLTSimpleParser.Create(
+      FVectorItmesFactory,
       THtmlToHintTextConverterStuped.Create,
       VMarksKmlLoadCounterList
     ),
@@ -383,7 +395,7 @@ begin
       GUISyncronizedTimerNotifier,
       FPerfCounterList
     );
-  FLastSelectionInfo := TLastSelectionInfo.Create;
+  FLastSelectionInfo := TLastSelectionInfo.Create(FVectorItmesFactory);
   FGeoCoderList := TGeoCoderListSimple.Create(FInetConfig.ProxyConfig as IProxySettings);
   FMarkPictureList := TMarkPictureListSimple.Create(GetMarkIconsPath, FContentTypeManager);
   FMarksCategoryFactoryConfig := TMarkCategoryFactoryConfig.Create(FLanguageManager);
@@ -392,6 +404,7 @@ begin
       FLanguageManager,
       FProgramPath,
       FMarkPictureList,
+      FVectorItmesFactory,
       THtmlToHintTextConverterStuped.Create,
       FMarksCategoryFactoryConfig
     );
@@ -409,7 +422,7 @@ begin
   FMainMapsList := TMapTypesMainList.Create(FZmpInfoSet);
   FSkyMapDraw := TSatellitesInViewMapDrawSimple.Create;
   FDownloadResultTextProvider := TDownloadResultTextProvider.Create(FLanguageManager);
-  FPathDetalizeList := TPathDetalizeProviderListSimple.Create(FLanguageManager, FInetConfig.ProxyConfig, VKmlLoader);
+  FPathDetalizeList := TPathDetalizeProviderListSimple.Create(FLanguageManager, FInetConfig.ProxyConfig, FVectorItmesFactory, VKmlLoader);
   VInternalDomainInfoProviderList := TInternalDomainInfoProviderList.Create;
   VInternalDomainInfoProviderList.Add(
     'ZmpInfo',

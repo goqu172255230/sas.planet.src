@@ -4,6 +4,7 @@ interface
 
 uses
   t_GeoTypes,
+  i_DoublePointFilter,
   i_EnumDoublePoint;
 
 type
@@ -19,6 +20,35 @@ type
     constructor Create(
       ASourceEnum: IEnumDoublePoint
     );
+  end;
+
+  TEnumProjectedPointFilterEqual = class(TEnumDoublePointFilterEqual, IEnumProjectedPoint)
+  public
+    constructor Create(
+      ASourceEnum: IEnumProjectedPoint
+    );
+  end;
+
+  TEnumLocalPointFilterEqual = class(TEnumDoublePointFilterEqual, IEnumLocalPoint)
+  public
+    constructor Create(
+      ASourceEnum: IEnumLocalPoint
+    );
+  end;
+
+  TDoublePointFilterRemoveEqual = class(TInterfacedObject, IDoublePointFilter)
+  private
+    function CreateFilteredEnum(ASource: IEnumDoublePoint): IEnumDoublePoint;
+  end;
+
+  TProjectedPointFilterRemoveEqual = class(TInterfacedObject, IProjectedPointFilter)
+  private
+    function CreateFilteredEnum(ASource: IEnumProjectedPoint): IEnumProjectedPoint;
+  end;
+
+  TLocalPointFilterRemoveEqual = class(TInterfacedObject, ILocalPointFilter)
+  private
+    function CreateFilteredEnum(ASource: IEnumLocalPoint): IEnumLocalPoint;
   end;
 
 implementation
@@ -70,6 +100,48 @@ begin
     end;
   end;
   Result := not FFinished;
+end;
+
+{ TEnumProjectedPointFilterEqual }
+
+constructor TEnumProjectedPointFilterEqual.Create(
+  ASourceEnum: IEnumProjectedPoint
+);
+begin
+  inherited Create(ASourceEnum);
+end;
+
+{ TEnumLocalPointFilterEqual }
+
+constructor TEnumLocalPointFilterEqual.Create(
+  ASourceEnum: IEnumLocalPoint
+);
+begin
+  inherited Create(ASourceEnum);
+end;
+
+{ TDoublePointFilterRemoveEqual }
+
+function TDoublePointFilterRemoveEqual.CreateFilteredEnum(
+  ASource: IEnumDoublePoint): IEnumDoublePoint;
+begin
+  Result := TEnumDoublePointFilterEqual.Create(ASource);
+end;
+
+{ TProjectedPointFilterRemoveEqual }
+
+function TProjectedPointFilterRemoveEqual.CreateFilteredEnum(
+  ASource: IEnumProjectedPoint): IEnumProjectedPoint;
+begin
+  Result := TEnumProjectedPointFilterEqual.Create(ASource);
+end;
+
+{ TLocalPointFilterRemoveEqual }
+
+function TLocalPointFilterRemoveEqual.CreateFilteredEnum(
+  ASource: IEnumLocalPoint): IEnumLocalPoint;
+begin
+  Result := TEnumLocalPointFilterEqual.Create(ASource);
 end;
 
 end.

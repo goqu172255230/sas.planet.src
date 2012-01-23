@@ -20,6 +20,12 @@ type
     FMapType: TMapType;
     FTargetFile: string;
     FCoordConverterFactory: ICoordConverterFactory;
+    FProductName: string; // копирайт
+    FMapName : string;  // имя карты
+    FJNXversion : byte;  // 3..4
+    FZorder : integer;   // для 4 версии
+    FProductID : integer; // 0,2,3,4,5,6,7,8,9
+//    FJpegQuality : byte ; // 10..100 TODO
   protected
     procedure ProcessRegion; override;
   public
@@ -28,7 +34,12 @@ type
       ATargetFile: string;
       APolygon: ILonLatPolygonLine;
       Azoomarr: array of boolean;
-      AMapType: TMapType
+      AMapType: TMapType;
+      AProductName : string;
+      AMapName : string;
+      AJNXVersion : integer;
+      AZorder : integer;
+      AProductID : integer
     );
   end;
 
@@ -48,13 +59,23 @@ constructor TThreadExportToJnx.Create(
   ATargetFile: string;
   APolygon: ILonLatPolygonLine;
   Azoomarr: array of boolean;
-  AMapType: TMapType
+  AMapType: TMapType;
+  AProductName : string;
+  AMapName : string;
+  AJNXVersion : integer;
+  AZorder : integer;
+  AProductID : integer
 );
 begin
   inherited Create(APolygon, Azoomarr);
   FTargetFile := ATargetFile;
   FMapType := AMapType;
   FCoordConverterFactory := ACoordConverterFactory;
+  FProductName := AProductName;
+  FMapName := AMapName;
+  FJNXVersion := AJNXVersion;
+  FZorder := AZorder;
+  FProductID := AProductID;
 end;
 
 procedure TThreadExportToJnx.ProcessRegion;
@@ -69,7 +90,6 @@ var
   VMemStream: TMemoryStream;
   VGeoConvert: ICoordConverter;
   VStringStream: TStringStream;
-  VTileIndexPerZoom: Integer;
   VWriter: TJNXWriter;
   VTileBounds: TJNXRect;
   VTopLeft: TDoublePoint;
@@ -92,6 +112,15 @@ begin
     for i := 0 to Length(FZooms) - 1 do begin
       VWriter.LevelScale[i] := DigitalGlobeZoomToScale(FZooms[i]);
       VWriter.TileCount[i]  := VTileIterators[i].TilesTotal;
+      VWriter.ProductName := FProductName;
+      VWriter.MapName :=  FmapName;
+      VWriter.Version := FJNXVersion;
+      VWriter.ZOrder := FZorder;
+      VWriter.LevelCopyright[i] := '(c) '+FMapName+' ['+inttostr(i)+']';
+      VWriter.LevelDescription[i] :='Level ['+ inttostr(i)+']';
+      VWriter.LevelName[i] := 'Name ['+inttostr(i)+']';
+      VWriter.LevelZoom[i] := FZooms[i];
+      VWriter.ProductID := FProductID;
     end;
 
     try
@@ -107,7 +136,6 @@ begin
         ProgressFormUpdateOnProgress;
         for i := 0 to Length(FZooms) - 1 do begin
           VZoom := FZooms[i];
-          VTileIndexPerZoom := 0;
           VTileIterator := VTileIterators[i];
           while VTileIterator.Next(VTile) do begin
             if CancelNotifier.IsOperationCanceled(OperationID) then begin
@@ -135,7 +163,6 @@ begin
 
               VWriter.WriteTile(
                 I,
-                VTileIndexPerZoom,
                 256,
                 256,
                 VTileBounds,
@@ -143,7 +170,6 @@ begin
               );
 
             end;
-            Inc(VTileIndexPerZoom);
             inc(FTilesProcessed);
             if FTilesProcessed mod 100 = 0 then begin
               ProgressFormUpdateOnProgress;

@@ -35,6 +35,7 @@ type
     FBgColor: TColor32;
     FTextColor: TColor32;
     FAALevel: Integer;
+    FCoordsMaxWidth: Integer;
     function GetTimeInLonLat(ALonLat: TDoublePoint): TDateTime;
     procedure OnConfigChange;
     procedure OnTimerEvent;
@@ -64,6 +65,7 @@ implementation
 
 uses
   SysUtils,
+  StrUtils,
   i_CoordConverter,
   u_NotifyEventListener,
   u_ResStrings,
@@ -141,6 +143,8 @@ begin
     try
       FLayer.Bitmap.Font.Name := FConfig.FontName;
       FLayer.Bitmap.Font.Size := FConfig.FontSize;
+      FCoordsMaxWidth := FLayer.Bitmap.TextWidth('N99"99"99.99" W99"99"99.99"') + 10;
+
       FMinUpdate := FConfig.MinUpdateTickCount;
       FBgColor := FConfig.BgColor;
       FTextColor := FConfig.TextColor;
@@ -177,10 +181,9 @@ end;
 
 procedure TLayerStatBar.DoRedraw;
 var
-  ll: TDoublePoint;
-  subs2: string;
-  posnext: integer;
-  TameTZ: TDateTime;
+  VLonLat: TDoublePoint;
+  VString: string;
+  VTimeTZ: TDateTime;
   VMapPoint: TDoublePoint;
   VZoomCurr: Byte;
   VLonLatStr: String;
@@ -194,6 +197,10 @@ var
   VMousePos: TPoint;
   VVisualCoordConverter: ILocalCoordConverter;
   VValueConverter: IValueToStringConverter;
+  VOffset: TPoint;
+  VTileName: string;
+  VTileNameWidth: Integer;
+  VTileNameWidthAviable: Integer;
 begin
   inherited;
   VCurrentTick := GetTickCount;
@@ -212,30 +219,53 @@ begin
 
     VMapPoint := VVisualCoordConverter.LocalPixel2MapPixelFloat(VMousePos);
     VConverter.CheckPixelPosFloatStrict(VMapPoint, VZoomCurr, True);
-    ll := VConverter.PixelPosFloat2LonLat(VMapPoint, VZoomCurr);
-    VLonLatStr:= VValueConverter.LonLatConvert(ll);
+    VLonLat := VConverter.PixelPosFloat2LonLat(VMapPoint, VZoomCurr);
+    VLonLatStr:= VValueConverter.LonLatConvert(VLonLat);
 
     FLayer.Bitmap.Clear(FBgColor);
-    FLayer.Bitmap.Line(0, 0, VSize.X, 0, SetAlpha(clBlack32, 256));
-    FLayer.Bitmap.RenderText(4, 1, 'z' + inttostr(VZoomCurr + 1), FAALevel, FTextColor);
-    FLayer.Bitmap.RenderText(29, 1, '| ' + SAS_STR_coordinates + ' ' + VLonLatStr, FAALevel, FTextColor);
+    FLayer.Bitmap.Line(0, 0, VSize.X, 0, SetAlpha(clBlack32, 255));
+
+    VOffset.Y := 1;
+    VOffset.X := 4;
+    FLayer.Bitmap.RenderText(VOffset.X, VOffset.Y, 'z' + inttostr(VZoomCurr + 1), FAALevel, FTextColor);
+
+    VOffset.X := 29;
+    FLayer.Bitmap.RenderText(VOffset.X, VOffset.Y, '| ' + VLonLatStr, FAALevel, FTextColor);
 
     VRad := VConverter.Datum.GetSpheroidRadiusA;
     VPixelsAtZoom := VConverter.PixelsAtZoomFloat(VZoomCurr);
-    subs2 := VValueConverter.DistPerPixelConvert(1 / ((VPixelsAtZoom / (2 * PI)) / (VRad * cos(ll.y * D2R))));
-    FLayer.Bitmap.RenderText(278, 1, ' | ' + SAS_STR_Scale + ' ' + subs2, FAALevel, FTextColor);
-    posnext := 273 + FLayer.Bitmap.TextWidth(subs2) + 70;
-    TameTZ := GetTimeInLonLat(ll);
-    FLayer.Bitmap.RenderText(posnext, 1, ' | ' + SAS_STR_time + ' ' + TimeToStr(TameTZ), FAALevel, FTextColor);
-    posnext := posnext + FLayer.Bitmap.TextWidth(SAS_STR_time + ' ' + TimeToStr(TameTZ)) + 10;
-    subs2 := VMap.GetTileShowName(VTile, VZoomCurr);
-    FLayer.Bitmap.RenderText(
-      posnext, 1,
-      ' | ' + SAS_STR_load + ' ' +
+    VString := VValueConverter.DistPerPixelConvert(1 / ((VPixelsAtZoom / (2 * PI)) / (VRad * cos(VLonLat.y * D2R))));
+    VOffset.X := VOffset.X + FCoordsMaxWidth;
+    FLayer.Bitmap.RenderText(VOffset.X, VOffset.Y, ' | ' + VString, FAALevel, FTextColor);
+    VOffset.X := VOffset.X + FLayer.Bitmap.TextWidth(VString) + 10;
+    VTimeTZ := GetTimeInLonLat(VLonLat);
+    VString := ' | ' + TimeToStr(VTimeTZ);
+    FLayer.Bitmap.RenderText(VOffset.X, VOffset.Y, VString, FAALevel, FTextColor);
+    VOffset.X := VOffset.X + FLayer.Bitmap.TextWidth(VString) + 10;
+    VTileName := VMap.GetTileShowName(VTile, VZoomCurr);
+
+    VString := ' | ' + SAS_STR_load + ' ' +
       inttostr(FDownloadInfo.TileCount) + ' (' +
       VValueConverter.DataSizeConvert(FDownloadInfo.Size/1024) +
-      ') | ' + SAS_STR_file + ' ' + subs2,
-       FAALevel, FTextColor
+      ') | ' + SAS_STR_file + ' ';
+
+    VTileNameWidthAviable := FLayer.Bitmap.Width - VOffset.X - FLayer.Bitmap.TextWidth(VString);
+    if Length(VTileName) > 0 then begin
+      if VTileNameWidthAviable > 30 then begin
+        VTileNameWidth := FLayer.Bitmap.TextWidth(VTileName);
+        if VTileNameWidthAviable < VTileNameWidth then begin
+          VTileName := '...' +
+            RightStr(
+              VTileName,
+                Trunc((Length(VTileName)/VTileNameWidth)* (VTileNameWidthAviable - 10))
+              );
+        end;
+      end;
+    end;
+    FLayer.Bitmap.RenderText(
+      VOffset.X, VOffset.Y,
+      VString + VTileName,
+      FAALevel, FTextColor
     );
     FLastUpdateTick := GetTickCount;
   end;

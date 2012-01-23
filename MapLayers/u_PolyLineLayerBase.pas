@@ -28,8 +28,10 @@ type
     FFactory: IVectorItmesFactory;
     FConfig: ILineLayerConfig;
 
+    FLineVisible: Boolean;
     FLineColor: TColor32;
     FLineWidth: Integer;
+    FSimpleLineDraw: Boolean;
 
     FPreparedPointsAggreagtor: IDoublePointsAggregator;
   protected
@@ -52,6 +54,8 @@ type
   IDrawablePolygon = interface
   ['{EB682EC5-9DD3-4B9C-84AD-44A5EED26FA6}']
     procedure DrawFill(Bitmap: TCustomBitmap32; Color: TColor32; Transformation: TTransformation = nil);
+    procedure DrawEdge(Bitmap: TCustomBitmap32; Color: TColor32; Transformation: TTransformation = nil);
+    procedure Draw(Bitmap: TCustomBitmap32; OutlineColor, FillColor: TColor32; Transformation: TTransformation = nil);
   end;
 
   TDrawablePolygon32 = class(TPolygon32, IDrawablePolygon)
@@ -77,6 +81,7 @@ type
   private
     FConfig: IPolygonLayerConfig;
     FFillColor: TColor32;
+    FFillVisible: Boolean;
 
     FLine: ILonLatPolygon;
     FProjectedLine: IProjectedPolygon;
@@ -264,6 +269,8 @@ procedure TLineLayerBase.DoConfigChange;
 begin
   FLineColor := FConfig.LineColor;
   FLineWidth := FConfig.LineWidth;
+  FLineVisible := ((AlphaComponent(FLineColor) > 0) and (FLineWidth > 0));
+  FSimpleLineDraw := (FLineWidth = 1);
 end;
 
 procedure TLineLayerBase.OnConfigChange;
@@ -328,6 +335,10 @@ var
   VIndex: Integer;
   VPoint: TDoublePoint;
 begin
+  if (AlphaComponent(FLineColor) = 0) or (FLineWidth < 1)  then begin
+    Exit;
+  end;
+
   VLonLatLine := FLine;
   VProjectedLine := FProjectedLine;
   VLocalLine := FLocalLine;
@@ -343,7 +354,7 @@ begin
     Exit;
   end;
   if VProjectedLine <> nil then begin
-    if (VLocalLine.Count > 0) and not ALocalConverter.ProjectionInfo.GetIsSameProjectionInfo(VProjectedLine.Projection) then begin
+    if not ALocalConverter.ProjectionInfo.GetIsSameProjectionInfo(VProjectedLine.Projection) then begin
       VProjectedLine := nil;
     end;
   end;
@@ -359,7 +370,7 @@ begin
   end;
 
   if VLocalLine <> nil then begin
-    if (VLocalLine.Count > 0) and not ALocalConverter.GetIsSameConverter(VLocalLine.LocalConverter) then begin
+    if not ALocalConverter.GetIsSameConverter(VLocalLine.LocalConverter) then begin
       VLocalLine := nil;
     end;
   end;
@@ -410,17 +421,20 @@ begin
           VPolygon.AddPoints(VPathFixedPoints[0], VIndex);
           VPolygon.NewLine;
         end;
-
-        VPolygonOutline := VPolygon.Outline;
-        try
-          VPolygonGrow := VPolygonOutline.Grow(Fixed(FLineWidth / 2), 0.5);
+        if FLineWidth = 1 then begin
+          VDrawablePolygon := TDrawablePolygon32.CreateFromSource(VPolygon);
+        end else begin
+          VPolygonOutline := VPolygon.Outline;
           try
-            VDrawablePolygon := TDrawablePolygon32.CreateFromSource(VPolygonGrow);
+            VPolygonGrow := VPolygonOutline.Grow(Fixed(FLineWidth / 2), 0.5);
+            try
+              VDrawablePolygon := TDrawablePolygon32.CreateFromSource(VPolygonGrow);
+            finally
+              VPolygonGrow.Free;
+            end;
           finally
-            VPolygonGrow.Free;
+            VPolygonOutline.Free;
           end;
-        finally
-          VPolygonOutline.Free;
         end;
       end;
     finally
@@ -463,6 +477,7 @@ procedure TPolygonLayerBase.DoConfigChange;
 begin
   inherited;
   FFillColor := FConfig.FillColor;
+  FFillVisible := (AlphaComponent(FFillColor) > 0);
 end;
 
 procedure TPolygonLayerBase.PaintLayer(ABuffer: TBitmap32;
@@ -485,6 +500,10 @@ var
   VIndex: Integer;
   VPoint: TDoublePoint;
 begin
+  if not FFillVisible  and not FLineVisible then begin
+    Exit;
+  end;
+
   VLonLatLine := FLine;
   VProjectedLine := FProjectedLine;
   VLocalLine := FLocalLine;
@@ -501,7 +520,7 @@ begin
   end;
 
   if VProjectedLine <> nil then begin
-    if (VProjectedLine.Count > 0) and not ALocalConverter.ProjectionInfo.GetIsSameProjectionInfo(VProjectedLine.Projection) then begin
+    if not ALocalConverter.ProjectionInfo.GetIsSameProjectionInfo(VProjectedLine.Projection) then begin
       VProjectedLine := nil;
     end;
   end;
@@ -517,7 +536,7 @@ begin
   end;
 
   if VLocalLine <> nil then begin
-    if (VLocalLine.Count > 0) and not ALocalConverter.GetIsSameConverter(VLocalLine.LocalConverter) then begin
+    if not ALocalConverter.GetIsSameConverter(VLocalLine.LocalConverter) then begin
       VLocalLine := nil;
     end;
   end;
@@ -550,7 +569,7 @@ begin
     Exit;
   end;
 
-  if (VDrawablePolygonFill = nil) or (VDrawablePolygonBorder = nil) then begin
+  if (VDrawablePolygonFill = nil) then begin
     VPolygon := TPolygon32.Create;
     try
       VPolygon.Closed := True;
@@ -570,17 +589,19 @@ begin
           VPolygon.NewLine;
         end;
         VDrawablePolygonFill := TDrawablePolygon32.CreateFromSource(VPolygon);
-
-        VPolygonOutline := VPolygon.Outline;
-        try
-          VPolygonGrow := VPolygonOutline.Grow(Fixed(FLineWidth / 2), 0.5);
+        VDrawablePolygonBorder := nil;
+        if not FSimpleLineDraw then begin
+          VPolygonOutline := VPolygon.Outline;
           try
-            VDrawablePolygonBorder := TDrawablePolygon32.CreateFromSource(VPolygonGrow);
+            VPolygonGrow := VPolygonOutline.Grow(Fixed(FLineWidth / 2), 0.5);
+            try
+              VDrawablePolygonBorder := TDrawablePolygon32.CreateFromSource(VPolygonGrow);
+            finally
+              VPolygonGrow.Free;
+            end;
           finally
-            VPolygonGrow.Free;
+            VPolygonOutline.Free;
           end;
-        finally
-          VPolygonOutline.Free;
         end;
       end;
     finally
@@ -589,11 +610,24 @@ begin
     FPolygonFill := VDrawablePolygonFill;
     FPolygonBorder := VDrawablePolygonBorder;
   end;
-  if (VDrawablePolygonFill = nil) or (VDrawablePolygonBorder = nil) then begin
+  if (VDrawablePolygonFill = nil) then begin
     Exit;
   end;
-  VDrawablePolygonFill.DrawFill(ABuffer, FFillColor);
-  VDrawablePolygonBorder.DrawFill(ABuffer, FLineColor);
+  if FFillVisible then begin
+    if FLineVisible and FSimpleLineDraw then begin
+      VDrawablePolygonFill.Draw(ABuffer, FLineColor, FFillColor);
+    end else begin
+      VDrawablePolygonFill.DrawFill(ABuffer, FFillColor);
+    end;
+  end else begin
+    if FLineVisible and FSimpleLineDraw then begin
+      VDrawablePolygonFill.DrawEdge(ABuffer, FLineColor);
+    end;
+  end;
+
+  if VDrawablePolygonBorder <> nil then begin
+    VDrawablePolygonBorder.DrawFill(ABuffer, FLineColor);
+  end;
 end;
 
 { TPathEditLayer }

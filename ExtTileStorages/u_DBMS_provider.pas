@@ -18,83 +18,27 @@
 {* az@sasgis.ru                                                               *}
 {******************************************************************************}
 
-unit u_LastSelectionLayerConfig;
+unit u_DBMS_provider;
 
 interface
 
 uses
-  GR32,
-  i_ConfigDataProvider,
-  i_ConfigDataWriteProvider,
-  i_LastSelectionLayerConfig,
-  u_PolygonLayerConfig,
-  u_ConfigDataElementBase;
+  t_ETS_Provider,
+  t_ETS_Result;
 
-type
-  TLastSelectionLayerConfig = class(TPolygonLayerConfig, ILastSelectionLayerConfig)
-  private
-    FVisible: Boolean;
-  protected
-    procedure DoReadConfig(AConfigData: IConfigDataProvider); override;
-    procedure DoWriteConfig(AConfigData: IConfigDataWriteProvider); override;
-  protected
-    function GetVisible: Boolean;
-    procedure SetVisible(AValue: Boolean);
-  public
-    constructor Create;
-  end;
+function r_DBMS_Provider_Query_Info(const AProvHandle: TETS_Provider_Handle;
+                                    const AProvQueryInfoClass: LongWord;
+                                    const AProvQueryInfoSize: LongWord;
+                                    const AProvQueryInfoData: Pointer): LongInt; stdcall;
 
 implementation
 
-{ TLastSelectionLayerConfig }
-
-constructor TLastSelectionLayerConfig.Create;
+function r_DBMS_Provider_Query_Info(const AProvHandle: TETS_Provider_Handle;
+                                    const AProvQueryInfoClass: LongWord;
+                                    const AProvQueryInfoSize: LongWord;
+                                    const AProvQueryInfoData: Pointer): LongInt; stdcall;
 begin
-  inherited;
-  FVisible := True;
-  SetFillColor(0);
-  SetLineColor(SetAlpha(clBlack32, 210));
-  SetLineWidth(2);
-end;
-
-procedure TLastSelectionLayerConfig.DoReadConfig(
-  AConfigData: IConfigDataProvider);
-begin
-  inherited;
-  if AConfigData <> nil then begin
-    FVisible := AConfigData.ReadBool('Visible', FVisible);
-    SetChanged;
-  end;
-end;
-
-procedure TLastSelectionLayerConfig.DoWriteConfig(
-  AConfigData: IConfigDataWriteProvider);
-begin
-  inherited;
-  AConfigData.WriteBool('Visible', FVisible);
-end;
-
-function TLastSelectionLayerConfig.GetVisible: Boolean;
-begin
-  LockRead;
-  try
-    Result := FVisible;
-  finally
-    UnlockRead;
-  end;
-end;
-
-procedure TLastSelectionLayerConfig.SetVisible(AValue: Boolean);
-begin
-  LockWrite;
-  try
-    if FVisible <> AValue then begin
-      FVisible := AValue;
-      SetChanged;
-    end;
-  finally
-    UnlockWrite;
-  end;
+  Result:=ETSR_NOT_SUPPORTED;
 end;
 
 end.

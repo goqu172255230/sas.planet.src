@@ -29,6 +29,7 @@ uses
   i_HtmlToHintTextConverter,
   i_VectorItmesFactory,
   i_VectorDataItemSimple,
+  i_DoublePointsAggregator,
   i_InternalPerformanceCounter,
   i_VectorDataLoader,
   BMSEARCH;
@@ -55,12 +56,11 @@ type
     function PosOfNonSpaceChar(AText: PAnsiChar; ALast: PAnsiChar): PAnsiChar;
     function PosOfSpaceChar(AText: PAnsiChar; ALast: PAnsiChar): PAnsiChar;
     function parse(buffer: AnsiString; AList: IInterfaceList): boolean;
-    function parseCoordinates(AText: PAnsiChar; ALen: integer; var Adata: TArrayOfDoublePoint; var ARect: TDoubleRect): boolean;
+    function parseCoordinates(AText: PAnsiChar; ALen: integer; APointsAggregator: IDoublePointsAggregator): boolean;
     procedure parseName(var Name: AnsiString);
     procedure parseDescription(var Description: AnsiString);
-    function BuildItem(AName, ADesc: string; Adata: TArrayOfDoublePoint; ARect: TDoubleRect): IVectorDataItemSimple;
+    function BuildItem(AName, ADesc: string; APointsAggregator: IDoublePointsAggregator): IVectorDataItemSimple;
   protected
-    procedure LoadFromFile(AFileName: string; out AItems: IVectorDataItemList); virtual;
     procedure LoadFromStream(AStream: TStream; out AItems: IVectorDataItemList); virtual;
   public
     constructor Create(
@@ -77,6 +77,7 @@ implementation
 uses
   StrUtils,
   cUnicodeCodecs,
+  u_DoublePointsAggregator,
   u_VectorDataItemPoint,
   u_VectorDataItemPolygon,
   u_VectorDataItemList,
@@ -85,24 +86,23 @@ uses
 { TKmlInfoSimpleParser }
 
 function TKmlInfoSimpleParser.BuildItem(AName, ADesc: string;
-  Adata: TArrayOfDoublePoint; ARect: TDoubleRect): IVectorDataItemSimple;
+  APointsAggregator: IDoublePointsAggregator): IVectorDataItemSimple;
 var
   VPointCount: Integer;
 begin
   Result := nil;
-  VPointCount := Length(Adata);
+  VPointCount := APointsAggregator.Count;
   if VPointCount > 0 then begin
     if VPointCount = 1 then begin
-      Result := TVectorDataItemPoint.Create(FHintConverter, AName, ADesc, AData[0]);
+      Result := TVectorDataItemPoint.Create(FHintConverter, AName, ADesc, APointsAggregator.Points[0]);
     end else begin
-      if DoublePointsEqual(Adata[0], Adata[VPointCount - 1]) then begin
+      if DoublePointsEqual(APointsAggregator.Points[0], APointsAggregator.Points[VPointCount - 1]) then begin
         Result :=
           TVectorDataItemPoly.Create(
             FHintConverter,
             AName,
             ADesc,
-            FFactory.CreateLonLatPolygon(@Adata[0], VPointCount),
-            ARect
+            FFactory.CreateLonLatPolygon(APointsAggregator.Points, VPointCount)
           );
       end else begin
         Result :=
@@ -110,8 +110,7 @@ begin
             FHintConverter,
             AName,
             ADesc,
-            FFactory.CreateLonLatPath(@Adata[0], VPointCount),
-            ARect
+            FFactory.CreateLonLatPath(APointsAggregator.Points, VPointCount)
           );
       end;
     end;
@@ -153,19 +152,6 @@ begin
   FreeAndNil(FBMSrchCoord);
   FreeAndNil(FBMSrchCoordE);
   inherited;
-end;
-
-procedure TKmlInfoSimpleParser.LoadFromFile(AFileName: string;
-  out AItems: IVectorDataItemList);
-var
-  VFileStream: TFileStream;
-begin
-  VFileStream := TFileStream.Create(AFileName, fmOpenRead);
-  try
-    LoadFromStream(VFileStream, AItems);
-  finally
-    VFileStream.Free;
-  end;
 end;
 
 procedure TKmlInfoSimpleParser.LoadFromStream(AStream: TStream;
@@ -267,9 +253,8 @@ var
   position, PosStartPlace, PosTag1, PosTag2,PosTag3, PosEndPlace, sLen, sStart: integer;
   VName: string;
   VDescription: string;
-  VPoints: TArrayOfDoublePoint;
-  VRect: TDoubleRect;
   VItem: IVectorDataItemSimple;
+  VPointsAggregator: IDoublePointsAggregator;
 begin
   result := true;
   sLen := Length(buffer);
@@ -277,6 +262,7 @@ begin
   position := 1;
   PosStartPlace := 1;
   PosEndPlace := 1;
+  VPointsAggregator := TDoublePointsAggregator.Create;
   While (position > 0) and (PosStartPlace > 0) and (PosEndPlace > 0) and (result) do begin
     try
         PosStartPlace := integer(FBMSrchPlacemark.Search(@buffer[position], sLen - position + 1)) - sStart + 1;
@@ -308,14 +294,14 @@ begin
                 end;
               end;
             end;
-            VPoints := nil;
             PosTag1 := integer(FBMSrchCoord.Search(@buffer[PosStartPlace], PosEndPlace - PosStartPlace + 1)) - sStart + 1;
             if (PosTag1 > PosStartPlace) and (PosTag1 < PosEndPlace) then begin
               PosTag2 := integer(FBMSrchCloseQ.Search(@buffer[PosTag1], PosEndPlace - PosTag1 + 1)) - sStart + 1;
               if (PosTag2 > PosStartPlace) and (PosTag2 < PosEndPlace) and (PosTag2 > PosTag1) then begin
                 PosTag3 := integer(FBMSrchCoordE.Search(@buffer[PosTag2], PosEndPlace - PosTag2 + 1)) - sStart + 1;
                 if (PosTag3 > PosStartPlace) and (PosTag3 < PosEndPlace) and (PosTag3 > PosTag2) then begin
-                  Result := parseCoordinates(@buffer[PosTag2 + 1], PosTag3 - (PosTag2 + 1), VPoints, VRect);
+                  VPointsAggregator.Clear;
+                  Result := parseCoordinates(@buffer[PosTag2 + 1], PosTag3 - (PosTag2 + 1), VPointsAggregator);
                 end else begin
                   result := false;
                 end;
@@ -326,7 +312,7 @@ begin
               result := false;
             end;
           end;
-          VItem := BuildItem(VName, VDescription, VPoints, VRect);
+          VItem := BuildItem(VName, VDescription, VPointsAggregator);
           if VItem <> nil then begin
             AList.Add(VItem);
           end;
@@ -338,8 +324,11 @@ begin
   end;
 end;
 
-function TKmlInfoSimpleParser.parseCoordinates(AText: PAnsiChar; ALen: integer;
-  var Adata: TArrayOfDoublePoint; var ARect: TDoubleRect): boolean;
+function TKmlInfoSimpleParser.parseCoordinates(
+  AText: PAnsiChar;
+  ALen: integer;
+  APointsAggregator: IDoublePointsAggregator
+): boolean;
 var
   VCurPos: PAnsiChar;
   VNumEndPos: PAnsiChar;
@@ -347,15 +336,9 @@ var
   VSpace: PAnsiChar;
   VLineStart: PAnsiChar;
   VCurCoord: TDoublePoint;
-  VAllocated: Integer;
-  VUsed: Integer;
   VValue: Extended;
   VLastPos: PAnsiChar;
-  i: Integer;
 begin
-  VUsed := 0;
-  VAllocated := 32;
-  SetLength(Adata, VAllocated);
   VLineStart := AText;
   VCurPos := VLineStart;
   VLastPos := AText + ALen;
@@ -391,12 +374,7 @@ begin
                 VNumEndPos^ := #0;
                 if TextToFloat(VCurPos, VValue, fvExtended, FFormat) then begin
                   VCurCoord.Y := VValue;
-                  if VUsed >= VAllocated then begin
-                    VAllocated := VAllocated * 2;
-                    SetLength(Adata, VAllocated);
-                  end;
-                  Adata[VUsed] := VCurCoord;
-                  Inc(VUsed);
+                  APointsAggregator.Add(VCurCoord);
                 end;
                 VCurPos := VNumEndPos;
                 Inc(VCurPos);
@@ -421,28 +399,7 @@ begin
   except
     Assert(False, 'Неожиданная ошибка при разборе kml');
   end;
-  SetLength(Adata, VUsed);
-  if VUsed > 0 then begin
-    ARect.TopLeft := Adata[0];
-    ARect.BottomRight := Adata[0];
-    for i := 0 to length(Adata) - 1 do begin
-      if ARect.Left > Adata[i].X then begin
-        ARect.Left := Adata[i].X;
-      end;
-      if ARect.Right < Adata[i].X then begin
-        ARect.Right := Adata[i].X;
-      end;
-      if ARect.Top < Adata[i].y then begin
-        ARect.Top := Adata[i].y;
-      end;
-      if ARect.Bottom > Adata[i].y then begin
-        ARect.Bottom := Adata[i].y;
-      end;
-    end;
-    Result := True;
-  end else begin
-    result := false;
-  end;
+  Result := APointsAggregator.Count > 0;
 end;
 
 function TKmlInfoSimpleParser.PosOfChar(APattern: AnsiChar; AText: PAnsiChar;

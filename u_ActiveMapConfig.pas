@@ -1,0 +1,122 @@
+{******************************************************************************}
+{* SAS.Planet (SAS.Планета)                                                   *}
+{* Copyright (C) 2007-2011, SAS.Planet development team.                      *}
+{* This program is free software: you can redistribute it and/or modify       *}
+{* it under the terms of the GNU General Public License as published by       *}
+{* the Free Software Foundation, either version 3 of the License, or          *}
+{* (at your option) any later version.                                        *}
+{*                                                                            *}
+{* This program is distributed in the hope that it will be useful,            *}
+{* but WITHOUT ANY WARRANTY; without even the implied warranty of             *}
+{* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the              *}
+{* GNU General Public License for more details.                               *}
+{*                                                                            *}
+{* You should have received a copy of the GNU General Public License          *}
+{* along with this program.  If not, see <http://www.gnu.org/licenses/>.      *}
+{*                                                                            *}
+{* http://sasgis.ru                                                           *}
+{* az@sasgis.ru                                                               *}
+{******************************************************************************}
+
+unit u_ActiveMapConfig;
+
+interface
+
+uses
+  Windows,
+  SysUtils,
+  i_JclNotify,
+  i_GUIDSet,
+  i_MapTypes,
+  i_ActiveMapsConfig,
+  u_ConfigDataElementBase;
+
+type
+  TActiveMapConfig = class(TConfigDataElementBaseEmptySaveLoad, IActiveMap)
+  private
+    FSelectedGUID: TGUID;
+    FMapsSet: IMapTypeSet;
+    FSingeMapsList: IGUIDInterfaceSet;
+  protected
+    FMainMapChangeNotyfier: IJclNotifier;
+    FMainMapListener: IJclListener;
+    procedure OnMainMapChange(const AGUID: TGUID);
+  protected
+    function GetSelectedGUID: TGUID;
+    function GetMapSingle(const AMapGUID: TGUID): IActiveMapSingle;
+    function GetMapsSet: IMapTypeSet;
+  public
+    constructor Create(AMainMapChangeNotyfier: IJclNotifier; ASingeMapsList: IGUIDInterfaceSet; AMapsSet: IMapTypeSet);
+    destructor Destroy; override;
+  end;
+
+implementation
+
+uses
+  ActiveX,
+  u_NotifyWithGUIDEvent;
+
+{ TActiveMapConfigNew }
+
+constructor TActiveMapConfig.Create(AMainMapChangeNotyfier: IJclNotifier;
+  ASingeMapsList: IGUIDInterfaceSet; AMapsSet: IMapTypeSet);
+var
+  i: Cardinal;
+begin
+  inherited Create;
+  FMapsSet := AMapsSet;
+  FSingeMapsList := ASingeMapsList;
+  FMainMapChangeNotyfier := AMainMapChangeNotyfier;
+  FMainMapListener := TNotifyWithGUIDEventListener.Create(Self.OnMainMapChange);
+  FMainMapChangeNotyfier.Add(FMainMapListener);
+  if FMapsSet.GetIterator.Next(1, FSelectedGUID, i) <> S_OK then begin
+    raise Exception.Create('Empty maps list');
+  end;
+end;
+
+destructor TActiveMapConfig.Destroy;
+begin
+  FMainMapChangeNotyfier.Remove(FMainMapListener);
+  FMainMapListener := nil;
+  FMainMapChangeNotyfier := nil;
+  FMapsSet := nil;
+  FSingeMapsList := nil;
+  inherited;
+end;
+
+function TActiveMapConfig.GetMapSingle(const AMapGUID: TGUID): IActiveMapSingle;
+begin
+  if FMapsSet.GetMapTypeByGUID(AMapGUID) <> nil then begin
+    Result := IActiveMapSingle(FSingeMapsList.GetByGUID(AMapGUID));
+  end;
+end;
+
+function TActiveMapConfig.GetMapsSet: IMapTypeSet;
+begin
+  Result := FMapsSet;
+end;
+
+function TActiveMapConfig.GetSelectedGUID: TGUID;
+begin
+  LockRead;
+  try
+    Result := FSelectedGUID;
+  finally
+    UnlockRead;
+  end;
+end;
+
+procedure TActiveMapConfig.OnMainMapChange(const AGUID: TGUID);
+begin
+  LockWrite;
+  try
+    if not IsEqualGUID(FSelectedGUID, AGUID) then begin
+      FSelectedGUID := AGUID;
+      SetChanged;
+    end;
+  finally
+    UnlockWrite;
+  end;
+end;
+
+end.

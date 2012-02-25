@@ -1,0 +1,268 @@
+{******************************************************************************}
+{* SAS.Planet (SAS.Планета)                                                   *}
+{* Copyright (C) 2007-2011, SAS.Planet development team.                      *}
+{* This program is free software: you can redistribute it and/or modify       *}
+{* it under the terms of the GNU General Public License as published by       *}
+{* the Free Software Foundation, either version 3 of the License, or          *}
+{* (at your option) any later version.                                        *}
+{*                                                                            *}
+{* This program is distributed in the hope that it will be useful,            *}
+{* but WITHOUT ANY WARRANTY; without even the implied warranty of             *}
+{* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the              *}
+{* GNU General Public License for more details.                               *}
+{*                                                                            *}
+{* You should have received a copy of the GNU General Public License          *}
+{* along with this program.  If not, see <http://www.gnu.org/licenses/>.      *}
+{*                                                                            *}
+{* http://sasgis.ru                                                           *}
+{* az@sasgis.ru                                                               *}
+{******************************************************************************}
+
+unit u_ConfigDataElementBase;
+
+interface
+
+uses
+  Windows,
+  SyncObjs,
+  SysUtils,
+  i_JclNotify,
+  i_ConfigDataProvider,
+  i_ConfigDataWriteProvider,
+  i_ConfigDataElement,
+  u_ChangeableBase;
+
+type
+  TConfigDataElementBase = class(TChangeableBase, IConfigDataElement)
+  private
+    FLock: TMultiReadExclusiveWriteSynchronizer;
+    FStopNotifyCounter: Longint;
+    FNeedNotify: Longint;
+  protected
+    procedure SetChanged;
+    function CheckIsChangedAndReset: Boolean;
+    procedure DoReadConfig(AConfigData: IConfigDataProvider); virtual; abstract;
+    procedure DoWriteConfig(AConfigData: IConfigDataWriteProvider); virtual; abstract;
+  protected
+    procedure LockRead; virtual;
+    procedure LockWrite; virtual;
+    procedure UnlockRead; virtual;
+    procedure UnlockWrite; virtual;
+    procedure ReadConfig(AConfigData: IConfigDataProvider); virtual;
+    procedure WriteConfig(AConfigData: IConfigDataWriteProvider); virtual;
+    procedure StopNotify; virtual;
+    procedure StartNotify; virtual;
+  public
+    procedure AfterConstruction; override;
+    procedure BeforeDestruction; override;
+  public
+    constructor Create();
+    destructor Destroy; override;
+  end;
+
+  TConfigDataElementWithStaticBase = class(TConfigDataElementBase)
+  private
+    FStatic: IInterface;
+    FStaticCS: TCriticalSection;
+  protected
+    function CreateStatic: IInterface; virtual; abstract;
+  protected
+    procedure DoBeforeChangeNotify; override;
+    function GetStaticInternal: IInterface; virtual;
+  public
+    procedure AfterConstruction; override;
+  public
+    constructor Create();
+    destructor Destroy; override;
+  end;
+
+type
+  TConfigDataElementBaseEmptySaveLoad = class(TConfigDataElementBase)
+  protected
+    procedure DoReadConfig(AConfigData: IConfigDataProvider); override;
+    procedure DoWriteConfig(AConfigData: IConfigDataWriteProvider); override;
+  end;
+
+  TConfigDataElementWithStaticBaseEmptySaveLoad = class(TConfigDataElementWithStaticBase)
+  protected
+    procedure DoReadConfig(AConfigData: IConfigDataProvider); override;
+    procedure DoWriteConfig(AConfigData: IConfigDataWriteProvider); override;
+  end;
+
+implementation
+
+uses
+  u_JclNotify;
+
+{ TConfigDataElementBase }
+
+constructor TConfigDataElementBase.Create;
+begin
+  inherited;
+  FLock := TMultiReadExclusiveWriteSynchronizer.Create;
+  FStopNotifyCounter := 0;
+end;
+
+destructor TConfigDataElementBase.Destroy;
+begin
+  FreeAndNil(FLock);
+  inherited;
+end;
+
+procedure TConfigDataElementBase.AfterConstruction;
+begin
+  inherited;
+  FNeedNotify := 0;
+end;
+
+procedure TConfigDataElementBase.BeforeDestruction;
+begin
+  inherited;
+  StopNotify;
+end;
+
+function TConfigDataElementBase.CheckIsChangedAndReset: Boolean;
+begin
+  Result := InterlockedExchange(FNeedNotify, 0) <> 0;
+end;
+
+procedure TConfigDataElementBase.LockRead;
+begin
+  FLock.BeginRead;
+end;
+
+procedure TConfigDataElementBase.LockWrite;
+begin
+  StopNotify;
+  FLock.BeginWrite;
+end;
+
+procedure TConfigDataElementBase.ReadConfig(AConfigData: IConfigDataProvider);
+begin
+  LockWrite;
+  try
+    DoReadConfig(AConfigData);
+  finally
+    UnlockWrite;
+  end;
+end;
+
+procedure TConfigDataElementBase.SetChanged;
+begin
+  InterlockedIncrement(FNeedNotify);
+end;
+
+procedure TConfigDataElementBase.StartNotify;
+var
+  VCouner: Longint;
+begin
+  VCouner := InterlockedDecrement(FStopNotifyCounter);
+  if VCouner = 0 then begin
+    if CheckIsChangedAndReset then begin
+      DoChangeNotify;
+    end;
+  end;
+end;
+
+procedure TConfigDataElementBase.StopNotify;
+begin
+  InterlockedIncrement(FStopNotifyCounter);
+end;
+
+procedure TConfigDataElementBase.UnlockRead;
+begin
+  FLock.EndRead;
+end;
+
+procedure TConfigDataElementBase.UnlockWrite;
+begin
+  FLock.EndWrite;
+  StartNotify;
+end;
+
+procedure TConfigDataElementBase.WriteConfig(
+  AConfigData: IConfigDataWriteProvider);
+begin
+  LockRead;
+  try
+    DoWriteConfig(AConfigData);
+  finally
+    UnlockRead;
+  end;
+end;
+
+{ TConfigDataElementWithStaticBase }
+
+procedure TConfigDataElementWithStaticBase.AfterConstruction;
+begin
+  inherited;
+  FStatic := CreateStatic;
+end;
+
+constructor TConfigDataElementWithStaticBase.Create;
+begin
+  inherited;
+  FStaticCS := TCriticalSection.Create;
+end;
+
+destructor TConfigDataElementWithStaticBase.Destroy;
+begin
+  FreeAndNil(FStaticCS);
+  FStatic := nil;
+  inherited;
+end;
+
+procedure TConfigDataElementWithStaticBase.DoBeforeChangeNotify;
+var
+  VStatic: IInterface;
+begin
+  inherited;
+  LockWrite;
+  try
+    VStatic := CreateStatic;
+    FStaticCS.Acquire;
+    try
+      FStatic := VStatic;
+    finally
+      FStaticCS.Release;
+    end;
+  finally
+    UnlockWrite;
+  end;
+end;
+
+function TConfigDataElementWithStaticBase.GetStaticInternal: IInterface;
+begin
+  FStaticCS.Acquire;
+  try
+    Result := FStatic;
+  finally
+    FStaticCS.Release;
+  end;
+end;
+
+{ TConfigDataElementBaseEmptySaveLoad }
+
+procedure TConfigDataElementBaseEmptySaveLoad.DoReadConfig(
+  AConfigData: IConfigDataProvider);
+begin
+end;
+
+procedure TConfigDataElementBaseEmptySaveLoad.DoWriteConfig(
+  AConfigData: IConfigDataWriteProvider);
+begin
+end;
+
+{ TConfigDataElementWithStaticBaseEmptySaveLoad }
+
+procedure TConfigDataElementWithStaticBaseEmptySaveLoad.DoReadConfig(
+  AConfigData: IConfigDataProvider);
+begin
+end;
+
+procedure TConfigDataElementWithStaticBaseEmptySaveLoad.DoWriteConfig(
+  AConfigData: IConfigDataWriteProvider);
+begin
+end;
+
+end.

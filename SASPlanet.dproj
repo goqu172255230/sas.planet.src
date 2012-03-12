@@ -375,6 +375,7 @@
     <DCCReference Include="i_UrlByCoordProvider.pas" />
     <DCCReference Include="i_UsedMarksConfig.pas" />
     <DCCReference Include="i_ValueToStringConverter.pas" />
+    <DCCReference Include="i_VectorDataFactory.pas" />
     <DCCReference Include="i_VectorDataItemSimple.pas" />
     <DCCReference Include="i_VectorDataLoader.pas" />
     <DCCReference Include="i_VectorItemLocal.pas" />
@@ -522,6 +523,7 @@
     <DCCReference Include="u_Bitmap32Static.pas" />
     <DCCReference Include="u_BitmapGeo.pas" />
     <DCCReference Include="u_BitmapLayerProviderByMarksSubset.pas" />
+    <DCCReference Include="u_BitmapLayerProviderByVectorSubset.pas" />
     <DCCReference Include="u_BitmapLayerProviderInPolygon.pas" />
     <DCCReference Include="u_BitmapLayerProviderMapWithLayer.pas" />
     <DCCReference Include="u_BitmapLayerProviderSimpleForCombine.pas" />
@@ -910,6 +912,7 @@
     <DCCReference Include="u_UserInterfaceItemBase.pas" />
     <DCCReference Include="u_ValueToStringConverter.pas" />
     <DCCReference Include="u_ValueToStringConverterConfig.pas" />
+    <DCCReference Include="u_VectorDataFactorySimple.pas" />
     <DCCReference Include="u_VectorDataItemBase.pas" />
     <DCCReference Include="u_VectorDataItemList.pas" />
     <DCCReference Include="u_VectorDataItemPoint.pas" />

@@ -27,7 +27,7 @@ uses
   SysUtils,
   t_GeoTypes,
   i_BinaryData,
-  i_HtmlToHintTextConverter,
+  i_VectorDataFactory,
   i_VectorItmesFactory,
   i_VectorDataItemSimple,
   i_DoublePointsAggregator,
@@ -39,7 +39,6 @@ type
   TKmlInfoSimpleParser = class(TInterfacedObject, IVectorDataLoader)
   private
     FLoadKmlStreamCounter: IInternalPerformanceCounter;
-    FHintConverter: IHtmlToHintTextConverter;
     FFactory: IVectorItmesFactory;
 
     FFormat: TFormatSettings;
@@ -56,23 +55,29 @@ type
     function PosOfChar(APattern: AnsiChar; AText: PAnsiChar; ALast: PAnsiChar): PAnsiChar;
     function PosOfNonSpaceChar(AText: PAnsiChar; ALast: PAnsiChar): PAnsiChar;
     function PosOfSpaceChar(AText: PAnsiChar; ALast: PAnsiChar): PAnsiChar;
-    function parse(buffer: AnsiString; AList: IInterfaceList): boolean;
+    function parse(
+      buffer: AnsiString;
+      AList: IInterfaceList;
+      AFactory: IVectorDataFactory
+    ): boolean;
     function parseCoordinates(AText: PAnsiChar; ALen: integer; APointsAggregator: IDoublePointsAggregator): boolean;
     procedure parseName(var Name: AnsiString);
     procedure parseDescription(var Description: AnsiString);
-    function BuildItem(AName, ADesc: string; APointsAggregator: IDoublePointsAggregator): IVectorDataItemSimple;
+    function BuildItem(
+      AName, ADesc: string;
+      APointsAggregator: IDoublePointsAggregator;
+      AFactory: IVectorDataFactory
+    ): IVectorDataItemSimple;
   protected
-    procedure LoadFromStream(AStream: TStream; out AItems: IVectorDataItemList); virtual;
-    function Load(AData: IBinaryData): IVectorDataItemList; virtual;
+    function LoadFromStream(AStream: TStream; AFactory: IVectorDataFactory): IVectorDataItemList; virtual;
+    function Load(AData: IBinaryData; AFactory: IVectorDataFactory): IVectorDataItemList; virtual;
   public
     constructor Create(
       AFactory: IVectorItmesFactory;
-      AHintConverter: IHtmlToHintTextConverter;
       APerfCounterList: IInternalPerformanceCounterList
     );
     destructor Destroy; override;
   end;
-
 
 implementation
 
@@ -81,15 +86,16 @@ uses
   cUnicodeCodecs,
   u_StreamReadOnlyByBinaryData,
   u_DoublePointsAggregator,
-  u_VectorDataItemPoint,
-  u_VectorDataItemPolygon,
   u_VectorDataItemList,
   u_GeoFun;
 
 { TKmlInfoSimpleParser }
 
-function TKmlInfoSimpleParser.BuildItem(AName, ADesc: string;
-  APointsAggregator: IDoublePointsAggregator): IVectorDataItemSimple;
+function TKmlInfoSimpleParser.BuildItem(
+  AName, ADesc: string;
+  APointsAggregator: IDoublePointsAggregator;
+  AFactory: IVectorDataFactory
+): IVectorDataItemSimple;
 var
   VPointCount: Integer;
 begin
@@ -97,20 +103,20 @@ begin
   VPointCount := APointsAggregator.Count;
   if VPointCount > 0 then begin
     if VPointCount = 1 then begin
-      Result := TVectorDataItemPoint.Create(FHintConverter, AName, ADesc, APointsAggregator.Points[0]);
+      Result := AFactory.BuildPoint('', AName, ADesc, APointsAggregator.Points[0]);
     end else begin
       if DoublePointsEqual(APointsAggregator.Points[0], APointsAggregator.Points[VPointCount - 1]) then begin
         Result :=
-          TVectorDataItemPoly.Create(
-            FHintConverter,
+          AFactory.BuildPoly(
+            '',
             AName,
             ADesc,
             FFactory.CreateLonLatPolygon(APointsAggregator.Points, VPointCount)
           );
       end else begin
         Result :=
-          TVectorDataItemPath.Create(
-            FHintConverter,
+          AFactory.BuildPath(
+            '',
             AName,
             ADesc,
             FFactory.CreateLonLatPath(APointsAggregator.Points, VPointCount)
@@ -122,12 +128,10 @@ end;
 
 constructor TKmlInfoSimpleParser.Create(
   AFactory: IVectorItmesFactory;
-  AHintConverter: IHtmlToHintTextConverter;
   APerfCounterList: IInternalPerformanceCounterList
 );
 begin
   FFactory := AFactory;
-  FHintConverter := AHintConverter;
   FLoadKmlStreamCounter := APerfCounterList.CreateAndAddNewCounter('LoadKmlStream');
   FFormat.DecimalSeparator := '.';
   FBMSrchPlacemark := TSearchBM.Create('<Placemark');
@@ -157,21 +161,26 @@ begin
   inherited;
 end;
 
-function TKmlInfoSimpleParser.Load(AData: IBinaryData): IVectorDataItemList;
+function TKmlInfoSimpleParser.Load(
+  AData: IBinaryData;
+  AFactory: IVectorDataFactory
+): IVectorDataItemList;
 var
   VStream: TStreamReadOnlyByBinaryData;
 begin
   Result := nil;
   VStream := TStreamReadOnlyByBinaryData.Create(AData);
   try
-    LoadFromStream(VStream, Result);
+    Result := LoadFromStream(VStream, AFactory);
   finally
     VStream.Free;
   end;
 end;
 
-procedure TKmlInfoSimpleParser.LoadFromStream(AStream: TStream;
-   out AItems: IVectorDataItemList);
+function TKmlInfoSimpleParser.LoadFromStream
+  (AStream: TStream;
+  AFactory: IVectorDataFactory
+): IVectorDataItemList;
 
   function GetAnsiString(AStream: TStream): AnsiString;
   var
@@ -214,13 +223,13 @@ var
 begin
   VCounterContext := FLoadKmlStreamCounter.StartOperation;
   try
-    AItems := nil;
+    Result := nil;
     if AStream.Size > 0 then begin
       VKml := GetAnsiString(AStream);
       if VKml <> '' then begin
         VList := TInterfaceList.Create;
-        parse(VKml, VList);
-        AItems := TVectorDataItemList.Create(VList);
+        parse(VKml, VList, AFactory);
+        Result := TVectorDataItemList.Create(VList);
       end else
         Assert(False, 'KML data reader - Unknown error');
     end;
@@ -264,7 +273,11 @@ begin
   end;
 end;
 
-function TKmlInfoSimpleParser.parse(buffer: AnsiString; AList: IInterfaceList): boolean;
+function TKmlInfoSimpleParser.parse(
+  buffer: AnsiString;
+  AList: IInterfaceList;
+  AFactory: IVectorDataFactory
+): boolean;
 var
   position, PosStartPlace, PosTag1, PosTag2,PosTag3, PosEndPlace, sLen, sStart: integer;
   VName: string;
@@ -328,7 +341,7 @@ begin
               result := false;
             end;
           end;
-          VItem := BuildItem(VName, VDescription, VPointsAggregator);
+          VItem := BuildItem(VName, VDescription, VPointsAggregator, AFactory);
           if VItem <> nil then begin
             AList.Add(VItem);
           end;

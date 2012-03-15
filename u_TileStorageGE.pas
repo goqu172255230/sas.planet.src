@@ -27,6 +27,7 @@ uses
   Windows,
   SysUtils,
   Classes,
+  i_BinaryData,
   u_GECrypt,
   t_CommonTypes,
   i_SimpleTileStorageConfig,
@@ -71,6 +72,14 @@ type
                                       const ASize: Cardinal): Boolean;
   protected
     procedure DoOnMapSettingsEdit(Sender: TObject);
+
+    function QueryTileInternal(
+      const AXY: TPoint;
+      const Azoom: byte;
+      const AVersionInfo: IMapVersionInfo;
+      AStream: TStream;
+      out ATileInfo: ITileInfoBasic
+    ): Boolean;
   public
     constructor Create(AConfig: ISimpleTileStorageConfig;
                        AContentTypeManager: IContentTypeManager);
@@ -92,9 +101,8 @@ type
       AXY: TPoint;
       Azoom: byte;
       AVersionInfo: IMapVersionInfo;
-      AStream: TStream;
       out ATileInfo: ITileInfoBasic
-    ): Boolean; override;
+    ): IBinaryData; override;
 
     function GetTileFileName(
       AXY: TPoint;
@@ -118,7 +126,7 @@ type
       AXY: TPoint;
       Azoom: byte;
       AVersionInfo: IMapVersionInfo;
-      AStream: TStream
+      AData: IBinaryData
     ); override;
 
     procedure SaveTNE(
@@ -163,6 +171,7 @@ implementation
 
 uses
   i_MapVersionInfoGE,
+  u_BinaryDataByMemStream,
   u_MapVersionListStatic,
   u_AvailPicsNMC,
   u_TileInfoBasic,
@@ -398,7 +407,7 @@ end;
 
 function TTileStorageDLL.GetTileInfo(AXY: TPoint; Azoom: byte; AVersionInfo: IMapVersionInfo): ITileInfoBasic;
 begin
-  LoadTile(AXY, Azoom, AVersionInfo, nil, Result);
+  QueryTileInternal(AXY, Azoom, AVersionInfo, nil, Result);
 end;
 
 function TTileStorageDLL.InternalLib_CheckInitialized: Boolean;
@@ -523,8 +532,28 @@ begin
 end;
 
 function TTileStorageDLL.LoadTile(AXY: TPoint; Azoom: byte;
-                                  AVersionInfo: IMapVersionInfo; AStream: TStream;
-                                  out ATileInfo: ITileInfoBasic): Boolean;
+                                  AVersionInfo: IMapVersionInfo;
+                                  out ATileInfo: ITileInfoBasic): IBinaryData;
+var
+  VMemStream: TMemoryStream;
+begin
+  Result := nil;
+  VMemStream:=TMemoryStream.Create;
+  try
+    if QueryTileInternal(AXY, Azoom, AVersionInfo, VMemStream, ATileInfo) then begin
+      Result := TBinaryDataByMemStream.CreateWithOwn(VMemStream);
+      VMemStream := nil;
+    end;
+  finally
+    VMemStream.Free;
+  end;
+end;
+
+function TTileStorageDLL.QueryTileInternal(
+  const AXY: TPoint; const Azoom: byte;
+  const AVersionInfo: IMapVersionInfo;
+  AStream: TStream;
+  out ATileInfo: ITileInfoBasic): Boolean;
 var
   VVersionStoreString: AnsiString;
   VQTInfo: TQueryTileInfo;
@@ -586,7 +615,7 @@ begin
   end;
 end;
 
-procedure TTileStorageDLL.SaveTile(AXY: TPoint; Azoom: byte; AVersionInfo: IMapVersionInfo; AStream: TStream);
+procedure TTileStorageDLL.SaveTile(AXY: TPoint; Azoom: byte; AVersionInfo: IMapVersionInfo; AData: IBinaryData);
 begin
   Abort;
 end;

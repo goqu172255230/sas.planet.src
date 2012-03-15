@@ -24,6 +24,8 @@ interface
 
 uses
   Classes,
+  i_StringListStatic,
+  i_BinaryData,
   i_ConfigDataProvider;
 
 type
@@ -34,7 +36,7 @@ type
     function GetDepreciatedName(AIdent: string): string;
   protected
     function GetSubItem(const AIdent: string): IConfigDataProvider; virtual;
-    function ReadBinaryStream(const AIdent: string; AValue: TStream): Integer; virtual;
+    function ReadBinary(const AIdent: string): IBinaryData; virtual;
     function ReadString(const AIdent: string; const ADefault: string): string; virtual;
     function ReadInteger(const AIdent: string; const ADefault: Longint): Longint; virtual;
     function ReadBool(const AIdent: string; const ADefault: Boolean): Boolean; virtual;
@@ -43,8 +45,8 @@ type
     function ReadFloat(const AIdent: string; const ADefault: Double): Double; virtual;
     function ReadTime(const AIdent: string; const ADefault: TDateTime): TDateTime; virtual;
 
-    procedure ReadSubItemsList(AList: TStrings); virtual;
-    procedure ReadValuesList(AList: TStrings); virtual;
+    function ReadSubItemsList: IStringListStatic;
+    function ReadValuesList: IStringListStatic;
   public
     constructor Create(
       ASource: IConfigDataProvider;
@@ -87,16 +89,15 @@ begin
   Result := FSource.GetSubItem(AIdent);
 end;
 
-function TConfigDataProviderWithUseDepreciated.ReadBinaryStream(
-  const AIdent: string; AValue: TStream): Integer;
+function TConfigDataProviderWithUseDepreciated.ReadBinary(const AIdent: string): IBinaryData;
 var
   VIdent: string;
 begin
-  Result := FSource.ReadBinaryStream(AIdent, AValue);
-  if Result <= 0 then begin
+  Result := FSource.ReadBinary(AIdent);
+  if Result = nil then begin
     VIdent := GetDepreciatedName(AIdent);
     if VIdent <> '' then begin
-      Result := FSource.ReadBinaryStream(VIdent, AValue);
+      Result := FSource.ReadBinary(VIdent);
     end;
   end;
 end;
@@ -179,9 +180,9 @@ begin
   Result := FSource.ReadString(AIdent, Result);
 end;
 
-procedure TConfigDataProviderWithUseDepreciated.ReadSubItemsList(AList: TStrings);
+function TConfigDataProviderWithUseDepreciated.ReadSubItemsList: IStringListStatic;
 begin
-  FSource.ReadSubItemsList(AList);
+  Result := FSource.ReadSubItemsList;
 end;
 
 function TConfigDataProviderWithUseDepreciated.ReadTime(const AIdent: string;
@@ -197,9 +198,9 @@ begin
   Result := FSource.ReadTime(AIdent, Result);
 end;
 
-procedure TConfigDataProviderWithUseDepreciated.ReadValuesList(AList: TStrings);
+function TConfigDataProviderWithUseDepreciated.ReadValuesList: IStringListStatic;
 begin
-  FSource.ReadValuesList(AList);
+  Result := FSource.ReadValuesList;
 end;
 
 end.

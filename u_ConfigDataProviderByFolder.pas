@@ -24,6 +24,8 @@ interface
 
 uses
   Classes,
+  i_StringListStatic,
+  i_BinaryData,
   i_ConfigDataProvider;
 
 type
@@ -32,7 +34,7 @@ type
     FSourceFolderName: string;
   protected
     function GetSubItem(const AIdent: string): IConfigDataProvider; virtual;
-    function ReadBinaryStream(const AIdent: string; AValue: TStream): Integer; virtual;
+    function ReadBinary(const AIdent: string): IBinaryData; virtual;
     function ReadString(const AIdent: string; const ADefault: string): string; virtual;
     function ReadInteger(const AIdent: string; const ADefault: Longint): Longint; virtual;
     function ReadBool(const AIdent: string; const ADefault: Boolean): Boolean; virtual;
@@ -41,8 +43,8 @@ type
     function ReadFloat(const AIdent: string; const ADefault: Double): Double; virtual;
     function ReadTime(const AIdent: string; const ADefault: TDateTime): TDateTime; virtual;
 
-    procedure ReadSubItemsList(AList: TStrings); virtual;
-    procedure ReadValuesList(AList: TStrings); virtual;
+    function ReadSubItemsList: IStringListStatic;
+    function ReadValuesList: IStringListStatic;
   public
     constructor Create(AFolderName: string);
   end;
@@ -52,6 +54,8 @@ implementation
 uses
   SysUtils,
   IniFiles,
+  u_StringListStatic,
+  u_BinaryDataByMemStream,
   u_ConfigDataProviderByIniFile;
 
 { TConfigDataProviderByFolder }
@@ -65,56 +69,61 @@ function TConfigDataProviderByFolder.GetSubItem(
   const AIdent: string): IConfigDataProvider;
 var
   VExt: string;
+  VFullName: string;
   VIniFile: TMemIniFile;
   VIniStrings: TStringList;
   VIniStream: TMemoryStream;
 begin
   Result := nil;
-  VExt := UpperCase(ExtractFileExt(AIdent));
-  if (VExt = '.INI') or (VExt = '.TXT') then begin
-    VIniFile := TMemIniFile.Create('');
-    try
-      VIniStream := TMemoryStream.Create;
-      try
-        VIniStream.LoadFromFile(IncludeTrailingPathDelimiter(FSourceFolderName) + AIdent);
-        VIniStream.Position := 0;
-        VIniStrings := TStringList.Create;
+  VFullName := IncludeTrailingPathDelimiter(FSourceFolderName) + AIdent;
+  if DirectoryExists(VFullName) then begin
+      Result := TConfigDataProviderByFolder.Create(VFullName);
+  end else begin
+    VExt := UpperCase(ExtractFileExt(AIdent));
+    if (VExt = '.INI') or (VExt = '.TXT') then begin
+      if FileExists(VFullName) then begin
+        VIniFile := TMemIniFile.Create('');
         try
-          VIniStrings.LoadFromStream(VIniStream);
-          VIniFile.SetStrings(VIniStrings);
-        finally
-          VIniStrings.Free;
+          VIniStream := TMemoryStream.Create;
+          try
+            VIniStream.LoadFromFile(VFullName);
+            VIniStream.Position := 0;
+            VIniStrings := TStringList.Create;
+            try
+              VIniStrings.LoadFromStream(VIniStream);
+              VIniFile.SetStrings(VIniStrings);
+            finally
+              VIniStrings.Free;
+            end;
+          finally
+            VIniStream.Free;
+          end;
+        except
+          VIniFile.Free;
+          raise;
         end;
-      finally
-        VIniStream.Free;
+        Result := TConfigDataProviderByIniFile.Create(VIniFile);
       end;
-    except
-      VIniFile.Free;
-      raise;
     end;
-    Result := TConfigDataProviderByIniFile.Create(VIniFile);
   end;
 end;
 
-function TConfigDataProviderByFolder.ReadBinaryStream(const AIdent: string;
-  AValue: TStream): Integer;
+function TConfigDataProviderByFolder.ReadBinary(const AIdent: string): IBinaryData;
 var
   VStream: TMemoryStream;
   VFileName: string;
 begin
+  Result := nil;
   VFileName := IncludeTrailingPathDelimiter(FSourceFolderName) + AIdent;
   if FileExists(VFileName) then begin
     VStream := TMemoryStream.Create;
     try
       VStream.LoadFromFile(VFileName);
-      VStream.Position := 0;
-      VStream.SaveToStream(AValue);
-      Result := VStream.Size;
-    finally
+    except
       VStream.Free;
+      raise;
     end;
-  end else begin
-    Result := 0;
+    Result := TBinaryDataByMemStream.CreateWithOwn(VStream);
   end;
 end;
 
@@ -181,25 +190,32 @@ begin
   end;
 end;
 
-procedure TConfigDataProviderByFolder.ReadSubItemsList(AList: TStrings);
+function TConfigDataProviderByFolder.ReadSubItemsList: IStringListStatic;
 var
+  VList: TStringList;
   VExt: string;
   VFolder: string;
   SearchRec: TSearchRec;
 begin
-  AList.Clear;
-  VFolder := IncludeTrailingPathDelimiter(FSourceFolderName);
-  if FindFirst(VFolder + '*', faAnyFile, SearchRec) = 0 then begin
-    repeat
-      if (SearchRec.Attr and faDirectory) = faDirectory then begin
-        continue;
-      end;
-      VExt := UpperCase(ExtractFileExt(SearchRec.Name));
-      if (VExt = '.INI') or (VExt = '.TXT') then begin
-        AList.Add(SearchRec.Name);
-      end;
-    until FindNext(SearchRec) <> 0;
+  VList := TStringList.Create;
+  try
+    VFolder := IncludeTrailingPathDelimiter(FSourceFolderName);
+    if FindFirst(VFolder + '*', faAnyFile, SearchRec) = 0 then begin
+      repeat
+        if (SearchRec.Attr and faDirectory) = faDirectory then begin
+          continue;
+        end;
+        VExt := UpperCase(ExtractFileExt(SearchRec.Name));
+        if (VExt = '.INI') or (VExt = '.TXT') then begin
+          VList.Add(SearchRec.Name);
+        end;
+      until FindNext(SearchRec) <> 0;
+    end;
+  except
+    VList.Free;
+    raise;
   end;
+  Result := TStringListStatic.CreateWithOwn(VList);
 end;
 
 function TConfigDataProviderByFolder.ReadTime(const AIdent: string;
@@ -208,25 +224,32 @@ begin
   Result := ADefault;
 end;
 
-procedure TConfigDataProviderByFolder.ReadValuesList(AList: TStrings);
+function TConfigDataProviderByFolder.ReadValuesList: IStringListStatic;
 var
+  VList: TStringList;
   VExt: string;
   VFolder: string;
   SearchRec: TSearchRec;
 begin
-  AList.Clear;
-  VFolder := IncludeTrailingPathDelimiter(FSourceFolderName);
-  if FindFirst(VFolder + '*', faAnyFile, SearchRec) = 0 then begin
-    repeat
-      if (SearchRec.Attr and faDirectory) = faDirectory then begin
-        continue;
-      end;
-      VExt := UpperCase(ExtractFileExt(SearchRec.Name));
-      if (VExt <> '.INI') or (VExt = '.HTML') or (VExt = '.TXT') then begin
-        AList.Add(SearchRec.Name);
-      end;
-    until FindNext(SearchRec) <> 0;
+  VList := TStringList.Create;
+  try
+    VFolder := IncludeTrailingPathDelimiter(FSourceFolderName);
+    if FindFirst(VFolder + '*', faAnyFile, SearchRec) = 0 then begin
+      repeat
+        if (SearchRec.Attr and faDirectory) = faDirectory then begin
+          continue;
+        end;
+        VExt := UpperCase(ExtractFileExt(SearchRec.Name));
+        if (VExt <> '.INI') or (VExt = '.HTML') or (VExt = '.TXT') then begin
+          VList.Add(SearchRec.Name);
+        end;
+      until FindNext(SearchRec) <> 0;
+    end;
+  except
+    VList.Free;
+    raise;
   end;
+  Result := TStringListStatic.CreateWithOwn(VList);
 end;
 
 end.

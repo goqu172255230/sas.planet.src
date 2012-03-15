@@ -26,6 +26,7 @@ uses
   Types,
   Classes,
   SysUtils,
+  i_BinaryData,
   i_SimpleTileStorageConfig,
   i_MapVersionInfo,
   i_ContentTypeInfo,
@@ -79,9 +80,8 @@ type
       AXY: TPoint;
       Azoom: byte;
       AVersionInfo: IMapVersionInfo;
-      AStream: TStream;
       out ATileInfo: ITileInfoBasic
-    ): Boolean; override;
+    ): IBinaryData; override;
 
     function DeleteTile(
       AXY: TPoint;
@@ -99,7 +99,7 @@ type
       AXY: TPoint;
       Azoom: byte;
       AVersionInfo: IMapVersionInfo;
-      AStream: TStream
+      AData: IBinaryData
     ); override;
 
     procedure SaveTNE(
@@ -113,8 +113,8 @@ type
 implementation
 
 uses
-  Variants,
   t_CommonTypes,
+  u_BinaryDataByMemStream,
   u_MapVersionFactorySimpleString,
   u_TTLCheckListener,
   u_TileFileNameBDB,
@@ -286,25 +286,21 @@ function TTileStorageBerkeleyDB.LoadTile(
   AXY: TPoint;
   AZoom: Byte;
   AVersionInfo: IMapVersionInfo;
-  AStream: TStream;
   out ATileInfo: ITileInfoBasic
-): Boolean;
+): IBinaryData;
 var
   VTile: Pointer;
   VSize: Integer;
 begin
-  Result := False;
+  Result := nil;
   ATileInfo := FTileNotExistsTileInfo;
-  AStream.Size := 0;
   if StorageStateStatic.ReadAccess <> asDisabled then begin
     ATileInfo := GetTileInfo(AXY, AZoom, AVersionInfo);
     if ATileInfo.IsExists then begin
       VTile := ATileInfo.Tile;
       VSize := ATileInfo.Size;
       if (VTile <> nil) and (VSize > 0) then begin
-        AStream.Position := 0;
-        Result := AStream.Write(VTile^, VSize) = VSize;
-        AStream.Position := 0;
+        Result := TBinaryDataByMemStream.CreateFromMem(VSize, VTile);
       end;
     end;
   end;
@@ -314,7 +310,7 @@ procedure TTileStorageBerkeleyDB.SaveTile(
   AXY: TPoint;
   AZoom: byte;
   AVersionInfo: IMapVersionInfo;
-  AStream: TStream
+  AData: IBinaryData
 );
 var
   VPath: string;
@@ -330,7 +326,7 @@ begin
         Now,
         AVersionInfo,
         PWideChar(FMainContentType.GetContentType),
-        AStream
+        AData
       );
       if VResult then begin
         NotifyTileUpdate(AXY, Azoom, AVersionInfo);

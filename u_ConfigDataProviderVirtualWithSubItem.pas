@@ -24,6 +24,8 @@ interface
 
 uses
   Classes,
+  i_StringListStatic,
+  i_BinaryData,
   i_ConfigDataProvider;
 
 type
@@ -33,7 +35,7 @@ type
     FSubItem: IConfigDataProvider;
   protected
     function GetSubItem(const AIdent: string): IConfigDataProvider; virtual;
-    function ReadBinaryStream(const AIdent: string; AValue: TStream): Integer; virtual;
+    function ReadBinary(const AIdent: string): IBinaryData; virtual;
     function ReadString(const AIdent: string; const ADefault: string): string; virtual;
     function ReadInteger(const AIdent: string; const ADefault: Longint): Longint; virtual;
     function ReadBool(const AIdent: string; const ADefault: Boolean): Boolean; virtual;
@@ -42,8 +44,8 @@ type
     function ReadFloat(const AIdent: string; const ADefault: Double): Double; virtual;
     function ReadTime(const AIdent: string; const ADefault: TDateTime): TDateTime; virtual;
 
-    procedure ReadSubItemsList(AList: TStrings); virtual;
-    procedure ReadValuesList(AList: TStrings); virtual;
+    function ReadSubItemsList: IStringListStatic;
+    function ReadValuesList: IStringListStatic;
   public
     constructor Create(
       ASubItemName: string;
@@ -53,6 +55,9 @@ type
   end;
 
 implementation
+
+uses
+  u_StringListStatic;
 
 { TConfigDataProviderVirtualWithSubItem }
 
@@ -79,10 +84,9 @@ begin
   end;
 end;
 
-function TConfigDataProviderVirtualWithSubItem.ReadBinaryStream(
-  const AIdent: string; AValue: TStream): Integer;
+function TConfigDataProviderVirtualWithSubItem.ReadBinary(const AIdent: string): IBinaryData;
 begin
-  Result := 0;
+  Result := nil;
 end;
 
 function TConfigDataProviderVirtualWithSubItem.ReadBool(const AIdent: string;
@@ -121,10 +125,18 @@ begin
   Result := ADefault;
 end;
 
-procedure TConfigDataProviderVirtualWithSubItem.ReadSubItemsList(AList: TStrings);
+function TConfigDataProviderVirtualWithSubItem.ReadSubItemsList: IStringListStatic;
+var
+  VList: TStringList;
 begin
-  AList.Clear;
-  AList.Add(FSubItemName);
+  VList := TStringList.Create;
+  try
+    VList.Add(FSubItemName);
+  except
+    VList.Free;
+    raise;
+  end;
+  Result := TStringListStatic.CreateWithOwn(VList);
 end;
 
 function TConfigDataProviderVirtualWithSubItem.ReadTime(const AIdent: string;
@@ -133,9 +145,12 @@ begin
   Result := ADefault;
 end;
 
-procedure TConfigDataProviderVirtualWithSubItem.ReadValuesList(AList: TStrings);
+function TConfigDataProviderVirtualWithSubItem.ReadValuesList: IStringListStatic;
+var
+  VList: TStringList;
 begin
-  AList.Clear;
+  VList := TStringList.Create;
+  Result := TStringListStatic.CreateWithOwn(VList);
 end;
 
 end.

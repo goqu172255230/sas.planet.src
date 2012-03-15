@@ -27,7 +27,6 @@ uses
   Types,
   SysUtils,
   Classes,
-  i_JclNotify,
   i_MapVersionInfo,
   i_StorageStateInternal,
   u_MapTypeCacheConfig;
@@ -163,8 +162,7 @@ implementation
 
 (*
 uses
-  t_CommonTypes,
-  u_NotifyEventListener;
+  t_CommonTypes;
 *)
 
 (*

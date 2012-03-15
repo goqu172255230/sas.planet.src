@@ -28,6 +28,7 @@ uses
   Classes,
   SysUtils,
   GR32,
+  i_BinaryData,
   i_FillingMapColorer,
   i_OperationNotifier,
   i_SimpleTileStorageConfig,
@@ -83,9 +84,8 @@ type
       AXY: TPoint;
       Azoom: byte;
       AVersionInfo: IMapVersionInfo;
-      AStream: TStream;
       out ATileInfo: ITileInfoBasic
-    ): Boolean; override;
+    ): IBinaryData; override;
 
     function DeleteTile(
       AXY: TPoint;
@@ -102,7 +102,7 @@ type
       AXY: TPoint;
       Azoom: byte;
       AVersionInfo: IMapVersionInfo;
-      AStream: TStream
+      AData: IBinaryData
     ); override;
     procedure SaveTNE(
       AXY: TPoint;
@@ -128,6 +128,7 @@ uses
   t_CommonTypes,
   t_GeoTypes,
   i_TileIterator,
+  u_BinaryDataByMemStream,
   u_MapVersionFactorySimpleString,
   u_TileStorageTypeAbilities,
   u_TileIteratorByRect,
@@ -422,41 +423,30 @@ function TTileStorageFileSystem.LoadTile(
   AXY: TPoint;
   Azoom: byte;
   AVersionInfo: IMapVersionInfo;
-  AStream: TStream;
   out ATileInfo: ITileInfoBasic
-): Boolean;
+): IBinaryData;
 var
   VPath: String;
   VMemStream: TMemoryStream;
 begin
+  Result := nil;
   if StorageStateStatic.ReadAccess <> asDisabled then begin
     VPath := FCacheConfig.GetTileFileName(AXY, Azoom);
     ATileInfo := GetTileInfoByPath(VPath, AVersionInfo);
     if ATileInfo.GetIsExists then begin
       FLock.BeginRead;
       try
-        if AStream is TMemoryStream then begin
-          VMemStream := TMemoryStream(AStream);
+        VMemStream := TMemoryStream.Create;
+        try
           VMemStream.LoadFromFile(VPath);
-          Result := True;
-        end else begin
-          VMemStream := TMemoryStream.Create;
-          try
-            VMemStream.LoadFromFile(VPath);
-            VMemStream.SaveToStream(AStream);
-            Result := True;
-          finally
-            VMemStream.Free;
-          end;
+        except
+          VMemStream.Free;
         end;
+        Result := TBinaryDataByMemStream.CreateWithOwn(VMemStream);
       finally
         FLock.EndRead;
       end;
-    end else begin
-      Result := False;
     end;
-  end else begin
-    Result := False;
   end;
 end;
 
@@ -464,11 +454,10 @@ procedure TTileStorageFileSystem.SaveTile(
   AXY: TPoint;
   Azoom: byte;
   AVersionInfo: IMapVersionInfo;
-  AStream: TStream
+  AData: IBinaryData
 );
 var
   VPath: String;
-  VMemStream: TMemoryStream;
   VFileStream: TFileStream;
 begin
   if StorageStateStatic.WriteAccess <> asDisabled then begin
@@ -476,31 +465,13 @@ begin
     FLock.BeginWrite;
     try
       CreateDirIfNotExists(VPath);
-      if AStream is TMemoryStream then begin
-        VFileStream := TFileStream.Create(VPath, fmCreate);
-        try
-          VMemStream := TMemoryStream(AStream);
-          VFileStream.Size := VMemStream.Size;
-          VFileStream.Position := 0;
-          VMemStream.SaveToStream(VFileStream);
-        finally
-          VFileStream.Free;
-        end;
-      end else begin
-        VMemStream := TMemoryStream.Create;
-        try
-          VFileStream := TFileStream.Create(VPath, fmCreate);
-          try
-            VMemStream.LoadFromStream(AStream);
-            VFileStream.Size := VMemStream.Size;
-            VFileStream.Position := 0;
-            VMemStream.SaveToStream(VFileStream);
-          finally
-            VFileStream.Free;
-          end;
-        finally
-          VMemStream.Free;
-        end;
+      VFileStream := TFileStream.Create(VPath, fmCreate);
+      try
+        VFileStream.Size := AData.Size;
+        VFileStream.Position := 0;
+        VFileStream.WriteBuffer(AData.Buffer^, AData.Size);
+      finally
+        VFileStream.Free;
       end;
     finally
       FLock.EndWrite;

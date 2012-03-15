@@ -23,12 +23,11 @@ unit u_ContentConverterBase;
 interface
 
 uses
-  Classes,
+  i_BinaryData,
   i_ContentTypeInfo,
   i_ContentConverter;
 
 type
-
   TContentConverterAbstract = class(TInterfacedObject, IContentConverter)
   private
     FSource: IContentTypeInfoBasic;
@@ -37,7 +36,7 @@ type
     function GetSource: IContentTypeInfoBasic;
     function GetTarget: IContentTypeInfoBasic;
     function GetIsSimpleCopy: Boolean; virtual; abstract;
-    procedure ConvertStream(ASource, ATarget: TStream); virtual; abstract;
+    function Convert(AData: IBinaryData): IBinaryData; virtual; abstract;
   public
     constructor Create(
       ASource: IContentTypeInfoBasic;
@@ -54,7 +53,7 @@ type
   TContentConverterSimpleCopy = class(TContentConverterAbstract)
   protected
     function GetIsSimpleCopy: Boolean; override;
-    procedure ConvertStream(ASource, ATarget: TStream); override;
+    function Convert(AData: IBinaryData): IBinaryData; override;
   end;
 
 implementation
@@ -94,9 +93,9 @@ end;
 
 { TContentConverterSimpleCopy }
 
-procedure TContentConverterSimpleCopy.ConvertStream(ASource, ATarget: TStream);
+function TContentConverterSimpleCopy.Convert(AData: IBinaryData): IBinaryData;
 begin
-  ATarget.CopyFrom(ASource, ASource.Size);
+  Result := AData;
 end;
 
 function TContentConverterSimpleCopy.GetIsSimpleCopy: Boolean;

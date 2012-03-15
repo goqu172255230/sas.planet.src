@@ -28,6 +28,7 @@ uses
   SyncObjs,
   GR32,
   i_JclNotify,
+  i_BinaryData,
   i_FillingMapColorer,
   i_OperationNotifier,
   i_CoordConverter,
@@ -96,9 +97,8 @@ type
       AXY: TPoint;
       Azoom: byte;
       AVersionInfo: IMapVersionInfo;
-      AStream: TStream;
       out ATileInfo: ITileInfoBasic
-    ): Boolean; virtual; abstract;
+    ): IBinaryData; virtual; abstract;
     function DeleteTile(
       AXY: TPoint;
       Azoom: byte;
@@ -113,7 +113,7 @@ type
       AXY: TPoint;
       Azoom: byte;
       AVersionInfo: IMapVersionInfo;
-      AStream: TStream
+      AData: IBinaryData
     ); virtual; abstract;
     procedure SaveTNE(
       AXY: TPoint;

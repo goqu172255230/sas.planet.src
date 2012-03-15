@@ -24,10 +24,11 @@ interface
 
 uses
   Classes,
+  i_BinaryData,
+  i_VectorDataFactory,
   i_VectorDataItemSimple,
   i_VectorItmesFactory,
   i_InternalPerformanceCounter,
-  i_HtmlToHintTextConverter,
   u_KmlInfoSimpleParser;
 
 type
@@ -35,11 +36,11 @@ type
   private
     FLoadKmzStreamCounter: IInternalPerformanceCounter;
   protected
-    procedure LoadFromStream(AStream: TStream; out AItems: IVectorDataItemList); override;
+    function LoadFromStream(AStream: TStream; AFactory: IVectorDataFactory): IVectorDataItemList; override;
+    function Load(AData: IBinaryData; AFactory: IVectorDataFactory): IVectorDataItemList; override;
   public
     constructor Create(
       AFactory: IVectorItmesFactory;
-      AHintConverter: IHtmlToHintTextConverter;
       APerfCounterList: IInternalPerformanceCounterList
     );
   end;
@@ -48,24 +49,36 @@ implementation
 
 uses
   SysUtils,
-  KAZip;
+  KAZip,
+  u_StreamReadOnlyByBinaryData;
 
 { TKmzInfoSimpleParser }
 
 constructor TKmzInfoSimpleParser.Create(
   AFactory: IVectorItmesFactory;
-  AHintConverter: IHtmlToHintTextConverter;
   APerfCounterList: IInternalPerformanceCounterList);
 var
   VPerfCounterList: IInternalPerformanceCounterList;
 begin
   VPerfCounterList := APerfCounterList.CreateAndAddNewSubList('KmzLoader');
-  inherited Create(AFactory, AHintConverter, VPerfCounterList);
+  inherited Create(AFactory, VPerfCounterList);
   FLoadKmzStreamCounter := VPerfCounterList.CreateAndAddNewCounter('LoadKmzStream');
 end;
 
-procedure TKmzInfoSimpleParser.LoadFromStream(AStream: TStream;
-  out AItems: IVectorDataItemList);
+function TKmzInfoSimpleParser.Load(AData: IBinaryData; AFactory: IVectorDataFactory): IVectorDataItemList;
+var
+  VStream: TStreamReadOnlyByBinaryData;
+begin
+  Result := nil;
+  VStream := TStreamReadOnlyByBinaryData.Create(AData);
+  try
+    Result := LoadFromStream(VStream, AFactory);
+  finally
+    VStream.Free;
+  end;
+end;
+
+function TKmzInfoSimpleParser.LoadFromStream(AStream: TStream; AFactory: IVectorDataFactory): IVectorDataItemList;
 var
   i: Integer;
   UnZip: TKAZip;
@@ -74,6 +87,7 @@ var
   VIndex: Integer;
   VCounterContext: TInternalPerformanceCounterContext;
 begin
+  Result := nil;
   VCounterContext := FLoadKmzStreamCounter.StartOperation;
   try
     UnZip := TKAZip.Create(nil);
@@ -98,7 +112,7 @@ begin
               VIndex := 0;
             end;
             UnZip.Entries.Items[VIndex].ExtractToStream(VStreamKml);
-            inherited LoadFromStream(VStreamKml, AItems);
+            Result := inherited LoadFromStream(VStreamKml, AFactory);
           finally
             VStreamKml.Free;
           end;

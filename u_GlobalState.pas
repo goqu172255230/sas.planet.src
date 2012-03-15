@@ -63,6 +63,7 @@ uses
   i_ZmpConfig,
   i_ZmpInfoSet,
   i_GPSConfig,
+  i_PathConfig,
   i_MapCalibration,
   i_MarkCategoryFactoryConfig,
   i_GlobalViewMainConfig,
@@ -87,6 +88,16 @@ uses
 type
   TGlobalState = class
   private
+    FBaseConfigPath: IPathConfig;
+    FBaseDataPath: IPathConfig;
+    FBaseCahcePath: IPathConfig;
+    FBaseApplicationPath: IPathConfig;
+    FMapsPath: IPathConfig;
+    FTrackPath: IPathConfig;
+    FMarksDbPath: IPathConfig;
+    FMarksIconsPath: IPathConfig;
+    FMediaDataPath: IPathConfig;
+
     FMainConfigProvider: IConfigDataWriteProvider;
     FZmpConfig: IZmpConfig;
     FZmpInfoSet: IZmpInfoSet;
@@ -115,7 +126,6 @@ type
     FDownloadInfo: IDownloadInfoSimple;
     FDownloadConfig: IGlobalDownloadConfig;
     FGlobalInternetState: IGlobalInternetState;
-    FProgramPath: string;
     FImageResamplerConfig: IImageResamplerConfig;
     FGeoCoderList: IGeoCoderList;
     FMainMemCacheConfig: IMainMemCacheConfig;
@@ -142,23 +152,15 @@ type
     FVectorItmesFactory: IVectorItmesFactory;
 
     procedure OnGUISyncronizedTimer(Sender: TObject);
-    function InternalGetPrimaryPath(const ASection: String; out APrimaryPathValue: String): Boolean;
-    function GetMarkIconsPath: string;
-    function GetMapsPath: string;
-    function GetTrackLogPath: string;
-    function GetMarksSystemPath: String;
     {$IFDEF SasDebugWithJcl}
     procedure DoException(Sender: TObject; E: Exception);
     {$ENDIF SasDebugWithJcl}
-    // Путь к папке с картами
-    //property MapsPath: string read GetMapsPath;
   public
     property MapType: TMapTypesMainList read FMainMapsList;
     property CacheConfig: TGlobalCahceConfig read FCacheConfig;
     property GCThread: TGarbageCollectorThread read FGCThread;
     property MarksDB: TMarksSystem read FMarksDB;
     property GPSpar: TGPSpar read FGPSpar;
-    property ProgramPath: string read FProgramPath;
 
     // Список генераторов имен файлов с тайлами
     property TileNameGenerator: ITileFileNameGeneratorsList read FTileNameGenerator;
@@ -224,9 +226,12 @@ uses
   Forms,
   {$ENDIF}
   u_JclNotify,
+  c_InternalBrowser,
   u_SASMainConfigProvider,
   u_ConfigDataProviderByIniFile,
   u_ConfigDataWriteProviderByIniFile,
+  u_ConfigDataProviderByFolder,
+  u_ConfigDataProviderByPathConfig,
   i_TTLCheckNotifier,
   u_TTLCheckNotifier,
   i_FileNameIterator,
@@ -265,6 +270,7 @@ uses
   u_DownloadResultTextProvider,
   u_TimeZoneDiffByLonLatStuped,
   u_MainFormConfig,
+  u_PathConfig,
   u_ZmpConfig,
   u_ZmpInfoSet,
   u_ZmpFileNamesIteratorFactory,
@@ -276,9 +282,11 @@ uses
   u_InternalPerformanceCounterList,
   u_IeEmbeddedProtocolFactory,
   u_VectorItmesFactorySimple,
+  u_VectorDataFactorySimple,
   u_PathDetalizeProviderListSimple,
   u_InternalDomainInfoProviderList,
   u_InternalDomainInfoProviderByMapTypeList,
+  u_InternalDomainInfoProviderByDataProvider,
   u_GlobalInternetState,
   u_TileFileNameGeneratorsSimpleList;
 
@@ -296,17 +304,33 @@ var
   VFilesIteratorFactory: IFileNameIteratorFactory;
   VFilesIterator: IFileNameIterator;
   VCoordConverterFactorySimple: TCoordConverterFactorySimple;
+  VProgramPath: string;
 begin
   if ModuleIsLib then begin
     // run as DLL or PACKAGE
-    FProgramPath := GetModuleName(HInstance);
-    FProgramPath := ExtractFilePath(FProgramPath);
+    VProgramPath := GetModuleName(HInstance);
+    VProgramPath := ExtractFilePath(VProgramPath);
   end else begin
     // run as EXE
-    FProgramPath := ExtractFilePath(ParamStr(0));
+    VProgramPath := ExtractFilePath(ParamStr(0));
   end;
+  FBaseApplicationPath := TPathConfig.Create('', VProgramPath, nil);
+  FBaseConfigPath := TPathConfig.Create('', VProgramPath, nil);
+  FBaseDataPath := TPathConfig.Create('', VProgramPath, nil);
+  FBaseCahcePath := TPathConfig.Create('PrimaryPath', VProgramPath, nil);
+  FMapsPath := TPathConfig.Create('PrimaryPath', '.\Maps', FBaseConfigPath);
+  FTrackPath := TPathConfig.Create('PrimaryPath', '.\TrackLog', FBaseDataPath);
+  FMarksDbPath := TPathConfig.Create('PrimaryPath', '.', FBaseDataPath);
+  FMarksIconsPath := TPathConfig.Create('', '.\MarksIcons', FBaseApplicationPath);
+  FMediaDataPath := TPathConfig.Create('PrimaryPath', '.\MediaData', FBaseDataPath);
+
   FAppClosingNotifier := TJclBaseNotifier.Create;
-  FMainConfigProvider := TSASMainConfigProvider.Create(FProgramPath, ExtractFileName(ParamStr(0)), HInstance);
+  FMainConfigProvider :=
+    TSASMainConfigProvider.Create(
+      FBaseConfigPath.FullPath,
+      ExtractFileName(ParamStr(0)),
+      HInstance
+    );
   FResourceProvider := FMainConfigProvider.GetSubItem('sas:\Resource');
   FVectorItmesFactory := TVectorItmesFactorySimple.Create;
   FGUISyncronizedTimer := TTimer.Create(nil);
@@ -328,7 +352,7 @@ begin
 
   FTimeZoneDiffByLonLat := TTimeZoneDiffByLonLatStuped.Create(FVectorItmesFactory);
 
-  FCacheConfig := TGlobalCahceConfig.Create(ProgramPath);
+  FCacheConfig := TGlobalCahceConfig.Create(FBaseCahcePath);
   FDownloadInfo := TDownloadInfoSimple.Create(nil);
   VViewCnonfig := FMainConfigProvider.GetSubItem('VIEW');
   FLanguageManager := TLanguageManager.Create;
@@ -345,7 +369,7 @@ begin
   FClearStrategyFactory := TLayerBitmapClearStrategyFactory.Create(FImageResamplerConfig, FPerfCounterList.CreateAndAddNewSubList('ClearStrategy'));
 
   FInetConfig := TInetConfig.Create;
-  FGPSConfig := TGPSConfig.Create(GetTrackLogPath);
+  FGPSConfig := TGPSConfig.Create(FTrackPath);
   FGPSPositionFactory := TGPSPositionFactory.Create;
   FGPSRecorder :=
     TGPSRecorderStuped.Create(
@@ -377,28 +401,25 @@ begin
   VXmlLoader :=
     TXmlInfoSimpleParser.Create(
       FVectorItmesFactory,
-      THtmlToHintTextConverterStuped.Create,
       VMarksKmlLoadCounterList
     );
   VKmlLoader :=
     TKmlInfoSimpleParser.Create(
       FVectorItmesFactory,
-      THtmlToHintTextConverterStuped.Create,
       VMarksKmlLoadCounterList
     );
   VKmzLoader :=
     TKmzInfoSimpleParser.Create(
       FVectorItmesFactory,
-      THtmlToHintTextConverterStuped.Create,
       VMarksKmlLoadCounterList
     );
 
   FImportFileByExt := TImportByFileExt.Create(
+    TVectorDataFactorySimple.Create(THtmlToHintTextConverterStuped.Create),
     FVectorItmesFactory,
     VXmlLoader,
     TPLTSimpleParser.Create(
       FVectorItmesFactory,
-      THtmlToHintTextConverterStuped.Create,
       VMarksKmlLoadCounterList
     ),
     VKmlLoader,
@@ -418,19 +439,19 @@ begin
     );
   FLastSelectionInfo := TLastSelectionInfo.Create(FVectorItmesFactory);
   FGeoCoderList := TGeoCoderListSimple.Create(FInetConfig.ProxyConfig as IProxySettings);
-  FMarkPictureList := TMarkPictureListSimple.Create(GetMarkIconsPath, FContentTypeManager);
+  FMarkPictureList := TMarkPictureListSimple.Create(FMarksIconsPath, FContentTypeManager);
   FMarksCategoryFactoryConfig := TMarkCategoryFactoryConfig.Create(FLanguageManager);
   FMarksDB :=
     TMarksSystem.Create(
       FLanguageManager,
-      GetMarksSystemPath,
+      FMarksDbPath,
       FMarkPictureList,
       FVectorItmesFactory,
       THtmlToHintTextConverterStuped.Create,
       FMarksCategoryFactoryConfig
     );
   VFilesIteratorFactory := TZmpFileNamesIteratorFactory.Create;
-  VFilesIterator := VFilesIteratorFactory.CreateIterator(GetMapsPath, '');
+  VFilesIterator := VFilesIteratorFactory.CreateIterator(FMapsPath.FullPath, '');
   FZmpConfig := TZmpConfig.Create;
   FZmpConfig.ReadConfig(FMainConfigProvider.GetSubItem('ZmpDefaultParams'));
   FZmpInfoSet :=
@@ -443,13 +464,29 @@ begin
   FMainMapsList := TMapTypesMainList.Create(FZmpInfoSet);
   FSkyMapDraw := TSatellitesInViewMapDrawSimple.Create;
   FDownloadResultTextProvider := TDownloadResultTextProvider.Create(FLanguageManager);
-  FPathDetalizeList := TPathDetalizeProviderListSimple.Create(FLanguageManager, FInetConfig.ProxyConfig, FVectorItmesFactory, VKmlLoader);
+  FPathDetalizeList :=
+    TPathDetalizeProviderListSimple.Create(
+      FLanguageManager,
+      FInetConfig.ProxyConfig,
+      TVectorDataFactorySimple.Create(THtmlToHintTextConverterStuped.Create),
+      FVectorItmesFactory,
+      VKmlLoader
+    );
   VInternalDomainInfoProviderList := TInternalDomainInfoProviderList.Create;
   VInternalDomainInfoProviderList.Add(
-    'ZmpInfo',
+    CZmpInfoInternalDomain,
     TInternalDomainInfoProviderByMapTypeList.Create(FZmpInfoSet, FContentTypeManager)
   );
-  FProtocol := TIeEmbeddedProtocolRegistration.Create('sas', TIeEmbeddedProtocolFactory.Create(VInternalDomainInfoProviderList));
+  VInternalDomainInfoProviderList.Add(
+    CMediaDataInternalDomain,
+    TInternalDomainInfoProviderByDataProvider.Create(
+      TConfigDataProviderByPathConfig.Create(FMediaDataPath),
+      FContentTypeManager
+    )
+  );
+
+
+  FProtocol := TIeEmbeddedProtocolRegistration.Create(CSASProtocolName, TIeEmbeddedProtocolFactory.Create(VInternalDomainInfoProviderList));
   FInvisibleBrowser :=
     TInvisibleBrowserByFormSynchronize.Create(
       FLanguageManager,
@@ -546,60 +583,21 @@ begin
   {$ENDIF SasDebugWithJcl}
 end;
 
-function TGlobalState.GetMarkIconsPath: string;
-begin
-  Result := FProgramPath + 'marksicons' + PathDelim;
-end;
-
-function TGlobalState.GetMarksSystemPath: String;
-begin
-  if not InternalGetPrimaryPath('PATHtoMARKS', Result) then
-    Result := FProgramPath;
-end;
-
-function TGlobalState.GetMapsPath: string;
-begin
-  if not InternalGetPrimaryPath('PATHtoMAPS', Result) then
-    Result := FProgramPath + 'Maps' + PathDelim;
-end;
-
-function TGlobalState.GetTrackLogPath: string;
-begin
-  if not InternalGetPrimaryPath('PATHtoTRACKS', Result) then
-    Result := FProgramPath + 'TrackLog' + PathDelim;
-end;
-
-function TGlobalState.InternalGetPrimaryPath(const ASection: String; out APrimaryPathValue: String): Boolean;
-var
-  VConfig: IConfigDataProvider;
-  VValue: String;
-begin
-  Result:=FALSE;
-  APrimaryPathValue:='';
-  VConfig:=FMainConfigProvider.GetSubItem(ASection);
-  if Assigned(VConfig) then begin
-    VValue:=VConfig.ReadString('PrimaryPath', '');
-    if (0<Length(VValue)) then begin
-      APrimaryPathValue:=ExpandFileName(VValue);
-      if (0<Length(APrimaryPathValue)) then begin
-        if (PathDelim<>APrimaryPathValue[Length(APrimaryPathValue)]) then
-          APrimaryPathValue:=APrimaryPathValue+PathDelim;
-        Inc(Result);
-      end;
-    end;
-  end;
-end;
-
 procedure TGlobalState.LoadConfig;
 var
   VLocalMapsConfig: IConfigDataProvider;
   Ini: TMeminifile;
   VMapsPath: String;
 begin
-  VMapsPath:=GetMapsPath;
+  VMapsPath := IncludeTrailingPathDelimiter(FMapsPath.FullPath);
   ForceDirectories(VMapsPath);
   Ini := TMeminiFile.Create(VMapsPath + 'Maps.ini');
   VLocalMapsConfig := TConfigDataProviderByIniFile.Create(Ini);
+
+  FMapsPath.ReadConfig(FMainConfigProvider.GetSubItem('PATHtoMAPS'));
+  FTrackPath.ReadConfig(FMainConfigProvider.GetSubItem('PATHtoTRACKS'));
+  FMarksDbPath.ReadConfig(FMainConfigProvider.GetSubItem('PATHtoMARKS'));
+  FMediaDataPath.ReadConfig(FMainConfigProvider.GetSubItem('PATHtoMediaData'));
 
   FCacheConfig.LoadConfig(FMainConfigProvider);
 
@@ -666,11 +664,12 @@ procedure TGlobalState.SaveMainParams;
 var
   Ini: TMeminifile;
   VLocalMapsConfig: IConfigDataWriteProvider;
+  VMapsPath: String;
 begin
   if ModuleIsLib then
     Exit;
-
-  Ini := TMeminiFile.Create(GetMapsPath + 'Maps.ini');
+  VMapsPath := IncludeTrailingPathDelimiter(FMapsPath.FullPath);
+  Ini := TMeminiFile.Create(VMapsPath + 'Maps.ini');
   VLocalMapsConfig := TConfigDataWriteProviderByIniFile.Create(Ini);
   FMainMapsList.SaveMaps(VLocalMapsConfig);
 
@@ -694,6 +693,11 @@ begin
   FMarkPictureList.WriteConfig(MainConfigProvider);
   FMarksCategoryFactoryConfig.WriteConfig(MainConfigProvider.GetOrCreateSubItem('MarkNewCategory'));
   FMarksDb.WriteConfig(MainConfigProvider);
+
+  FMapsPath.WriteConfig(FMainConfigProvider.GetOrCreateSubItem('PATHtoMAPS'));
+  FTrackPath.WriteConfig(FMainConfigProvider.GetOrCreateSubItem('PATHtoTRACKS'));
+  FMarksDbPath.WriteConfig(FMainConfigProvider.GetOrCreateSubItem('PATHtoMARKS'));
+  FMediaDataPath.WriteConfig(FMainConfigProvider.GetOrCreateSubItem('PATHtoMediaData'));
 end;
 
 procedure TGlobalState.SendTerminateToThreads;

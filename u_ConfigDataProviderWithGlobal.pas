@@ -24,6 +24,8 @@ interface
 
 uses
   Classes,
+  i_StringListStatic,
+  i_BinaryData,
   i_ConfigDataProvider;
 
 type
@@ -39,7 +41,7 @@ type
     function PrepareIdent(const AIdent: string; out AUseMain: Boolean): string;
   protected
     function GetSubItem(const AIdent: string): IConfigDataProvider; virtual;
-    function ReadBinaryStream(const AIdent: string; AValue: TStream): Integer; virtual;
+    function ReadBinary(const AIdent: string): IBinaryData; virtual;
     function ReadString(const AIdent: string; const ADefault: string): string; virtual;
     function ReadInteger(const AIdent: string; const ADefault: Longint): Longint; virtual;
     function ReadBool(const AIdent: string; const ADefault: Boolean): Boolean; virtual;
@@ -48,8 +50,8 @@ type
     function ReadFloat(const AIdent: string; const ADefault: Double): Double; virtual;
     function ReadTime(const AIdent: string; const ADefault: TDateTime): TDateTime; virtual;
 
-    procedure ReadSubItemsList(AList: TStrings); virtual;
-    procedure ReadValuesList(AList: TStrings); virtual;
+    function ReadSubItemsList: IStringListStatic;
+    function ReadValuesList: IStringListStatic;
   public
     constructor Create(
       AProviderMain: IConfigDataProvider;
@@ -64,7 +66,8 @@ type
 implementation
 
 uses
-  StrUtils;
+  StrUtils,
+  u_StringListStatic;
 
 { TConfigDataProviderWithGlobal }
 
@@ -120,20 +123,19 @@ begin
   end;
 end;
 
-function TConfigDataProviderWithGlobal.ReadBinaryStream(const AIdent: string;
-  AValue: TStream): Integer;
+function TConfigDataProviderWithGlobal.ReadBinary(const AIdent: string): IBinaryData;
 var
   VIdent: string;
   VUseMain: Boolean;
 begin
   VIdent := PrepareIdent(AIdent, VUseMain);
-  Result := 0;
+  Result := nil;
   if VUseMain then begin
     if (FProviderMain <> nil) then begin
-      Result := FProviderMain.ReadBinaryStream(VIdent, AValue);
+      Result := FProviderMain.ReadBinary(VIdent);
     end;
   end else begin
-    Result := FProviderGlobal.ReadBinaryStream(VIdent, AValue);
+    Result := FProviderGlobal.ReadBinary(VIdent);
   end;
 end;
 
@@ -239,12 +241,15 @@ begin
   end;
 end;
 
-procedure TConfigDataProviderWithGlobal.ReadSubItemsList(AList: TStrings);
+function TConfigDataProviderWithGlobal.ReadSubItemsList: IStringListStatic;
+var
+  VList: TStringList;
 begin
   if FProviderMain <> nil then begin
-    FProviderMain.ReadSubItemsList(AList);
+    Result := FProviderMain.ReadSubItemsList;
   end else begin
-    AList.Clear;
+    VList := TStringList.Create;
+    Result := TStringListStatic.CreateWithOwn(VList);
   end;
 end;
 
@@ -265,12 +270,15 @@ begin
   end;
 end;
 
-procedure TConfigDataProviderWithGlobal.ReadValuesList(AList: TStrings);
+function TConfigDataProviderWithGlobal.ReadValuesList: IStringListStatic;
+var
+  VList: TStringList;
 begin
   if (FProviderMain <> nil) then begin
-    FProviderMain.ReadValuesList(AList);
+    Result := FProviderMain.ReadValuesList;
   end else begin
-    AList.Clear;
+    VList := TStringList.Create;
+    Result := TStringListStatic.CreateWithOwn(VList);
   end;
 end;
 

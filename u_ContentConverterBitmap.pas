@@ -23,7 +23,7 @@ unit u_ContentConverterBitmap;
 interface
 
 uses
-  Classes,
+  i_BinaryData,
   i_ContentTypeInfo,
   i_BitmapTileSaveLoad,
   u_ContentConverterBase;
@@ -34,7 +34,7 @@ type
     FSourceLoader: IBitmapTileLoader;
     FTargetSaver: IBitmapTileSaver;
   protected
-    procedure ConvertStream(ASource, ATarget: TStream); override;
+    function Convert(AData: IBinaryData): IBinaryData; override;
   public
     constructor Create(
       ASource: IContentTypeInfoBasic;
@@ -47,7 +47,6 @@ implementation
 
 uses
   SysUtils,
-  GR32,
   u_ResStrings;
 
 { TContentConverterBitmap }
@@ -79,18 +78,9 @@ begin
   inherited;
 end;
 
-procedure TContentConverterBitmap.ConvertStream(ASource, ATarget: TStream);
-var
-  VBitmap: TCustomBitmap32;
+function TContentConverterBitmap.Convert(AData: IBinaryData): IBinaryData;
 begin
-  inherited;
-  VBitmap := TCustomBitmap32.Create;
-  try
-    FSourceLoader.LoadFromStream(ASource, VBitmap);
-    FTargetSaver.SaveToStream(VBitmap, ATarget);
-  finally
-    VBitmap.Free;
-  end;
+  Result := FTargetSaver.Save(FSourceLoader.Load(AData));
 end;
 
 end.

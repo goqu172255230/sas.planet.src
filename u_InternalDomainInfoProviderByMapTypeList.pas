@@ -23,7 +23,7 @@ unit u_InternalDomainInfoProviderByMapTypeList;
 interface
 
 uses
-  Classes,
+  i_BinaryData,
   i_ConfigDataProvider,
   i_ZmpInfo,
   i_ZmpInfoSet,
@@ -36,11 +36,11 @@ type
     FZmpInfoSet: IZmpInfoSet;
     FContentTypeManager: IContentTypeManager;
     function ParseFilePath(AFilePath: string; out AZmpGUID: TGUID; out AFileName: string): Boolean;
-    function LoadStreamFromZmp(AZmp: IZmpInfo; AFileName: string; AStream: TStream; out AContentType: string): Boolean;
-    function LoadStreamFromDataProvider(ADataProvider: IConfigDataProvider; AFileName: string; AStream: TStream; out AContentType: string): Boolean;
-    function LoadStreamFromSubDataProvider(ADataProvider: IConfigDataProvider; AFileName: string; AStream: TStream; out AContentType: string): Boolean;
+    function LoadDataFromZmp(AZmp: IZmpInfo; AFileName: string; out AContentType: string): IBinaryData;
+    function LoadDataFromDataProvider(ADataProvider: IConfigDataProvider; AFileName: string; out AContentType: string): IBinaryData;
+    function LoadDataFromSubDataProvider(ADataProvider: IConfigDataProvider; AFileName: string; out AContentType: string): IBinaryData;
   protected
-    function LoadStreamByFilePath(AFilePath: string; AStream: TStream; out AContentType: string): Boolean;
+    function LoadBinaryByFilePath(AFilePath: string; out AContentType: string): IBinaryData;
   public
     constructor Create(
       AZmpInfoSet: IZmpInfoSet;
@@ -70,26 +70,29 @@ begin
   FContentTypeManager := AContentTypeManager;
 end;
 
-function TInternalDomainInfoProviderByMapTypeList.LoadStreamByFilePath(
-  AFilePath: string; AStream: TStream; out AContentType: string): Boolean;
+function TInternalDomainInfoProviderByMapTypeList.LoadBinaryByFilePath(
+  AFilePath: string;
+  out AContentType: string
+): IBinaryData;
 var
   VGuid: TGUID;
   VZmp: IZmpInfo;
   VFileName: string;
 begin
-  Result := ParseFilePath(AFilePath, VGuid, VFileName);
-  if Result then begin
-    Result := False;
+  Result := nil;
+  if ParseFilePath(AFilePath, VGuid, VFileName) then begin
     VZmp := FZmpInfoSet.GetZmpByGUID(VGuid);
     if VZmp <> nil then begin
-      Result := LoadStreamFromZmp(VZmp, VFileName, AStream, AContentType);
+      Result := LoadDataFromZmp(VZmp, VFileName, AContentType);
     end;
   end;
 end;
 
-function TInternalDomainInfoProviderByMapTypeList.LoadStreamFromDataProvider(
-  ADataProvider: IConfigDataProvider; AFileName: string; AStream: TStream;
-  out AContentType: string): Boolean;
+function TInternalDomainInfoProviderByMapTypeList.LoadDataFromDataProvider(
+  ADataProvider: IConfigDataProvider;
+  AFileName: string;
+  out AContentType: string
+): IBinaryData;
 var
   VFileName: string;
   VExt: string;
@@ -110,12 +113,14 @@ begin
     end;
   end;
 
-  Result := ADataProvider.ReadBinaryStream(VFileName, AStream) > 0;
+  Result := ADataProvider.ReadBinary(VFileName);
 end;
 
-function TInternalDomainInfoProviderByMapTypeList.LoadStreamFromSubDataProvider(
-  ADataProvider: IConfigDataProvider; AFileName: string; AStream: TStream;
-  out AContentType: string): Boolean;
+function TInternalDomainInfoProviderByMapTypeList.LoadDataFromSubDataProvider(
+  ADataProvider: IConfigDataProvider;
+  AFileName: string;
+  out AContentType: string
+): IBinaryData;
 var
   VSubItemName: string;
   VFileName: string;
@@ -134,20 +139,23 @@ begin
       VSubItemProvider := ADataProvider;
     end;
     if VSubItemProvider <> nil then begin
-      Result := LoadStreamFromSubDataProvider(VSubItemProvider, VFileName, AStream, AContentType);
+      Result := LoadDataFromSubDataProvider(VSubItemProvider, VFileName, AContentType);
     end else begin
-      Result := False;
+      Result := nil;
     end;
   end else begin
     VFileName := AFileName;
-    Result := LoadStreamFromDataProvider(ADataProvider, VFileName, AStream, AContentType);
+    Result := LoadDataFromDataProvider(ADataProvider, VFileName, AContentType);
   end;
 end;
 
-function TInternalDomainInfoProviderByMapTypeList.LoadStreamFromZmp(
-  AZmp: IZmpInfo; AFileName: string; AStream: TStream; out AContentType: string): Boolean;
+function TInternalDomainInfoProviderByMapTypeList.LoadDataFromZmp(
+  AZmp: IZmpInfo;
+  AFileName: string;
+  out AContentType: string
+): IBinaryData;
 begin
-  Result := LoadStreamFromSubDataProvider(AZmp.DataProvider, AFileName, AStream, AContentType);
+  Result := LoadDataFromSubDataProvider(AZmp.DataProvider, AFileName, AContentType);
 end;
 
 function TInternalDomainInfoProviderByMapTypeList.ParseFilePath(

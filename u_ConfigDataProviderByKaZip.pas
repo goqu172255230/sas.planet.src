@@ -25,6 +25,8 @@ interface
 uses
   Classes,
   KAZip,
+  i_StringListStatic,
+  i_BinaryData,
   i_ConfigDataProvider;
 
 type
@@ -34,7 +36,7 @@ type
     FUnZip: TKAZip;
   protected
     function GetSubItem(const AIdent: string): IConfigDataProvider; virtual;
-    function ReadBinaryStream(const AIdent: string; AValue: TStream): Integer; virtual;
+    function ReadBinary(const AIdent: string): IBinaryData; virtual;
     function ReadString(const AIdent: string; const ADefault: string): string; virtual;
     function ReadInteger(const AIdent: string; const ADefault: Longint): Longint; virtual;
     function ReadBool(const AIdent: string; const ADefault: Boolean): Boolean; virtual;
@@ -43,8 +45,8 @@ type
     function ReadFloat(const AIdent: string; const ADefault: Double): Double; virtual;
     function ReadTime(const AIdent: string; const ADefault: TDateTime): TDateTime; virtual;
 
-    procedure ReadSubItemsList(AList: TStrings); virtual;
-    procedure ReadValuesList(AList: TStrings); virtual;
+    function ReadSubItemsList: IStringListStatic;
+    function ReadValuesList: IStringListStatic;
   public
     constructor Create(AFileName: string);
     destructor Destroy; override;
@@ -56,6 +58,8 @@ uses
   SysUtils,
   IniFiles,
   u_ResStrings,
+  u_StringListStatic,
+  u_BinaryDataByMemStream,
   u_ConfigDataProviderByIniFile;
 
 { TConfigDataProviderByKaZip }
@@ -113,16 +117,23 @@ begin
   end;
 end;
 
-function TConfigDataProviderByKaZip.ReadBinaryStream(const AIdent: string;
-  AValue: TStream): Integer;
+function TConfigDataProviderByKaZip.ReadBinary(
+  const AIdent: string): IBinaryData;
 var
   VIndex: Integer;
+  VMemStream: TMemoryStream;
 begin
-  Result := 0;
+  Result := nil;
   VIndex := FUnZip.Entries.IndexOf(AIdent);
   if VIndex >= 0 then begin
-    FUnZip.Entries.Items[VIndex].ExtractToStream(AValue);
-    Result := AValue.Size;
+    VMemStream := TMemoryStream.Create;
+    try
+      FUnZip.Entries.Items[VIndex].ExtractToStream(VMemStream);
+    except
+      VMemStream.Free;
+      raise;
+    end;
+    Result := TBinaryDataByMemStream.CreateWithOwn(VMemStream);
   end;
 end;
 
@@ -187,20 +198,27 @@ begin
   end;
 end;
 
-procedure TConfigDataProviderByKaZip.ReadSubItemsList(AList: TStrings);
+function TConfigDataProviderByKaZip.ReadSubItemsList: IStringListStatic;
 var
+  VList: TStringList;
   i: Integer;
   VExt: string;
   VFileName: string;
 begin
-  AList.Clear;
-  for i := 0 to FUnZip.Entries.Count - 1 do begin
-    VFileName := FUnZip.Entries.Items[i].FileName;
-    VExt := UpperCase(ExtractFileExt(VFileName));
-    if (VExt = '.INI') or (VExt = '.TXT') then begin
-      AList.Add(VFileName);
+  VList := TStringList.Create;
+  try
+    for i := 0 to FUnZip.Entries.Count - 1 do begin
+      VFileName := FUnZip.Entries.Items[i].FileName;
+      VExt := UpperCase(ExtractFileExt(VFileName));
+      if (VExt = '.INI') or (VExt = '.TXT') then begin
+        VList.Add(VFileName);
+      end;
     end;
+  except
+    VList.Free;
+    raise;
   end;
+  Result := TStringListStatic.CreateWithOwn(VList);
 end;
 
 function TConfigDataProviderByKaZip.ReadTime(const AIdent: string;
@@ -209,20 +227,27 @@ begin
   Result := ADefault;
 end;
 
-procedure TConfigDataProviderByKaZip.ReadValuesList(AList: TStrings);
+function TConfigDataProviderByKaZip.ReadValuesList: IStringListStatic;
 var
+  VList: TStringList;
   i: Integer;
   VExt: string;
   VFileName: string;
 begin
-  AList.Clear;
-  for i := 0 to FUnZip.Entries.Count - 1 do begin
-    VFileName := FUnZip.Entries.Items[i].FileName;
-    VExt := UpperCase(ExtractFileExt(VFileName));
-    if (VExt <> '.INI') or (VExt = '.HTML') or (VExt = '.TXT') then begin
-      AList.Add(VFileName);
+  VList := TStringList.Create;
+  try
+    for i := 0 to FUnZip.Entries.Count - 1 do begin
+      VFileName := FUnZip.Entries.Items[i].FileName;
+      VExt := UpperCase(ExtractFileExt(VFileName));
+      if (VExt <> '.INI') or (VExt = '.HTML') or (VExt = '.TXT') then begin
+        VList.Add(VFileName);
+      end;
     end;
+  except
+    VList.Free;
+    raise;
   end;
+  Result := TStringListStatic.CreateWithOwn(VList);
 end;
 
 end.

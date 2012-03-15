@@ -26,6 +26,7 @@ uses
   Types,
   Classes,
   SysUtils,
+  i_BinaryData,
   i_SimpleTileStorageConfig,
   i_MapVersionInfo,
   i_ContentTypeInfo,
@@ -85,9 +86,8 @@ type
       AXY: TPoint;
       Azoom: byte;
       AVersionInfo: IMapVersionInfo;
-      AStream: TStream;
       out ATileInfo: ITileInfoBasic
-    ): Boolean; override;
+    ): IBinaryData; override;
 
     function DeleteTile(
       AXY: TPoint;
@@ -105,7 +105,7 @@ type
       AXY: TPoint;
       Azoom: byte;
       AVersionInfo: IMapVersionInfo;
-      AStream: TStream
+      AData: IBinaryData
     ); override;
 
     procedure SaveTNE(
@@ -119,9 +119,8 @@ type
 implementation
 
 uses
-  Variants,
   t_CommonTypes,
-  u_ContentTypeInfo,
+  u_BinaryDataByMemStream,
   u_MapVersionFactorySimpleString,
   u_TTLCheckListener,
   u_TileStorageTypeAbilities,
@@ -328,16 +327,15 @@ function TTileStorageDBMS.LoadTile(
   AXY: TPoint;
   AZoom: Byte;
   AVersionInfo: IMapVersionInfo;
-  AStream: TStream;
   out ATileInfo: ITileInfoBasic
-): Boolean;
+): IBinaryData;
 var
   Vtid: TTILE_ID_XYZ;
   VResult: LongInt;
+  VMemStream: TMemoryStream;
 begin
-  Result := False;
+  Result := nil;
   ATileInfo := nil;
-  AStream.Size := 0;
   if StorageStateStatic.ReadAccess <> asDisabled then begin
     InternalCreateStorageLink;
     if (nil<>FExtLink) then
@@ -348,15 +346,19 @@ begin
         Vtid.y:=AXY.Y;
         Vtid.z:=AZoom;
         // execute
-        VResult:=FExtLink.Select_Tile(@Vtid, AVersionInfo, ATileInfo, AStream);
-        if (ETSR_OK<>VResult) then
-          SysUtils.Abort // if no table or other DDL errors - treat as no tile
-        else
-          Result:=TRUE;
+        VMemStream := TMemoryStream.Create;
+        try
+          VResult:=FExtLink.Select_Tile(@Vtid, AVersionInfo, ATileInfo, VMemStream);
+          if (ETSR_OK<>VResult) then
+            SysUtils.Abort // if no table or other DDL errors - treat as no tile
+        except
+          VMemStream.Free;
+          raise;
+        end;
+        Result := TBinaryDataByMemStream.CreateWithOwn(VMemStream);
       except
-        AStream.Size := 0;
         ATileInfo:=nil;
-        Result:=FALSE;
+        Result:=nil;
       end;
     end;
   end;
@@ -366,7 +368,7 @@ procedure TTileStorageDBMS.SaveTile(
   AXY: TPoint;
   Azoom: byte;
   AVersionInfo: IMapVersionInfo;
-  AStream: TStream
+  AData: IBinaryData
 );
 var
   Vtid: TTILE_ID_XYZ;
@@ -375,7 +377,7 @@ var
   VMemStream: TMemoryStream;
   VResult: LongInt;
 begin
-  if Assigned(AStream) then
+  if Assigned(AData) then
   if StorageStateStatic.WriteAccess <> asDisabled then begin
     InternalCreateStorageLink;
     if (nil<>FExtLink) then
@@ -387,18 +389,8 @@ begin
         Vtid.y:=AXY.Y;
         Vtid.z:=AZoom;
 
-        // create buffer (or use it from TMemoryStream)
-        if (AStream is TCustomMemoryStream) then begin
-          VTileBuffer:=TCustomMemoryStream(AStream).Memory;
-          VTileSize:=TCustomMemoryStream(AStream).Size;
-        end else begin
-          // another stream - convert to memory
-          AStream.Position:=0;
-          VMemStream:=TMemoryStream.Create;
-          VMemStream.CopyFrom(AStream, AStream.Size);
-          VTileBuffer:=VMemStream.Memory;
-          VTileSize:=VMemStream.Size;
-        end;
+        VTileBuffer := AData.Buffer;
+        VTileSize := AData.Size;
 
         // execute
         // TODO: get date (UTC) from caller

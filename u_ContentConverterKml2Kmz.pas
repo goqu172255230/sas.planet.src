@@ -24,34 +24,50 @@ interface
 
 uses
   Classes,
+  i_BinaryData,
   u_ContentConverterBase;
 
 type
   TContentConverterKml2Kmz = class(TContentConverterBase)
   protected
-    procedure ConvertStream(ASource, ATarget: TStream); override;
+    function Convert(AData: IBinaryData): IBinaryData; override;
   end;
 
 implementation
 
 uses
-  KAZip;
+  KAZip,
+  u_BinaryDataByMemStream,
+  u_StreamReadOnlyByBinaryData;
 
 { TContentConverterKmz2Kml }
 
-procedure TContentConverterKml2Kmz.ConvertStream(ASource, ATarget: TStream);
+function TContentConverterKml2Kmz.Convert(AData: IBinaryData): IBinaryData;
 var
+  VMemStream: TCustomMemoryStream;
   VZip:TKAZip;
+  VResultStream: TMemoryStream;
 begin
-  inherited;
-  VZip:=TKAZip.Create(nil);
+  VMemStream := TStreamReadOnlyByBinaryData.Create(AData);
   try
-    VZip.CreateZip(ATarget);
-    VZip.Open(ATarget);
-    VZip.CompressionType := ctNormal;
-    VZip.AddStream('doc.kml', ASource);
+    VZip:=TKAZip.Create(nil);
+    try
+      VResultStream := TMemoryStream.Create;
+      try
+        VZip.CreateZip(VResultStream);
+        VZip.Open(VResultStream);
+        VZip.CompressionType := ctNormal;
+        VZip.AddStream('doc.kml', VMemStream);
+      except
+        VResultStream.Free;
+        raise;
+      end;
+      Result := TBinaryDataByMemStream.CreateWithOwn(VResultStream);
+    finally
+      VZip.Free;
+    end;
   finally
-    VZip.Free;
+    VMemStream.Free;
   end;
 end;
 

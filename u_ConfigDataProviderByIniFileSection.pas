@@ -26,6 +26,8 @@ uses
   Classes,
   SysUtils,
   IniFiles,
+  i_StringListStatic,
+  i_BinaryData,
   i_ConfigDataProvider;
 
 type
@@ -38,7 +40,7 @@ type
     function GetSubItemSectionName(const AIdent: string): string;
   protected
     function GetSubItem(const AIdent: string): IConfigDataProvider; virtual;
-    function ReadBinaryStream(const AIdent: string; AValue: TStream): Integer; virtual;
+    function ReadBinary(const AIdent: string): IBinaryData; virtual;
     function ReadString(const AIdent: string; const ADefault: string): string; virtual;
     function ReadInteger(const AIdent: string; const ADefault: Longint): Longint; virtual;
     function ReadBool(const AIdent: string; const ADefault: Boolean): Boolean; virtual;
@@ -47,8 +49,8 @@ type
     function ReadFloat(const AIdent: string; const ADefault: Double): Double; virtual;
     function ReadTime(const AIdent: string; const ADefault: TDateTime): TDateTime; virtual;
 
-    procedure ReadSubItemsList(AList: TStrings); virtual;
-    procedure ReadValuesList(AList: TStrings); virtual;
+    function ReadSubItemsList: IStringListStatic;
+    function ReadValuesList: IStringListStatic;
   public
     constructor Create(AIniFile: TCustomIniFile; ASection: string; AParent: IConfigDataProvider);
     destructor Destroy; override;
@@ -56,6 +58,11 @@ type
 
 
 implementation
+
+uses
+  StrUtils,
+  u_StringListStatic,
+  u_BinaryDataByMemStream;
 
 { TConfigDataProviderByIniFileSection }
 
@@ -101,10 +108,18 @@ begin
   end;
 end;
 
-function TConfigDataProviderByIniFileSection.ReadBinaryStream(
-  const AIdent: string; AValue: TStream): Integer;
+function TConfigDataProviderByIniFileSection.ReadBinary(const AIdent: string): IBinaryData;
+var
+  VMemStream: TMemoryStream;
 begin
-  Result := FIniFile.ReadBinaryStream(FSection, AIdent, AValue);
+  VMemStream := TMemoryStream.Create;
+  try
+    FIniFile.ReadBinaryStream(FSection, AIdent, VMemStream);
+  except
+    VMemStream.Free;
+    raise;
+  end;
+  Result := TBinaryDataByMemStream.CreateWithOwn(VMemStream);
 end;
 
 function TConfigDataProviderByIniFileSection.ReadBool(const AIdent: string;
@@ -179,9 +194,36 @@ begin
   Result := FIniFile.ReadString(FSection, AIdent, ADefault);
 end;
 
-procedure TConfigDataProviderByIniFileSection.ReadSubItemsList(AList: TStrings);
+function TConfigDataProviderByIniFileSection.ReadSubItemsList: IStringListStatic;
+var
+  VList: TStringList;
+  i: Integer;
+  VSection: string;
+  VSectionLen: Integer;
+  VcurSect: string;
+  VCurSectLen: Integer;
 begin
-  AList.Clear;
+  VList := TStringList.Create;
+  try
+    FIniFile.ReadSections(VList);
+    VcurSect := FSection + '_';
+    VCurSectLen := Length(VcurSect);
+    for i := VList.Count - 1 downto 0 do begin
+      VSection := VList.Strings[i];
+      VSectionLen := Length(VSection);
+      if VSectionLen <= VCurSectLen then begin
+        VList.Delete(i);
+      end else if LeftStr(VSection, VCurSectLen) <> VcurSect then begin
+        VList.Delete(i);
+      end else begin
+        VList.Strings[i] := RightStr(VSection, VCurSectLen - VSectionLen);
+      end;
+    end;
+  except
+    VList.Free;
+    raise;
+  end;
+  Result := TStringListStatic.CreateWithOwn(VList);
 end;
 
 function TConfigDataProviderByIniFileSection.ReadTime(const AIdent: string;
@@ -202,9 +244,18 @@ begin
   end;
 end;
 
-procedure TConfigDataProviderByIniFileSection.ReadValuesList(AList: TStrings);
+function TConfigDataProviderByIniFileSection.ReadValuesList: IStringListStatic;
+var
+  VList: TStringList;
 begin
-  FIniFile.ReadSection(FSection, AList);
+  VList := TStringList.Create;
+  try
+    FIniFile.ReadSection(FSection, VList);
+  except
+    VList.Free;
+    raise;
+  end;
+  Result := TStringListStatic.CreateWithOwn(VList);
 end;
 
 end.

@@ -217,6 +217,7 @@
     <DCCReference Include="i_EnumDoublePoint.pas" />
     <DCCReference Include="i_FillingMapColorer.pas" />
     <DCCReference Include="i_FillingMapLayerConfig.pas" />
+    <DCCReference Include="i_FullMapMouseCursorLayerConfig.pas" />
     <DCCReference Include="i_GeoCoder.pas" />
     <DCCReference Include="i_GeoCoderList.pas" />
     <DCCReference Include="i_GlobalAppConfig.pas" />
@@ -269,6 +270,7 @@
     <DCCReference Include="i_LonLatRectUpdateNotifier.pas" />
     <DCCReference Include="i_MainFormBehaviourByGPSConfig.pas" />
     <DCCReference Include="i_MainFormConfig.pas" />
+    <DCCReference Include="i_MainFormState.pas" />
     <DCCReference Include="i_MainGeoCoderConfig.pas" />
     <DCCReference Include="i_MainMapLayerConfig.pas" />
     <DCCReference Include="i_MainMemCacheConfig.pas" />
@@ -412,6 +414,7 @@
     <DCCReference Include="MapLayers\i_MapElementsGuidedList.pas" />
     <DCCReference Include="MapLayers\u_CalcLineLayer.pas" />
     <DCCReference Include="MapLayers\u_CenterScale.pas" />
+    <DCCReference Include="MapLayers\u_FullMapMouseCursorLayer.pas" />
     <DCCReference Include="MapLayers\u_LayerScaleLine.pas" />
     <DCCReference Include="MapLayers\u_LayerStatBar.pas" />
     <DCCReference Include="MapLayers\u_MapElementsGuidedList.pas" />
@@ -657,6 +660,7 @@
     <DCCReference Include="u_FillingMapLayerConfig.pas" />
     <DCCReference Include="u_FillingMapLayerConfigStatic.pas" />
     <DCCReference Include="u_FillingMapMapsConfig.pas" />
+    <DCCReference Include="u_FullMapMouseCursorLayerConfig.pas" />
     <DCCReference Include="u_GarbageCollectorThread.pas" />
     <DCCReference Include="u_GenShtabGridConfig.pas" />
     <DCCReference Include="u_GeoCodePlacemark.pas" />
@@ -760,6 +764,7 @@
     <DCCReference Include="u_MainFormConfig.pas" />
     <DCCReference Include="u_MainFormLayersConfig.pas" />
     <DCCReference Include="u_MainFormMainConfig.pas" />
+    <DCCReference Include="u_MainFormState.pas" />
     <DCCReference Include="u_MainGeoCoderConfig.pas" />
     <DCCReference Include="u_MainMapLayerConfig.pas" />
     <DCCReference Include="u_MainMapsConfig.pas" />

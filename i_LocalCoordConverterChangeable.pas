@@ -12,6 +12,12 @@ type
     function GetStatic: ILocalCoordConverter;
   end;
 
+  ILocalCoordConverterChangeableInternal = interface(ILocalCoordConverterChangeable)
+    procedure SetConverter(AValue: ILocalCoordConverter);
+    procedure StopNotify;
+    procedure StartNotify;
+  end;
+
 implementation
 
 end.

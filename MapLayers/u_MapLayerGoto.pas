@@ -8,29 +8,28 @@ uses
   t_GeoTypes,
   i_Notifier,
   i_NotifierOperation,
+  i_LocalCoordConverterChangeable,
   i_InternalPerformanceCounter,
   i_MarkerDrawable,
-  i_ViewPortState,
   i_MapViewGoto,
   i_LocalCoordConverter,
   i_GotoLayerConfig,
   u_WindowLayerWithPos;
 
 type
-  TGotoLayer = class(TWindowLayerSimpleBase)
+  TGotoLayer = class(TWindowLayerBasicBase)
   private
+    FLocalConverter: ILocalCoordConverterChangeable;
     FConfig: IGotoLayerConfig;
     FMapGoto: IMapViewGoto;
     FMarkerChangeable: IMarkerDrawableChangeable;
 
     procedure OnTimer;
     procedure OnConfigChange;
+    procedure OnPosChange;
     function GetIsVisible: Boolean;
   protected
-    procedure PaintLayer(
-      ABuffer: TBitmap32;
-      const ALocalConverter: ILocalCoordConverter
-    ); override;
+    procedure PaintLayer(ABuffer: TBitmap32); override;
     procedure StartThreads; override;
   public
     constructor Create(
@@ -39,7 +38,7 @@ type
       const AAppClosingNotifier: INotifierOneOperation;
       AParentMap: TImage32;
       const ATimerNoifier: INotifier;
-      const AViewPortState: IViewPortState;
+      const ALocalConverter: ILocalCoordConverterChangeable;
       const AMarkerChangeable: IMarkerDrawableChangeable;
       const AMapGoto: IMapViewGoto;
       const AConfig: IGotoLayerConfig
@@ -65,7 +64,7 @@ constructor TGotoLayer.Create(
   const AAppClosingNotifier: INotifierOneOperation;
   AParentMap: TImage32;
   const ATimerNoifier: INotifier;
-  const AViewPortState: IViewPortState;
+  const ALocalConverter: ILocalCoordConverterChangeable;
   const AMarkerChangeable: IMarkerDrawableChangeable;
   const AMapGoto: IMapViewGoto;
   const AConfig: IGotoLayerConfig
@@ -77,9 +76,9 @@ begin
     APerfList,
     AAppStartedNotifier,
     AAppClosingNotifier,
-    TCustomLayer.Create(AParentMap.Layers),
-    AViewPortState.View
+    TCustomLayer.Create(AParentMap.Layers)
   );
+  FLocalConverter := ALocalConverter;
   FConfig := AConfig;
   FMarkerChangeable := AMarkerChangeable;
   FMapGoto := AMapGoto;
@@ -103,6 +102,10 @@ begin
   LinksList.Add(
     TNotifyNoMmgEventListener.Create(Self.OnTimer),
     ATimerNoifier
+  );
+  LinksList.Add(
+    TNotifyNoMmgEventListener.Create(Self.OnPosChange),
+    FLocalConverter.ChangeNotifier
   );
 end;
 
@@ -137,24 +140,42 @@ end;
 
 procedure TGotoLayer.OnConfigChange;
 begin
-  Visible := GetIsVisible;
-  SetNeedRedraw;
+  ViewUpdateLock;
+  try
+    Visible := GetIsVisible;
+    SetNeedFullRepaintLayer;
+  finally
+    ViewUpdateUnlock;
+  end;
+end;
+
+procedure TGotoLayer.OnPosChange;
+begin
+  ViewUpdateLock;
+  try
+    SetNeedFullRepaintLayer;
+  finally
+    ViewUpdateUnlock;
+  end;
 end;
 
 procedure TGotoLayer.OnTimer;
 begin
   if Visible then begin
-    if not GetIsVisible then begin
-      Hide;
+    ViewUpdateLock;
+    try
+      Visible := GetIsVisible;
+    finally
+      ViewUpdateLock;
     end;
   end;
 end;
 
 procedure TGotoLayer.PaintLayer(
-  ABuffer: TBitmap32;
-  const ALocalConverter: ILocalCoordConverter
+  ABuffer: TBitmap32
 );
 var
+  VLocalConverter: ILocalCoordConverter;
   VConverter: ICoordConverter;
   VGotoPos: IGotoPosStatic;
   VMarker: IMarkerDrawable;
@@ -162,6 +183,8 @@ var
   VFixedOnView: TDoublePoint;
 begin
   inherited;
+  VLocalConverter := FLocalConverter.GetStatic;
+
   VGotoPos := FMapGoto.LastGotoPos;
 
   if VGotoPos = nil then begin
@@ -170,9 +193,9 @@ begin
 
   VGotoLonLat := VGotoPos.LonLat;
   if not PointIsEmpty(VGotoLonLat) then begin
-    VConverter := ALocalConverter.GetGeoConverter;
+    VConverter := VLocalConverter.GetGeoConverter;
     VMarker := FMarkerChangeable.GetStatic;
-    VFixedOnView := ALocalConverter.LonLat2LocalPixelFloat(VGotoLonLat);
+    VFixedOnView := VLocalConverter.LonLat2LocalPixelFloat(VGotoLonLat);
     VMarker.DrawToBitmap(ABuffer, VFixedOnView);
   end;
 end;

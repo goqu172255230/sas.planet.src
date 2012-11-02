@@ -1849,6 +1849,7 @@ begin
       FMouseState,
       GState.GUISyncronizedTimerNotifier,
       GState.TimeZoneDiffByLonLat,
+      GState.TerrainInfo,
       GState.DownloadInfo,
       GState.GlobalInternetState,
       Self.tbitmOnInterfaceOptionsClick,

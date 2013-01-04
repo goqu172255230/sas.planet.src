@@ -917,9 +917,17 @@ var
   VAllowDelete: boolean;
   VAllowAdd: boolean;
   VAllowReplace: boolean;
+  VUseMemCache: Boolean;
+  VMemCacheCapacity: Integer;
+  VMemCacheTTL: Cardinal;
+  VMemCacheClearStrategy: Integer;
 begin
   VNameInCache := AConfig.ReadString('NameInCache', '');
   VCacheTypeCode := AConfig.ReadInteger('CacheType', 0);
+  VUseMemCache := AConfig.ReadBool('UseMemCache', FZmpConfig.UseMemCache);
+  VMemCacheCapacity := AConfig.ReadInteger('MemCacheCapacity', FZmpConfig.MemCacheCapacity);
+  VMemCacheTTL := AConfig.ReadInteger('MemCacheTTL', FZmpConfig.MemCacheTTL);
+  VMemCacheClearStrategy := AConfig.ReadInteger('MemCacheClearStrategy', FZmpConfig.MemCacheClearStrategy);
   // c_File_Cache_Id_GE and c_File_Cache_Id_GC
   if (VCacheTypeCode = 5) or (VCacheTypeCode = 8) then begin
     VTileFileExt := '.jpg';
@@ -944,7 +952,11 @@ begin
       VIsReadOnly,
       VAllowDelete,
       VAllowAdd,
-      VAllowReplace
+      VAllowReplace,
+      VUseMemCache,
+      VMemCacheCapacity,
+      VMemCacheTTL,
+      VMemCacheClearStrategy
     );
 end;
 

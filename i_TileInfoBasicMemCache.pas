@@ -18,35 +18,39 @@
 {* az@sasgis.ru                                                               *}
 {******************************************************************************}
 
-unit i_ZmpConfig;
+unit i_TileInfoBasicMemCache;
 
 interface
 
 uses
-  i_ConfigDataElement;
+  Types,
+  i_MapVersionInfo,
+  i_TileInfoBasic;
 
 type
-  IZmpConfig = interface(IConfigDataElement)
-    ['{57185941-5902-4843-9E24-54CBEA4A67FD}']
-    function GetMaxConnectToServerCount: Cardinal;
-    procedure SetMaxConnectToServerCount(const AValue: Cardinal);
-    property MaxConnectToServerCount: Cardinal read GetMaxConnectToServerCount write SetMaxConnectToServerCount;
+  ITileInfoBasicMemCache = interface
+    ['{9D01F466-1089-46D7-B13B-1ED1116A8376}']
+    procedure Add(
+      const AXY: TPoint;
+      const AZoom: Byte;
+      const AVersionInfo: IMapVersionInfo;
+      const ATileInfoBasic: ITileInfoBasic
+    );
 
-    function GetUseMemCache: Boolean;
-    procedure SetUseMemCache(const AValue: Boolean);
-    property UseMemCache: Boolean read GetUseMemCache write SetUseMemCache;
+    procedure Remove(
+      const AXY: TPoint;
+      const AZoom: Byte
+    );
 
-    function GetMemCacheCapacity: Integer;
-    procedure SetMemCacheCapacity(const AValue: Integer);
-    property MemCacheCapacity: Integer read GetMemCacheCapacity write SetMemCacheCapacity;
+    function Get(
+      const AXY: TPoint;
+      const AZoom: Byte;
+      const AUpdateTTL: Boolean
+    ): ITileInfoBasic;
 
-    function GetMemCacheTTL: Cardinal;
-    procedure SetMemCacheTTL(const AValue: Cardinal);
-    property MemCacheTTL: Cardinal read GetMemCacheTTL write SetMemCacheTTL;
+    procedure Clear;
 
-    function GetMemCacheClearStrategy: Integer;
-    procedure SetMemCacheClearStrategy(const AValue: Integer);
-    property MemCacheClearStrategy: Integer read GetMemCacheClearStrategy write SetMemCacheClearStrategy;
+    procedure ClearByTTL;
   end;
 
 implementation

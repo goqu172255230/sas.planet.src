@@ -25,13 +25,12 @@ interface
 uses
   i_Datum,
   i_CoordConverter,
-  i_ProjectionInfo,
   i_ConfigDataProvider,
   i_CoordConverterFactory,
   u_BaseInterfacedObject;
 
 type
-  TCoordConverterFactorySimple = class(TBaseInterfacedObject, IDatumFactory, ICoordConverterFactory, IProjectionInfoFactory)
+  TCoordConverterFactorySimple = class(TBaseInterfacedObject, IDatumFactory, ICoordConverterFactory)
   private
     FDatumGoogle: IDatum;
     FDatumYandex: IDatum;
@@ -50,11 +49,6 @@ type
       AProjectionEPSG: Integer;
       ATileSplitCode: Integer
     ): ICoordConverter;
-  private
-    function GetByConverterAndZoom(
-      const AGeoConverter: ICoordConverter;
-      AZoom: Byte
-    ): IProjectionInfo;
   public
     constructor Create;
   end;
@@ -69,7 +63,6 @@ uses
   u_CoordConverterMercatorOnSphere,
   u_CoordConverterMercatorOnEllipsoid,
   u_CoordConverterSimpleLonLat,
-  u_ProjectionInfo,
   u_ResStrings;
 
 { TCoordConverterFactorySimple }
@@ -134,14 +127,6 @@ begin
   end else begin
     Result := TDatum.Create(0, ARadiusA, ARadiusB);
   end;
-end;
-
-function TCoordConverterFactorySimple.GetByConverterAndZoom(
-  const AGeoConverter: ICoordConverter;
-  AZoom: Byte
-): IProjectionInfo;
-begin
-  Result := TProjectionInfo.Create(AGeoConverter, AZoom);
 end;
 
 function TCoordConverterFactorySimple.GetCoordConverterByCode(

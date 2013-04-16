@@ -54,7 +54,7 @@ uses
   i_GeoCoderList,
   i_MarkPicture,
   i_InternalPerformanceCounter,
-  i_MarksSystem,
+  i_MarkSystem,
   i_ZmpInfoSet,
   i_Datum,
   i_PathConfig,
@@ -106,7 +106,7 @@ type
     FContentTypeManager: IContentTypeManager;
     FMapCalibrationList: IMapCalibrationList;
     FCacheConfig: IGlobalCacheConfig;
-    FMarksDb: IMarksSystem;
+    FMarkSystem: IMarkSystem;
     FCoordConverterFactory: ICoordConverterFactory;
     FCoordConverterList: ICoordConverterList;
     FProjConverterFactory: IProjConverterFactory;
@@ -176,7 +176,7 @@ type
 
     property MapType: TMapTypesMainList read FMainMapsList;
     property CacheConfig: IGlobalCacheConfig read FCacheConfig;
-    property MarksDb: IMarksSystem read FMarksDb;
+    property MarksDb: IMarkSystem read FMarkSystem;
     property GpsSystem: IGPSModule read FGpsSystem;
     property GPSDatum: IDatum read FGPSDatum;
 
@@ -257,7 +257,7 @@ uses
   u_NotifierTime,
   i_FileNameIterator,
   u_ContentTypeManagerSimple,
-  u_MarksSystem,
+  u_MarkSystem,
   u_MapCalibrationListBasic,
   u_XmlInfoSimpleParser,
   u_KmzInfoSimpleParser,
@@ -551,18 +551,16 @@ begin
       FVectorItemsFactory,
       THtmlToHintTextConverterStuped.Create
     );
-  FMarksDb :=
-    TMarksSystem.Create(
-      FGlobalConfig.LanguageManager,
+  FMarkSystem :=
+    TMarkSystem.Create(
       FGlobalConfig.MarksDbPath,
       FMarkPictureList,
-      FVectorItemsFactory,
-      FPerfCounterList.CreateAndAddNewSubList('MarksSystem'),
-      THtmlToHintTextConverterStuped.Create,
       FMarkFactory,
       FMarkCategoryFactory,
-      FGlobalConfig.MarksFactoryConfig,
-      FGlobalConfig.MarksCategoryFactoryConfig
+      FVectorItemsFactory,
+      FPerfCounterList.CreateAndAddNewSubList('MarksSystem'),
+      FAppStartedNotifier,
+      THtmlToHintTextConverterStuped.Create,
     );
   VFilesIteratorFactory := TZmpFileNamesIteratorFactory.Create;
   VFilesIterator := VFilesIteratorFactory.CreateIterator(FGlobalConfig.MapsPath.FullPath, '');
@@ -635,7 +633,7 @@ begin
   FTileNameGenerator := nil;
   FContentTypeManager := nil;
   FMapCalibrationList := nil;
-  FMarksDb := nil;
+  FMarkSystem := nil;
   FGPSRecorder := nil;
   FreeAndNil(FMainMapsList);
   FCoordConverterFactory := nil;
@@ -697,7 +695,7 @@ begin
 
   VInternalDomainInfoProvider :=
     TInternalDomainInfoProviderByMarksSystem.Create(
-      FMarksDb,
+      FMarkSystem,
       VTextProivder,
       VTextProviderList
     );
@@ -866,7 +864,6 @@ begin
   if (not ModuleIsLib) then begin
     FMainFormConfig.ReadConfig(MainConfigProvider);
     FMarkPictureList.ReadConfig(MainConfigProvider);
-    FMarksDb.ReadConfig(MainConfigProvider);
   end;
 end;
 
@@ -918,7 +915,6 @@ begin
   FMainFormConfig.WriteConfig(MainConfigProvider);
   FCacheConfig.WriteConfig(FMainConfigProvider);
   FMarkPictureList.WriteConfig(MainConfigProvider);
-  FMarksDb.WriteConfig(MainConfigProvider);
   FGlobalConfig.WriteConfig(MainConfigProvider);
 end;
 

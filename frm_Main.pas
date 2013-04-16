@@ -69,7 +69,7 @@ uses
   i_TileErrorLogProviedrStuped,
   i_MapTypeConfigModalEdit,
   i_MapTypeHotKeyListStatic,
-  i_MarksSimple,
+  i_Mark,
   i_VectorDataItemSimple,
   i_MainFormConfig,
   i_SearchResultPresenter,
@@ -90,7 +90,7 @@ uses
   i_FindVectorItems,
   i_PlayerPlugin,
   u_ShortcutManager,
-  u_MarksDbGUIHelper,
+  u_MarkDbGUIHelper,
   frm_About,
   frm_Settings,
   frm_MapLayersOptions,
@@ -605,7 +605,7 @@ type
     FLineOnMapByOperation: array [TStateEnum] of ILineOnMapEdit;
     FPointOnMapEdit: IPointOnMapEdit;
     FSelectionRect: ISelectionRect;
-    FMarkDBGUI: TMarksDbGUIHelper;
+    FMarkDBGUI: TMarkDbGUIHelper;
     FPlacemarkPlayerPlugin: IPlayerPlugin;
     //FPlacemarkPlayerTask: IPlayerTask;
 
@@ -721,6 +721,7 @@ uses
   i_Listener,
   i_NotifierOperation,
   i_Bitmap32Static,
+  i_MarkId,
   i_MapTypes,
   i_GeoCoderList,
   i_CoordConverter,
@@ -861,7 +862,7 @@ begin
   FConfig := GState.MainFormConfig;
   FMapGoto := TMapViewGoto.Create(FConfig.ViewPortState);
   FMarkDBGUI :=
-    TMarksDbGUIHelper.Create(
+    TMarkDbGUIHelper.Create(
       GState.Config.LanguageManager,
       GState.Config.MediaDataPath,
       GState.Config.MarksFactoryConfig,
@@ -912,7 +913,7 @@ begin
   FfrmGoTo :=
     TfrmGoTo.Create(
       GState.Config.LanguageManager,
-      GState.MarksDb.MarksDb,
+      GState.MarksDb.MarkDb,
       FConfig.MainGeoCoderConfig,
       FConfig.ViewPortState.View,
       GState.Config.ValueToStringConverterConfig
@@ -3326,6 +3327,11 @@ end;
 //режим 3 (режим 1+2: переход по координате+навигация)
 //                                     режим; зум
 //режим 4 (изменение зума):               "4;16"
+//                                 режим; GUID карты/слоя (в примере - GUID yandex-карты)
+//режим 5 (изменение карты/слоя):     "5;{8238C84A-D37E-45E1-A735-FBCFBCD4168C}"
+//                                         режим;флаг видимости меток (0-не видимы;1-видимы)
+//режим 6 (установка режима видимости меток): "6;1"
+//
 //
 // Обратно возвращается результат:
 // 0 - успех
@@ -3333,6 +3339,8 @@ end;
 // 2 - ошибка: для указанного режима передано недостаточно параметров
 // 3 - ошибка: координата должна указываться через точку
 // 4 - ошибка: неправильная координата
+// 5 - ошибка: неопознанный GUID карты/слоя
+// 6 - ошибка: неправильный GUID карты/слоя
 Procedure TfrmMain.WMCOPYDATA(var Msg: TMessage);
 var
   Vpcd : PCopyDataStruct;
@@ -3341,6 +3349,8 @@ var
   Vl1, Vi : Integer;
   VLonLat : TDoublePoint;
   VZoom : Byte;
+  VGUID: TGUID;
+  VMap: IMapType;
   VParam :array[1..5] of string;
   VGeoConverter: ICoordConverter;
 
@@ -3388,8 +3398,7 @@ begin
         Msg.Result := 3; //вернем ошибку - координата должна указываться через точку
       end;
     end else begin
-      //неверное кол-во переданных параметров для заданного режима - установим результат 2
-      Msg.Result := 2;
+      Msg.Result := 2; //неверное кол-во переданных параметров для заданного режима
       VMode := 0;
     end;
     if (VMode = 1)or(VMode = 3) then begin
@@ -3413,12 +3422,57 @@ begin
         FConfig.ViewPortState.ChangeZoomWithFreezeAtCenter(VZoom);
       end;
     end else begin
-      //неверное кол-во переданных параметров для заданного режима - установим результат 2
-      Msg.Result := 2;
+      Msg.Result := 2; //неверное кол-во переданных параметров для заданного режима
+    end;
+  end else if VMode = 5 then begin
+    if Vi > 1 then begin
+      if VParam[2]<>'' then begin
+        try
+          VGUID := StringToGUID(VParam[2]);
+        except
+          VGUID := CGUID_Zero;
+        end;
+        if not IsEqualGUID(VGUID, CGUID_Zero) then begin
+          VMap := GState.MapType.FullMapsSet.GetMapTypeByGUID(VGUID);
+          if VMap <> nil then begin
+            if VMap.MapType.Abilities.IsLayer then begin
+              FConfig.MainMapsConfig.LockWrite;
+              try
+                if FConfig.MainMapsConfig.GetActiveLayersSet.GetStatic.GetMapTypeByGUID(VMap.GUID) = nil then begin
+                  FConfig.MainMapsConfig.SelectLayerByGUID(VMap.GUID);
+                end else begin
+                  FConfig.MainMapsConfig.UnSelectLayerByGUID(VMap.GUID);
+                end;
+              finally
+                FConfig.MainMapsConfig.UnlockWrite;
+              end;
+            end else begin
+              FConfig.MainMapsConfig.SelectMainByGUID(VMap.GUID);
+            end;
+          end else begin
+            Msg.Result := 5; //передан неопознанный GUID карты/слоя
+          end;
+        end else begin
+          Msg.Result := 6; //передан неправильный GUID карты/слоя
+        end;
+      end else begin
+        Msg.Result := 6; //передан неправильный GUID карты/слоя
+      end;
+    end else begin
+      Msg.Result := 2; //неверное кол-во переданных параметров для заданного режима
+    end;
+  end else if VMode = 6 then begin
+    if Vi > 1 then begin
+      if VParam[2]='1' then begin
+        FConfig.LayersConfig.MarksLayerConfig.MarksShowConfig.IsUseMarks := True;
+      end else if VParam[2]='0' then begin
+        FConfig.LayersConfig.MarksLayerConfig.MarksShowConfig.IsUseMarks := False;
+      end;
+    end else begin
+      Msg.Result := 2; //неверное кол-во переданных параметров для заданного режима
     end;
   end else begin
-    //если режим не определился - установим результат 1
-    Msg.Result := 1;
+    Msg.Result := 1; //режим не определился
   end;
   inherited;
 end;
@@ -3694,7 +3748,7 @@ var
 begin
   VMark := FSelectedMark;
   if Supports(VMark, IMarkId, VMarkId) then begin
-    FMarkDBGUI.MarksDb.MarksDb.SetMarkVisibleByID(VMarkId, False);
+    FMarkDBGUI.MarksDb.MarkDb.SetMarkVisibleByID(VMarkId, False);
   end;
 end;
 
@@ -5772,12 +5826,12 @@ var
 begin
   VMark := FSelectedMark;
   if VMark <> nil then begin
-    VVisible := FMarkDBGUI.MarksDb.MarksDb.GetMarkVisible(VMark);
+    VVisible := FMarkDBGUI.MarksDb.MarkDb.GetMarkVisible(VMark);
     VMarkModifed := FMarkDBGUI.EditMarkModal(VMark, False, VVisible);
     if VMarkModifed <> nil then begin
-      VResult := FMarkDBGUI.MarksDb.MarksDb.UpdateMark(VMark, VMarkModifed);
+      VResult := FMarkDBGUI.MarksDb.MarkDb.UpdateMark(VMark, VMarkModifed);
       if VResult <> nil then begin
-        FMarkDBGUI.MarksDb.MarksDb.SetMarkVisible(VResult, VVisible);
+        FMarkDBGUI.MarksDb.MarkDb.SetMarkVisible(VResult, VVisible);
       end;
     end;
   end;
@@ -5840,7 +5894,7 @@ begin
         VImportConfig := nil;
         VList := FMarkDBGUI.ImportFile(VFileName, VImportConfig);
         if (VList <> nil) and (VList.Count > 0) then begin
-          VMark:=FMarkDBGUI.MarksDb.MarksDb.GetMarkByID(IMarkId(VList[VList.Count-1]));
+          VMark:=FMarkDBGUI.MarksDb.MarkDb.GetMarkByID(IMarkId(VList[VList.Count-1]));
           if VMark <> nil then begin
             if Supports(VMark, IMarkPoint, VMarkPoint) then begin
               FMapGoto.GotoPos(VMarkPoint.GetGoToLonLat, FConfig.ViewPortState.View.GetStatic.Zoom, False);
@@ -6517,7 +6571,7 @@ begin
       VStr := VPlacemark.GetDesc;
     end;
     VMark :=
-      FMarkDBGUI.MarksDb.MarksDb.Factory.CreateNewPoint(
+      FMarkDBGUI.MarksDb.MarkDb.Factory.CreateNewPoint(
         VPlacemark.GetPoint,
         VPlacemark.Name,
         VStr
@@ -6525,9 +6579,9 @@ begin
     VVisible := True;
     VMark := FMarkDBGUI.EditMarkModal(VMark, True, VVisible);
     if VMark <> nil then begin
-      VResult := FMarkDBGUI.MarksDb.MarksDb.UpdateMark(nil, VMark);
+      VResult := FMarkDBGUI.MarksDb.MarkDb.UpdateMark(nil, VMark);
       if VResult <> nil then begin
-        FMarkDBGUI.MarksDb.MarksDb.SetMarkVisible(VMark, VVisible);
+        FMarkDBGUI.MarksDb.MarkDb.SetMarkVisible(VMark, VVisible);
       end;
     end;
   end;
